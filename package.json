@@ -1,19 +1,22 @@
 {
-  "name": "TODO",
-  "version": "0.0.1",
-  "description": "TODO",
+  "name": "position-strings",
+  "version": "1.0.0",
+  "description": "Lexicographically-sorted positions strings for collaborative lists and text",
   "author": "Matthew Weidner",
   "license": "Apache-2.0",
   "bugs": {
-    "url": "https://github.com/TODO/issues"
+    "url": "https://github.com/mweidner037/position-strings/issues"
   },
-  "homepage": "https://github.com/TODO/tree/master/#readme",
+  "homepage": "https://github.com/mweidner037/position-strings/tree/master/#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/TODO.git"
+    "url": "git+https://github.com/mweidner037/position-strings.git"
   },
   "keywords": [
-    "TODO"
+    "CRDT",
+    "text editing",
+    "collaboration",
+    "fractional indexing"
   ],
   "module": "build/esm/src/index.js",
   "browser": "build/esm/src/index.js",
@@ -31,6 +34,7 @@
   },
   "sideEffects": false,
   "dependencies": {
+    "@collabs/core": "0.8.x",
     "tslib": "^2.5.0"
   },
   "devDependencies": {
