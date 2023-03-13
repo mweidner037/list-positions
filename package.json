@@ -1,0 +1,65 @@
+{
+  "name": "TODO",
+  "version": "0.0.1",
+  "description": "TODO",
+  "author": "Matthew Weidner",
+  "license": "Apache-2.0",
+  "bugs": {
+    "url": "https://github.com/TODO/issues"
+  },
+  "homepage": "https://github.com/TODO/tree/master/#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TODO.git"
+  },
+  "keywords": [
+    "TODO"
+  ],
+  "module": "build/esm/src/index.js",
+  "browser": "build/esm/src/index.js",
+  "types": "build/esm/src/index.d.ts",
+  "main": "build/commonjs/src/index.js",
+  "files": [
+    "/build",
+    "/src"
+  ],
+  "directories": {
+    "lib": "src"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "sideEffects": false,
+  "dependencies": {
+    "tslib": "^2.5.0"
+  },
+  "devDependencies": {
+    "@types/chai": "^4.3.4",
+    "@types/mocha": "^10.0.1",
+    "@typescript-eslint/eslint-plugin": "^5.52.0",
+    "@typescript-eslint/parser": "^5.52.0",
+    "chai": "^4.3.7",
+    "cross-env": "^7.0.3",
+    "eslint": "^8.34.0",
+    "eslint-config-prettier": "^8.6.0",
+    "eslint-plugin-import": "^2.27.5",
+    "mocha": "^10.2.0",
+    "npm-run-all": "^4.1.5",
+    "prettier": "^2.8.4",
+    "rimraf": "^4.1.2",
+    "ts-node": "^10.9.1",
+    "typescript": "^4.9.5"
+  },
+  "scripts": {
+    "prepack": "npm run clean && npm run build && npm run test",
+    "build": "npm-run-all build:*",
+    "build:ts": "tsc -p tsconfig.json && tsc -p tsconfig.commonjs.json",
+    "test": "npm-run-all test:*",
+    "test:lint": "eslint --ext .ts,.js .",
+    "test:unit": "cross-env TS_NODE_PROJECT='./tsconfig.mocha.json' mocha",
+    "test:format": "prettier --check .",
+    "fix": "npm-run-all fix:*",
+    "fix:format": "prettier --write .",
+    "clean": "rimraf generated generated_esm build"
+  }
+}
