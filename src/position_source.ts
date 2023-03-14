@@ -155,6 +155,8 @@ export class PositionSource {
       IDs.validate(options.ID);
     }
     this.ID = options?.ID ?? IDs.random();
+    // OPT: flag where you promise to use fixed ID lengths, then we get
+    // rid of the comma after ID? Though makes createBetween trickier.
   }
 
   /**

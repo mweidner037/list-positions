@@ -16,19 +16,19 @@ export class IDs {
   static readonly DEFAULT_CHARS: string =
     "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
 
-  // Rationale for value 10:
+  // Rationale for value 8:
   // Each character of the ID gives us ~6 bits of entropy,
-  //  for a total of ~60 bits.  This gives a < 1%
+  //  for a total of ~48 bits.  This gives a < 1%
   // probability that two connected `PositionSource`s
   // will ever choose the same IDs, even if we
   // consider the total probability across 100,000,000
-  // documents with 10,000 IDs each
-  // (= 10 users x 1,000 days x 1 ID/user/day).
+  // documents with 1,000 IDs each
+  // (= 10 users x 100 days x 1 ID/user/day).
 
   /**
    * The default length of an ID, in characters.
    */
-  static readonly DEFAULT_LENGTH: number = 10;
+  static readonly DEFAULT_LENGTH: number = 8;
 
   /**
    * Returns a cryptographically random ID made of alphanumeric characters.
