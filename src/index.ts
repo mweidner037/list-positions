@@ -1,4 +1,5 @@
 export * from "./cursors";
 export * from "./ids";
 export * from "./position_source";
-// No utils to export.
+export * from "./find_position";
+// utils.ts is internal only.

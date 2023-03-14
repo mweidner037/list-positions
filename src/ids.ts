@@ -2,7 +2,7 @@ import * as crypto from "crypto";
 import { LastInternal, precond } from "./util";
 
 /**
- * Utitilies for generating [[PositionSource]] IDs.
+ * Utitilies for generating `PositionSource` IDs.
  */
 export class IDs {
   private constructor() {
@@ -21,7 +21,7 @@ export class IDs {
    * Rationale for value 10:
    * Each character of the ID gives us ~6 bits of entropy,
    * for a total of ~60 bits.  This gives a < 1%
-   * probability that two connected [[PositionSource]]s
+   * probability that two connected `PositionSource`s
    * will ever choose the same IDs, even if we
    * consider the total probability across 100,000,000
    * documents with 10,000 IDs each
@@ -33,8 +33,8 @@ export class IDs {
    * Returns a cryptographically random ID made of alphanumeric characters.
    *
    * @param options.length The length of the ID, in characters.
-   * Default: [[DEFAULT_LENGTH]].
-   * @param options.chars The characters to draw from. Default: [[DEFAULT_CHARS]].
+   * Default: `DEFAULT_LENGTH`.
+   * @param options.chars The characters to draw from. Default: `DEFAULT_CHARS`.
    *
    * If specified, only the first 256 elements are used, and you achieve
    * about `floor(log_2(chars.length))` bits of entropy per `length`.
@@ -77,8 +77,8 @@ export class IDs {
    * generated using `rng`.
    *
    * @param options.length The length of the ID, in characters.
-   * Default: [[DEFAULT_LENGTH]].
-   * @param options.chars The characters to draw from. Default: [[DEFAULT_CHARS]].
+   * Default: `DEFAULT_LENGTH`.
+   * @param options.chars The characters to draw from. Default: `DEFAULT_CHARS`.
    *
    * If specified, only the first 256 elements are used, and you achieve
    * about `floor(log_2(chars.length))` bits of entropy per `length`.
@@ -93,7 +93,7 @@ export class IDs {
     const arr = new Array<string>(length);
     for (let i = 0; i < arr.length; i++) {
       // Although we could pick chars without bias, we instead use the
-      // same bias as [[random]], for consistency.
+      // same bias as `random`, for consistency.
       arr[i] = chars[Math.floor(rng() * 256) % chars.length];
     }
     return arr.join("");
@@ -101,7 +101,7 @@ export class IDs {
 
   /**
    * Throws an error if `ID` does not satisfy the requirements from
-   * [[PositionSource]]'s constructor:
+   * `PositionSource`'s constructor:
    * - All characters are lexicographically greater than `','` (code point 44).
    * - The first character is lexicographically less than `'~'` (code point 126).
    */

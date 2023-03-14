@@ -5,7 +5,7 @@ import { assert, LastInternal, precond } from "./util";
  * ALGORITHM
  *
  * The underlying dense total order is similar to Double RGA,
- * and this implementation is similar to [[LexSimple]].
+ * and this implementation is similar to `LexSimple`.
  * The difference is a common-case optimization: left-to-right insertions
  * by the same PositionSource reuse the same (id, counter)
  * pair (we call this a _waypoint_), just using
@@ -23,7 +23,7 @@ import { assert, LastInternal, precond } from "./util";
  * are __waypoints__, each labeled by a pair (id, counter). A waypoint can be either a left or right
  * child of its parent, except that the root only has right
  * children. Waypoint same-siblings siblings are sorted the
- * same as nodes in [[LexSimpleTotalOrder]].
+ * same as nodes in `LexSimpleTotalOrder`.
  * - Nodes in odd layers are __value indices__, each labelled
  * by a nonnegative integer. A value index is always a right
  * child of its parent. Value indices are sorted
@@ -49,10 +49,6 @@ import { assert, LastInternal, precond } from "./util";
  * A source of lexicographically-ordered "position strings" for
  * collaborative lists and text.
  *
- * Position strings are printable ASCII. Specifically, they
- * contain alphanumeric characters and `','`.
- * Also, the special string [[PositionSource.LAST]] is `'~'`.
- *
  * In a collaborative list (or text string), you need a way to refer
  * to "positions" within that list that:
  * 1. Point to a specific list element (or text character).
@@ -63,7 +59,7 @@ import { assert, LastInternal, precond } from "./util";
  * at the same place.
  *
  * PositionSource gives you such positions, in the form
- * of lexicographically-ordered strings. Specifically, [[createBetween]]
+ * of lexicographically-ordered strings. Specifically, `createBetween`
  * returns a new position string in between two existing position strings.
  *
  * These strings have the bonus properties:
@@ -80,11 +76,13 @@ import { assert, LastInternal, precond } from "./util";
  * sequence, their lengths as strings will only grow logarithmically,
  * not linearly.
  *
+ * Position strings are printable ASCII. Specifically, they
+ * contain alphanumeric characters and `','`.
+ * Also, the special string `PositionSource.LAST` is `'~'`.
+ *
  * Further reading:
  * - [Fractional indexing](https://www.figma.com/blog/realtime-editing-of-ordered-sequences/#fractional-indexing),
- * a related scheme that satisfies 1-3 but not 4-6. Note that except
- * for forward sequences (see 6), fractional indexing is generally
- * more efficient, i.e., it creates shorter positions.
+ * a related scheme that satisfies 1-3 but not 4-6.
  * - [List CRDTs](https://mattweidner.com/2022/10/21/basic-list-crdt.html)
  * and how they map to position strings. PositionSource uses an optimized
  * variant of that link's string implementation.
@@ -128,7 +126,7 @@ export class PositionSource {
    * we then recommend one PositionSource per user.
    *
    * @param options.id A unique ID for this PositionSource. Defaults to
-   * [[IDs.random]]`()`.
+   * `IDs.random()`.
    *
    * If provided, `options.id` must satisfy:
    * - It is unique across the entire collaborative application, i.e.,
