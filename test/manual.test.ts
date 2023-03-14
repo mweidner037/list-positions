@@ -51,7 +51,7 @@ function testSingleUser(ID: string) {
     alice = new PositionSource({ ID });
   });
 
-  it("LTR", () => {
+  it("LtR", () => {
     let previous = PositionSource.FIRST;
     const list: string[] = [];
     for (let i = 0; i < 20; i++) {
@@ -61,7 +61,7 @@ function testSingleUser(ID: string) {
     assertIsOrdered(list);
   });
 
-  it("RTL", () => {
+  it("RtL", () => {
     let previous = PositionSource.LAST;
     const list: string[] = [];
     for (let i = 0; i < 20; i++) {
@@ -75,11 +75,65 @@ function testSingleUser(ID: string) {
     const list: string[] = [];
     for (let j = 0; j < 5; j++) {
       let previous: string = PositionSource.FIRST;
-      let after = j === 0 ? PositionSource.LAST : list[0];
+      let after = list[0]; // Out-of-bounds okay
       for (let i = 0; i < 10; i++) {
         previous = alice.createBetween(previous, after);
         list.splice(i, 0, previous);
       }
+    }
+    assertIsOrdered(list);
+  });
+
+  it("LtR long", () => {
+    let previous = PositionSource.FIRST;
+    const list: string[] = [];
+    for (let i = 0; i < 1000; i++) {
+      previous = alice.createBetween(previous, PositionSource.LAST);
+      list.push(previous);
+    }
+    assertIsOrdered(list);
+    // Efficiency check.
+    assert.isBelow(list.at(-1)!.length, 30);
+  });
+
+  it("RtL long", () => {
+    let previous = PositionSource.LAST;
+    const list: string[] = [];
+    for (let i = 0; i < 1000; i++) {
+      previous = alice.createBetween(PositionSource.FIRST, previous);
+      list.unshift(previous);
+    }
+    assertIsOrdered(list);
+  });
+
+  it("LtR, mid LtR", () => {
+    let previous = PositionSource.FIRST;
+    const list: string[] = [];
+    for (let i = 0; i < 20; i++) {
+      previous = alice.createBetween(previous, PositionSource.LAST);
+      list.push(previous);
+    }
+    const midRight = list[10];
+    previous = list[9];
+    for (let i = 0; i < 20; i++) {
+      previous = alice.createBetween(previous, midRight);
+      list.splice(10 + i, 0, previous);
+    }
+    assertIsOrdered(list);
+  });
+
+  it("LtR, mid RtL", () => {
+    let previous = PositionSource.FIRST;
+    const list: string[] = [];
+    for (let i = 0; i < 20; i++) {
+      previous = alice.createBetween(previous, PositionSource.LAST);
+      list.push(previous);
+    }
+    const midLeft = list[9];
+    previous = list[10];
+    for (let i = 0; i < 20; i++) {
+      previous = alice.createBetween(midLeft, previous);
+      list.splice(10, 0, previous);
     }
     assertIsOrdered(list);
   });
@@ -94,7 +148,7 @@ function testTwoUsers(ID1: string, ID2: string) {
     bob = new PositionSource({ ID: ID2 });
   });
 
-  it("LTR sequential", () => {
+  it("LtR sequential", () => {
     let previous = PositionSource.FIRST;
     const list: string[] = [];
     for (let i = 0; i < 40; i++) {
@@ -105,7 +159,7 @@ function testTwoUsers(ID1: string, ID2: string) {
     assertIsOrdered(list);
   });
 
-  it("LTR alternating", () => {
+  it("LtR alternating", () => {
     let previous = PositionSource.FIRST;
     const list: string[] = [];
     for (let i = 0; i < 40; i++) {
@@ -116,7 +170,7 @@ function testTwoUsers(ID1: string, ID2: string) {
     assertIsOrdered(list);
   });
 
-  it("RTL sequential", () => {
+  it("RtL sequential", () => {
     let previous = PositionSource.LAST;
     const list: string[] = [];
     for (let i = 0; i < 40; i++) {
@@ -127,7 +181,7 @@ function testTwoUsers(ID1: string, ID2: string) {
     assertIsOrdered(list);
   });
 
-  it("RTL alternating", () => {
+  it("RtL alternating", () => {
     let previous = PositionSource.LAST;
     const list: string[] = [];
     for (let i = 0; i < 40; i++) {
@@ -152,7 +206,7 @@ function testTwoUsers(ID1: string, ID2: string) {
     assertIsOrdered(list);
   });
 
-  it("LTR concurrent", () => {
+  it("LtR concurrent", () => {
     let previous: string | undefined = undefined;
     const list1: string[] = [];
     for (let i = 0; i < 20; i++) {
@@ -175,7 +229,7 @@ function testTwoUsers(ID1: string, ID2: string) {
     assertIsOrdered(list);
   });
 
-  it("RTL concurrent", () => {
+  it("RtL concurrent", () => {
     let previous: string | undefined = undefined;
     const list1: string[] = [];
     for (let i = 0; i < 20; i++) {

@@ -161,7 +161,7 @@ export class PositionSource {
     left: string = PositionSource.FIRST,
     right: string = PositionSource.LAST
   ): string {
-    precond(left < right, "left must be less than right:", left, right);
+    precond(left < right, "left must be less than right:", left, "!<", right);
     precond(
       right <= PositionSource.LAST,
       "right must be less than or equal to LAST",

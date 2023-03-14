@@ -8,7 +8,7 @@ export function precond(
       throw new Error(message);
     } else {
       throw new Error(
-        message + " " + optionalParams.map((value) => String(value)).join()
+        message + " " + optionalParams.map((value) => String(value)).join(" ")
       );
     }
   }
