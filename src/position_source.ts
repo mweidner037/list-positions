@@ -49,7 +49,7 @@ import { assert, LastInternal, precond } from "./util";
  * different lengths, we use the relations:
  * - ',' < all ID characters: Thus if ID1 < ID2, also `${ID1},${etc}` < ID2,
  * including in the case when ID1 is a prefix of ID2.
- * - ',' < all numeric characters: Likewise for counters.
+ * - ',' < all base-36 numeric characters: Likewise for counters.
  * - 'L', 'R' < all numeric characters: Thus if valueIndex1 < valueIndex2,
  * also `${valueIndex1}R` < valueIndex2, including in the case when
  * valueIndex1 is a prefix of valueIndex2 (although prefixes do not
@@ -212,7 +212,8 @@ export class PositionSource {
         );
         if (leafSender === this.ID) {
           const leafCounter = Number.parseInt(
-            leftFixed.slice(secondLastComma + 1, lastComma)
+            leftFixed.slice(secondLastComma + 1, lastComma),
+            36
           );
           const leafValueIndex = Number.parseInt(
             leftFixed.slice(lastComma + 1, -1)
@@ -244,7 +245,7 @@ export class PositionSource {
   private newWaypoint(): string {
     const counter = this.lastValueIndices.length;
     this.lastValueIndices.push(0);
-    return `${this.ID},${counter},0R`;
+    return `${this.ID},${counter.toString(36)},0R`;
   }
 }
 
