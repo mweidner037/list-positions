@@ -147,8 +147,8 @@ export class PositionSource {
   }
 
   /**
-   * Returns a new position between leftArg and rightArg
-   * (`leftArg < new < rightArg`).
+   * Returns a new position between `left` and `right`
+   * (`left < new < right`).
    *
    * The new position is unique across the entire collaborative application,
    * even in the face on concurrent calls to this method on other
