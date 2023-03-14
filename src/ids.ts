@@ -2,7 +2,8 @@ import * as crypto from "crypto";
 import { LastInternal, precond } from "./util";
 
 /**
- * Utitilies for generating `PositionSource` IDs.
+ * Utitilies for generating `PositionSource` IDs
+ * (the `options.ID` constructor argument).
  */
 export class IDs {
   private constructor() {
@@ -12,29 +13,29 @@ export class IDs {
   /**
    * Default characters used in IDs: alphanumeric chars.
    */
-  static readonly DEFAULT_CHARS =
+  static readonly DEFAULT_CHARS: string =
     "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+
+  // Rationale for value 10:
+  // Each character of the ID gives us ~6 bits of entropy,
+  //  for a total of ~60 bits.  This gives a < 1%
+  // probability that two connected `PositionSource`s
+  // will ever choose the same IDs, even if we
+  // consider the total probability across 100,000,000
+  // documents with 10,000 IDs each
+  // (= 10 users x 1,000 days x 1 ID/user/day).
 
   /**
    * The default length of an ID, in characters.
-   *
-   * Rationale for value 10:
-   * Each character of the ID gives us ~6 bits of entropy,
-   * for a total of ~60 bits.  This gives a < 1%
-   * probability that two connected `PositionSource`s
-   * will ever choose the same IDs, even if we
-   * consider the total probability across 100,000,000
-   * documents with 10,000 IDs each
-   * (= 10 users * 1,000 days * 1 ID/user/day).
    */
-  static readonly DEFAULT_LENGTH = 10;
+  static readonly DEFAULT_LENGTH: number = 10;
 
   /**
    * Returns a cryptographically random ID made of alphanumeric characters.
    *
    * @param options.length The length of the ID, in characters.
-   * Default: `DEFAULT_LENGTH`.
-   * @param options.chars The characters to draw from. Default: `DEFAULT_CHARS`.
+   * Default: `IDs.DEFAULT_LENGTH`.
+   * @param options.chars The characters to draw from. Default: `IDs.DEFAULT_CHARS`.
    *
    * If specified, only the first 256 elements are used, and you achieve
    * about `floor(log_2(chars.length))` bits of entropy per `length`.
@@ -74,11 +75,11 @@ export class IDs {
 
   /**
    * Returns a psuedorandom ID made of alphanumeric characters,
-   * generated using `rng`.
+   * generated using `rng` from package [seedrandom](https://www.npmjs.com/package/seedrandom)
    *
    * @param options.length The length of the ID, in characters.
-   * Default: `DEFAULT_LENGTH`.
-   * @param options.chars The characters to draw from. Default: `DEFAULT_CHARS`.
+   * Default: `IDs.DEFAULT_LENGTH`.
+   * @param options.chars The characters to draw from. Default: `IDs.DEFAULT_CHARS`.
    *
    * If specified, only the first 256 elements are used, and you achieve
    * about `floor(log_2(chars.length))` bits of entropy per `length`.

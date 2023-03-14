@@ -104,6 +104,8 @@ cursorIndex = Cursors.toIndex(cursor, myListPositions);
 
 ### Class `PositionSource`
 
+#### constructor
+
 ```ts
 constructor(options?: { ID?: string })
 ```
@@ -132,6 +134,8 @@ If provided, `options.id` must satisfy:
 If `options.id` contains non-alphanumeric characters, created positions
 will contain those characters and `','`.
 
+#### createBetween
+
 ```ts
 createBetween(
   left: string = PositionSource.FIRST,
@@ -145,6 +149,26 @@ Returns a new position between `left` and `right`
 The new position is unique across the entire collaborative application,
 even in the face on concurrent calls to this method on other
 PositionSources.
+
+#### Properties
+
+```ts
+readonly ID: string
+```
+
+The unique ID for this PositionSource.
+
+```ts
+static readonly FIRST: string = ""
+```
+
+A string that is less than all positions.
+
+```ts
+static readonly LAST: string = "~"
+```
+
+A string that is greater than all positions.
 
 ### Function `findPosition`
 
@@ -192,6 +216,8 @@ same, but its index shifts to next element on its left.
 You can use cursor strings as ordinary cursors, selection endpoints,
 range endpoints for a comment or formatting span, etc.
 
+#### fromIndex
+
 ```ts
 static fromIndex(index: number, positions: ArrayLike<string>): string
 ```
@@ -210,6 +236,8 @@ Invert with `Cursors.toIndex`.
 
 _@param_ `positions` The target list's positions, in lexicographic order.
 There should be no duplicate positions.
+
+#### toIndex
 
 ```ts
 static toIndex(cursor: string, positions: ArrayLike<string>): number
@@ -235,6 +263,76 @@ Inverse of `Cursors.fromIndex`.
 
 _@param_ positions The target list's positions, in lexicographic order.
 There should be no duplicate positions.
+
+### Class `IDs`
+
+Utitilies for generating `PositionSource` IDs (the `options.ID` constructor argument).
+
+#### random
+
+```ts
+static random(options?: { length?: number; chars?: string }): string
+```
+
+Returns a cryptographically random ID made of alphanumeric characters.
+
+_@param_ `options.length` The length of the ID, in characters.
+Default: `DEFAULT_LENGTH`.
+
+_@param_ `options.chars` The characters to draw from. Default: `DEFAULT_CHARS`.
+
+If specified, only the first 256 elements are used, and you achieve
+about `floor(log_2(chars.length))` bits of entropy per `length`.
+
+#### pseudoRandom
+
+```ts
+static pseudoRandom(
+    rng: seedrandom.prng,
+    options?: { length?: number; chars?: string }
+  ): string
+```
+
+Returns a psuedorandom ID made of alphanumeric characters,
+generated using `rng` from package [seedrandom](https://www.npmjs.com/package/seedrandom).
+
+> Note: If you install `@types/seedrandom` yourself instead of relying on our
+> dependency, install version `2.4.28`, even though `seedrandom` itself
+> has version `3.0.5`.
+
+_@param_ `options.length` The length of the ID, in characters.
+Default: `DEFAULT_LENGTH`.
+
+_@param_ `options.chars` The characters to draw from. Default: `DEFAULT_CHARS`.
+
+If specified, only the first 256 elements are used, and you achieve
+about `floor(log_2(chars.length))` bits of entropy per `length`.
+
+#### validate
+
+```ts
+static validate(ID: string): void
+```
+
+Throws an error if `ID` does not satisfy the requirements from `PositionSource`'s constructor:
+
+- All characters are lexicographically greater than `','` (code point 44).
+- The first character is lexicographically less than `'~'` (code point 126).
+
+#### Properties
+
+```ts
+static readonly DEFAULT_LENGTH: number = 10
+```
+
+The default length of an ID, in characters.
+
+```ts
+static readonly DEFAULT_CHARS: string =
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+```
+
+Default characters used in IDs: alphanumeric chars.
 
 ## Developing
 
