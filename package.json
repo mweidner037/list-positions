@@ -34,7 +34,8 @@
   },
   "sideEffects": false,
   "dependencies": {
-    "@collabs/core": "0.8.x",
+    "@types/seedrandom": "^2.4.28",
+    "seedrandom": "^3.0.5",
     "tslib": "^2.5.0"
   },
   "devDependencies": {

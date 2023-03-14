@@ -86,21 +86,32 @@ export class PositionSource {
   static readonly LAST: string = "~";
 
   /**
-   * TODO: default replicaIDs are Base64 (alphanumeric plus +/);
-   * customization option in case you don't like `/` (e.g. Firebase)?
    *
-   * TODO: customization options for fixed chars (,LR~)?
    *
-   * @param options.replicaID TODO: restrictions: same length
-   * on all replicas; char range: all `< '~'`, not `','`, ??;
-   * unique within a session (either random and long enough (default)
-   * or server-assigned with care)
+   * @param options.replicaID An ID that uniquely identifies this replica
+   * among all connected replicas. Defaults to [[ReplicaIDs.random]]`()`.
+   * If you specify your own, in addition to uniqueness, it must satisfy:
+   * - All characters are lexicographically `> ','` (code point 44).
+   * - The first character is lexicographically `< '~'` (code point 126).
    */
   constructor(options?: { replicaID?: string }) {
+    if (options?.replicaID !== undefined) {
+      precond(
+        options.replicaID < PositionSource.LAST,
+        "replicaID must be less than",
+        PositionSource.LAST,
+        ":",
+        options.replicaID
+      );
+      for (const char of options.replicaID) {
+        precond(
+          char > ",",
+          "All replicaID chars must be greater than ',':",
+          options.replicaID
+        );
+      }
+    }
     this.replicaID = options?.replicaID ?? ReplicaIDs.random();
-    // TODO: if provided replicaID, check restrictions
-    // TODO: can we make the alg work with non-constant length IDs?
-    // In case you use e.g. a server-assigned counter.
   }
 
   /**
@@ -133,11 +144,11 @@ export class PositionSource {
 
     if (right !== null && (left === null || right.startsWith(left))) {
       // Left child of right.
-      ans = right.slice(0, -1) + "L" + this.newWaypointNode();
+      ans = right.slice(0, -1) + "L" + this.newWaypoint();
     } else {
       // Right child of left.
       if (left === null) {
-        ans = this.newWaypointNode();
+        ans = this.newWaypoint();
       } else {
         // Check if we can reuse right's leaf waypoint.
         // For this to happen, right's leaf waypoint must have also
@@ -166,7 +177,7 @@ export class PositionSource {
         }
         if (!success) {
           // Failure; cannot reuse left's leaf waypoint.
-          ans = left + this.newWaypointNode();
+          ans = left + this.newWaypoint();
         }
       }
     }
@@ -185,7 +196,7 @@ export class PositionSource {
    * Returns a node corresponding to a new waypoint, also
    * updating this.lastValueIndices accordingly.
    */
-  private newWaypointNode(): string {
+  private newWaypoint(): string {
     const counter = this.lastValueIndices.length;
     this.lastValueIndices.push(0);
     return `${this.replicaID},${counter},0R`;
