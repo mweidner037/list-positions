@@ -1,5 +1,5 @@
-import { ReplicaIDs } from "./replica_ids";
-import { assert, precond } from "./util";
+import { IDs } from "./ids";
+import { assert, LastInternal, precond } from "./util";
 
 /**
  * ALGORITHM
@@ -7,7 +7,7 @@ import { assert, precond } from "./util";
  * The underlying dense total order is similar to Double RGA,
  * and this implementation is similar to [[LexSimple]].
  * The difference is a common-case optimization: left-to-right insertions
- * by the same replica reuse the same (replicaID, counter)
+ * by the same PositionSource reuse the same (id, counter)
  * pair (we call this a _waypoint_), just using
  * an extra _valueIndex_ to distinguish positions
  * within the sequence, instead of creating a long
@@ -20,7 +20,7 @@ import { assert, precond } from "./util";
  * In more detail, the underlying tree consists of alternating
  * layers:
  * - Nodes in even layers (starting with the root's children)
- * are __waypoints__, each labeled by a pair (replicaID, counter). A waypoint can be either a left or right
+ * are __waypoints__, each labeled by a pair (id, counter). A waypoint can be either a left or right
  * child of its parent, except that the root only has right
  * children. Waypoint same-siblings siblings are sorted the
  * same as nodes in [[LexSimpleTotalOrder]].
@@ -31,13 +31,13 @@ import { assert, precond } from "./util";
  * this coincides with the usual order by magnitude.
  *
  * Each position corresponds to a value index node in the tree
- * whose parent waypoint's replicaID equals the position's
+ * whose parent waypoint's id equals the position's
  * creator. A position is a string description of the path
  * from the root to its node (excluding the root).
- * Each pair of nodes (waypoint = (replicaID, counter), valueIndex)
+ * Each pair of nodes (waypoint = (id, counter), valueIndex)
  * is represented by the substring (here written like a template literal):
  * ```
- * ${replicaID},${counter},${valueIndex}${L or R}
+ * ${id},${counter},${valueIndex}${L or R}
  * ```
  * where the final value is L if the next node is a left
  * child, else R (including if this pair is the final node pair
@@ -73,10 +73,10 @@ import { assert, precond } from "./util";
  * Cursor (represented as a string) and its index in a given list.
  */
 export class PositionSource {
-  private readonly replicaID: string;
+  readonly ID: string;
   /**
    * Maps counter to the most recently used
-   * valueIndex for the waypoint (this.replicaID, counter).
+   * valueIndex for the waypoint (this.id, counter).
    */
   private lastValueIndices: number[] = [];
 
@@ -91,7 +91,7 @@ export class PositionSource {
    *
    * Value: `"~"`.
    */
-  static readonly LAST: string = "~";
+  static readonly LAST: string = LastInternal;
 
   /**
    * Constructs a new PositionSource.
@@ -104,33 +104,19 @@ export class PositionSource {
    * users within the same runtime; we then recommend one PositionSource
    * per user.
    *
-   * @param options.replicaID An ID that uniquely identifies this replica
-   * among all connected replicas. Defaults to [[ReplicaIDs.random]]`()`.
+   * @param options.id An ID for this PositionSource that is unique
+   * among all connected PositionSources (i.e., PositionSources whose positions
+   * may be compared to ours). Defaults to [[IDs.random]]`()`.
    *
-   * If you specify your own, it must satisfy:
-   * - Unique among all connected replicas, including past replicas
-   * (even if they correspond to the same user/device).
+   * If provided, `options.id` must satisfy:
    * - All characters are lexicographically greater than `','` (code point 44).
    * - The first character is lexicographically less than `'~'` (code point 126).
    */
-  constructor(options?: { replicaID?: string }) {
-    if (options?.replicaID !== undefined) {
-      precond(
-        options.replicaID < PositionSource.LAST,
-        "replicaID must be less than",
-        PositionSource.LAST,
-        ":",
-        options.replicaID
-      );
-      for (const char of options.replicaID) {
-        precond(
-          char > ",",
-          "All replicaID chars must be greater than ',':",
-          options.replicaID
-        );
-      }
+  constructor(options?: { ID?: string }) {
+    if (options?.ID !== undefined) {
+      IDs.validate(options.ID);
     }
-    this.replicaID = options?.replicaID ?? ReplicaIDs.random();
+    this.ID = options?.ID ?? IDs.random();
   }
 
   /**
@@ -180,10 +166,10 @@ export class PositionSource {
         const lastComma = left.lastIndexOf(",");
         const secondLastComma = left.lastIndexOf(",", lastComma - 1);
         const leafSender = left.slice(
-          secondLastComma - this.replicaID.length,
+          secondLastComma - this.ID.length,
           secondLastComma
         );
-        if (leafSender === this.replicaID) {
+        if (leafSender === this.ID) {
           const leafCounter = Number.parseInt(
             left.slice(secondLastComma + 1, lastComma)
           );
@@ -220,7 +206,7 @@ export class PositionSource {
   private newWaypoint(): string {
     const counter = this.lastValueIndices.length;
     this.lastValueIndices.push(0);
-    return `${this.replicaID},${counter},0R`;
+    return `${this.ID},${counter},0R`;
   }
 }
 
