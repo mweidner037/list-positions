@@ -1,5 +1,6 @@
 import { assert } from "chai";
 import fs from "fs";
+import createRBTree from "functional-red-black-tree";
 import seedrandom from "seedrandom";
 import { IDs, PositionSource } from "../src";
 import realTextTraceEdits from "./real_text_trace_edits.json";
@@ -11,14 +12,12 @@ const { edits, finalText } = realTextTraceEdits as unknown as {
   edits: Array<[number, number, string | undefined]>;
 };
 
-// OPT: Use an ordered tree instead of splicing.
-
 function run(rotateFreq?: number) {
   console.log("Run", rotateFreq);
 
   const rng = seedrandom("42");
   let source = new PositionSource({ ID: IDs.pseudoRandom(rng) });
-  const list: { char: string; position: string }[] = [];
+  let list = createRBTree<string, string>();
   // In order of creation, so we can watch time trends.
   const lengths: number[] = [];
 
@@ -30,19 +29,19 @@ function run(rotateFreq?: number) {
     if (edit[2] !== undefined) {
       // Insert edit[2] at edit[0]
       const position = source.createBetween(
-        list[edit[0] - 1]?.position,
-        list[edit[0]]?.position
+        edit[0] === 0 ? undefined : list.at(edit[0] - 1).key,
+        edit[0] === list.length ? undefined : list.at(edit[0]).key
       );
-      list.splice(edit[0], 0, { char: edit[2], position });
+      list = list.insert(position, edit[2]);
       lengths.push(position.length);
     } else {
       // Delete character at edit[0].
-      list.splice(edit[0], 1);
+      list = list.at(edit[0]).remove();
     }
   }
 
   // Check answer.
-  assert.strictEqual(finalText, list.map((element) => element.char).join(""));
+  assert.strictEqual(finalText, list.values.join(""));
 
   // Generate statistics.
   if (!fs.existsSync(resultsDir)) fs.mkdirSync(resultsDir);
