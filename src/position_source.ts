@@ -1,5 +1,5 @@
 import { ReplicaIDs } from "./replica_ids";
-import { assert } from "./util";
+import { assert, precond } from "./util";
 
 /**
  * ALGORITHM
@@ -82,20 +82,25 @@ export class PositionSource {
 
   /** A position that is less than all others. */
   static readonly FIRST: string = "";
-  /** A position that is greater than all others. TODO: configurable? */
+  /** A position that is greater than all others. */
   static readonly LAST: string = "~";
 
   /**
    * TODO: default replicaIDs are Base64 (alphanumeric plus +/);
    * customization option in case you don't like `/` (e.g. Firebase)?
    *
-   * @param options.debugReplicaID TODO: restrictions: same length
+   * TODO: customization options for fixed chars (,LR~)?
+   *
+   * @param options.replicaID TODO: restrictions: same length
    * on all replicas; char range: all `< '~'`, not `','`, ??;
    * unique within a session (either random and long enough (default)
    * or server-assigned with care)
    */
-  constructor(options?: { debugReplicaID?: string }) {
-    this.replicaID = options?.debugReplicaID ?? ReplicaIDs.random();
+  constructor(options?: { replicaID?: string }) {
+    this.replicaID = options?.replicaID ?? ReplicaIDs.random();
+    // TODO: if provided replicaID, check restrictions
+    // TODO: can we make the alg work with non-constant length IDs?
+    // In case you use e.g. a server-assigned counter.
   }
 
   /**
@@ -108,13 +113,13 @@ export class PositionSource {
     leftArg: string = PositionSource.FIRST,
     rightArg: string = PositionSource.LAST
   ): string {
-    assert(
+    precond(
       leftArg < rightArg,
       "leftArg must be less than rightArg:",
       leftArg,
       rightArg
     );
-    assert(
+    precond(
       rightArg <= PositionSource.LAST,
       "rightArg must be less than LAST",
       rightArg,
@@ -168,7 +173,10 @@ export class PositionSource {
 
     assert(
       leftArg < ans! && ans! < rightArg,
-      `Internal error: bad position: ${leftArg} ${ans!} ${rightArg}`
+      "Bad position:",
+      leftArg,
+      ans!,
+      rightArg
     );
     return ans!;
   }

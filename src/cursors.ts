@@ -1,5 +1,5 @@
 import { PositionSource } from "./position_source";
-import { assert } from "./util";
+import { assert, precond } from "./util";
 
 /**
  * A Cursor points to a particular spot in a list that uses
@@ -31,7 +31,7 @@ export class Cursors {
    * @returns
    */
   static fromIndex(index: number, positions: ArrayLike<string>): string {
-    assert(
+    precond(
       index >= 0 && index <= positions.length,
       "Index out of bounds:",
       index,
