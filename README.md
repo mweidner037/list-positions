@@ -52,6 +52,8 @@ Also, the special string `PositionSource.LAST` is `'~'`.
 
 ## Usage
 
+Creating position strings:
+
 ```ts
 import { PositionSource } from "position-strings";
 
@@ -86,6 +88,7 @@ To use cursors:
 import { Cursors } from "position-strings";
 
 let cursor: string = "";
+
 // When the user deliberately moves their cursor to `cursorIndex`:
 cursor = Cursors.fromIndex(cursorIndex, myListPositions);
 // Or run the algorithm in the `Cursors.fromIndex` docs.
@@ -115,19 +118,19 @@ more than one PositionSource for the same document (list/text string).
 An exception is if multiple logical users share the same runtime;
 we then recommend one PositionSource per user.
 
-- `options.id` A unique ID for this PositionSource. Defaults to `IDs.random()`.
+_@param_ `options.id` A unique ID for this PositionSource. Defaults to `IDs.random()`.
 
-  If provided, `options.id` must satisfy:
+If provided, `options.id` must satisfy:
 
-  - It is unique across the entire collaborative application, i.e.,
-    all PositionSources whose positions may be compared to ours. This
-    includes past PositionSources, even if they correspond to the same
-    user/device.
-  - All characters are lexicographically greater than `','` (code point 44).
-  - The first character is lexicographically less than `'~'` (code point 126).
+- It is unique across the entire collaborative application, i.e.,
+  all PositionSources whose positions may be compared to ours. This
+  includes past PositionSources, even if they correspond to the same
+  user/device.
+- All characters are lexicographically greater than `','` (code point 44).
+- The first character is lexicographically less than `'~'` (code point 126).
 
-  If `options.id` contains non-alphanumeric characters, created positions
-  will contain those characters and `','`.
+If `options.id` contains non-alphanumeric characters, created positions
+will contain those characters and `','`.
 
 ```ts
 createBetween(
@@ -143,6 +146,96 @@ The new position is unique across the entire collaborative application,
 even in the face on concurrent calls to this method on other
 PositionSources.
 
+### Function `findPosition`
+
+```ts
+function findPosition(
+  position: string,
+  positions: ArrayLike<string>
+): { index: number; isPresent: boolean };
+```
+
+Returns `{ index, isPresent }`, where:
+
+- `index` is the current index of `position` in `positions`,
+  or where it would be if added.
+- `isPresent` is true if `position` is present in `positions`.
+
+If this method is inconvenient (e.g., the positions are in a database
+instead of an array), you can instead compute
+`index` by finding the number of positions less than or equal to `position`. For example, in SQL, use:
+
+```sql
+SELECT COUNT() FROM table WHERE position <= $position
+```
+
+See also: `Cursors.toIndex`.
+
+_@param_ positions The target list's positions, in lexicographic order.
+There should be no duplicate positions.
+
+### Class `Cursors`
+
+Utilities for working with cursors in a collaborative list
+or text string.
+
+A cursor points to a particular spot in a list, in between
+two list elements (or text characters). This class handles
+cursors for lists that use `PositionSource` position strings.
+
+A cursor is represented as a string.
+Specifically, it is the position of the element
+to its left, or `PositionSource.FIRST` if it is at the beginning
+of the list. If that position is later deleted, the cursor stays the
+same, but its index shifts to next element on its left.
+
+You can use cursor strings as ordinary cursors, selection endpoints,
+range endpoints for a comment or formatting span, etc.
+
+```ts
+static fromIndex(index: number, positions: ArrayLike<string>): string
+```
+
+Returns the cursor at `index` within the given list of positions.
+
+That is, the cursor is between the list elements at `index - 1` and `index`.
+
+If this method is inconvenient (e.g., the positions are in a database
+instead of an array), you can instead run the following algorithm yourself:
+
+- If `index` is 0, return `PositionSource.FIRST` (`""`).
+- Else return `positions[index - 1]`.
+
+Invert with `Cursors.toIndex`.
+
+_@param_ `positions` The target list's positions, in lexicographic order.
+There should be no duplicate positions.
+
+```ts
+static toIndex(cursor: string, positions: ArrayLike<string>): number
+```
+
+Returns the current index of `cursor` within the given list of
+positions.
+
+That is, the cursor is between the list elements at `index - 1` and `index`.
+
+If this method is inconvenient (e.g., the positions are in a database
+instead of an array), you can instead run the following algorithm yourself:
+
+- Return the number of positions less than `cursor`.
+
+For example, in SQL, use:
+
+```sql
+SELECT COUNT() FROM table WHERE position < $cursor
+```
+
+Inverse of `Cursors.fromIndex`.
+
+_@param_ positions The target list's positions, in lexicographic order.
+There should be no duplicate positions.
+
 ## Developing
 
 ### Files
@@ -155,3 +248,7 @@ PositionSources.
 - Build with `npm run build`.
 - Test, lint, etc. with `npm run test`.
 - Publish with `npm publish`.
+
+```
+
+```

@@ -34,7 +34,7 @@ export class Cursors {
    * - If `index` is 0, return `PositionSource.FIRST` (`""`).
    * - Else return `positions[index - 1]`.
    *
-   * Invert with `toIndex`.
+   * Invert with `Cursors.toIndex`.
    *
    * @param positions The target list's positions, in lexicographic order.
    * There should be no duplicate positions.
@@ -64,9 +64,8 @@ export class Cursors {
    * SELECT COUNT(*) FROM table WHERE position < $cursor
    * ```
    *
-   * Inverse of `fromIndex`.
+   * Inverse of `Cursors.fromIndex`.
    *
-   * @param cursor
    * @param positions The target list's positions, in lexicographic order.
    * There should be no duplicate positions.
    */
