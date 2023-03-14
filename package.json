@@ -1,7 +1,7 @@
 {
   "name": "position-strings",
   "version": "1.0.0",
-  "description": "Lexicographically-sorted positions strings for collaborative lists and text",
+  "description": "Lexicographically-sorted position strings for collaborative lists and text",
   "author": "Matthew Weidner",
   "license": "Apache-2.0",
   "bugs": {

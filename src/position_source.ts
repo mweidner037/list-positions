@@ -80,19 +80,38 @@ export class PositionSource {
    */
   private lastValueIndices: number[] = [];
 
-  /** A position that is less than all others. */
+  /**
+   * A string that is less than all positions.
+   *
+   * Value: `""`.
+   */
   static readonly FIRST: string = "";
-  /** A position that is greater than all others. */
+  /**
+   * A string that is greater than all positions.
+   *
+   * Value: `"~"`.
+   */
   static readonly LAST: string = "~";
 
   /**
+   * Constructs a new PositionSource.
    *
+   * It is okay to share a single PositionSource between
+   * all documents (lists/text strings) in the same JavaScript runtime.
+   *
+   * For efficiency, you should not use multiple PositionSources with
+   * the same document. An exception is if you have multiple logical
+   * users within the same runtime; we then recommend one PositionSource
+   * per user.
    *
    * @param options.replicaID An ID that uniquely identifies this replica
    * among all connected replicas. Defaults to [[ReplicaIDs.random]]`()`.
-   * If you specify your own, in addition to uniqueness, it must satisfy:
-   * - All characters are lexicographically `> ','` (code point 44).
-   * - The first character is lexicographically `< '~'` (code point 126).
+   *
+   * If you specify your own, it must satisfy:
+   * - Unique among all connected replicas, including past replicas
+   * (even if they correspond to the same user/device).
+   * - All characters are lexicographically greater than `','` (code point 44).
+   * - The first character is lexicographically less than `'~'` (code point 126).
    */
   constructor(options?: { replicaID?: string }) {
     if (options?.replicaID !== undefined) {
@@ -116,9 +135,11 @@ export class PositionSource {
 
   /**
    * Returns a new position between leftArg and rightArg
-   * (`leftArg < new < rightArg`). The new position is unique across
-   * the entire collaboration application, even in the face on concurrent
-   * calls to this method on other replicas.
+   * (`leftArg < new < rightArg`).
+   *
+   * The new position is unique across the entire collaborative application,
+   * even in the face on concurrent calls to this method on other
+   * PositionSources.
    */
   createBetween(
     leftArg: string = PositionSource.FIRST,
@@ -231,8 +252,11 @@ export class PositionSource {
  * 190, 191, ..., 270).
  * - Repeat this pattern indefinitely, enumerating
  * 9^(d-1) d-digit numbers for each d >= 1.
+ *
  */
 function lexSucc(n: number): number {
+  // OPT: more chars than just numbers (must be < 'R')/
+  // OPT: fill out first digit, to benefit common case (low reuse).
   const d = n === 0 ? 1 : Math.floor(Math.log10(n)) + 1;
   if (n === Math.pow(10, d) - Math.pow(9, d) - 1) {
     // n -> (n + 1) * 10
