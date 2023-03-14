@@ -46,40 +46,52 @@ import { assert, LastInternal, precond } from "./util";
  */
 
 /**
- * Utility class for working with list CRDT "positions".
+ * A source of lexicographically-ordered "position strings" for
+ * collaborative lists and text.
  *
- * In list CRDTs (and other ordered data structures), we need a way to
- * order things that allows inserting new things into the list, and that
- * works in the expected way if multiple collaborators insert concurrently.
- * To make that possible, this class provides "positions" in the form of
- * strings, such that:
- * - The order on positions is given by the lexicographic order on strings.
- * - Given any two positions `left < right`, you can create a new position
- * in between them (`left < new < right`), by calling [[createBetween]].
- * This new position is guaranteed to be unique even in the face of concurrency.
+ * Position strings are printable ASCII. Specifically, they
+ * contain alphanumeric characters and `','`.
+ * Also, the special string [[PositionSource.LAST]] is `'~'`.
  *
- * Some nice properties of these positions:
- * - If two users creates positions in the
- * same place, then each create more positions in a LtR sequence, the two
- * sequences will sort one after the other instead of interleaving.
- * - The positions try to be reasonably short. In particular, if one user
- * creates positions in a LtR sequence, then they will grow in length
- * logarithmically, not linearly. (However, they may grow in length linearly
- * in other scenarios, and they typically grow monotonically over time.
- * This probably makes them unusable in large documents.)
+ * In a collaborative list (or text string), you need a way to refer
+ * to "positions" within that list that:
+ * 1. Point to a specific list element (or text character).
+ * 2. Are global (all users agree on them) and immutable (they do not
+ * change over time).
+ * 3. Can be sorted.
+ * 4. Are unique, even if different users concurrently create positions
+ * at the same place.
  *
- * This class also provides methods for interacting with [[Cursor]]s.
- * [[cursor]] and [[index]] let you go back-and-forth between an abstract
- * Cursor (represented as a string) and its index in a given list.
+ * PositionSource gives you such positions, in the form
+ * of lexicographically-ordered strings. Specifically, [[createBetween]]
+ * returns a new position string in between two existing position strings.
+ *
+ * These strings have the bonus properties:
+ * - 5. (Non-Interleaving) If two PositionSources concurrently create a (forward or backward)
+ * sequence of positions at the same place,
+ * their sequences will not be interleaved.
+ * For example, if
+ * Alice types "Hello" while Bob types "World" at the same place,
+ * and they each use a PositionSource to create a position for each
+ * character, then
+ * the resulting order will be "HelloWorld" or "WorldHello", not
+ * "HWeolrllod".
+ * - 6. If a PositionSource creates positions in a forward (increasing)
+ * sequence, their lengths as strings will only grow logarithmically,
+ * not linearly.
+ *
+ * Further reading:
+ * - [Fractional indexing](https://www.figma.com/blog/realtime-editing-of-ordered-sequences/#fractional-indexing),
+ * a related scheme that satisfies 1-3 but not 4-6. Note that except
+ * for forward sequences (see 6), fractional indexing is generally
+ * more efficient, i.e., it creates shorter positions.
+ * - [List CRDTs](https://mattweidner.com/2022/10/21/basic-list-crdt.html)
+ * and how they map to position strings. PositionSource uses an optimized
+ * variant of that link's string implementation.
+ * - [Paper](https://www.repository.cam.ac.uk/handle/1810/290391) about
+ * interleaving in collaborative text editors.
  */
 export class PositionSource {
-  readonly ID: string;
-  /**
-   * Maps counter to the most recently used
-   * valueIndex for the waypoint (this.id, counter).
-   */
-  private lastValueIndices: number[] = [];
-
   /**
    * A string that is less than all positions.
    *
@@ -94,23 +106,40 @@ export class PositionSource {
   static readonly LAST: string = LastInternal;
 
   /**
+   * The unique ID for this PositionSource.
+   */
+  readonly ID: string;
+
+  /**
+   * Maps counter to the most recently used
+   * valueIndex for the waypoint (this.id, counter).
+   */
+  private lastValueIndices: number[] = [];
+
+  /**
    * Constructs a new PositionSource.
    *
    * It is okay to share a single PositionSource between
    * all documents (lists/text strings) in the same JavaScript runtime.
    *
-   * For efficiency, you should not use multiple PositionSources with
-   * the same document. An exception is if you have multiple logical
-   * users within the same runtime; we then recommend one PositionSource
-   * per user.
+   * For efficiency, within each JavaScript runtime, you should not use
+   * more than one PositionSource for the same document (list/text string).
+   * An exception is if multiple logical users share the same runtime;
+   * we then recommend one PositionSource per user.
    *
-   * @param options.id An ID for this PositionSource that is unique
-   * among all connected PositionSources (i.e., PositionSources whose positions
-   * may be compared to ours). Defaults to [[IDs.random]]`()`.
+   * @param options.id A unique ID for this PositionSource. Defaults to
+   * [[IDs.random]]`()`.
    *
    * If provided, `options.id` must satisfy:
+   * - It is unique across the entire collaborative application, i.e.,
+   * all PositionSources whose positions may be compared to ours. This
+   * includes past PositionSources, even if they correspond to the same
+   * user/device.
    * - All characters are lexicographically greater than `','` (code point 44).
    * - The first character is lexicographically less than `'~'` (code point 126).
+   *
+   * If `options.id` contains non-alphanumeric characters, created positions
+   * will contain those characters and `','`.
    */
   constructor(options?: { ID?: string }) {
     if (options?.ID !== undefined) {
@@ -128,33 +157,31 @@ export class PositionSource {
    * PositionSources.
    */
   createBetween(
-    leftArg: string = PositionSource.FIRST,
-    rightArg: string = PositionSource.LAST
+    left: string = PositionSource.FIRST,
+    right: string = PositionSource.LAST
   ): string {
+    precond(left < right, "left must be less than right:", left, right);
     precond(
-      leftArg < rightArg,
-      "leftArg must be less than rightArg:",
-      leftArg,
-      rightArg
-    );
-    precond(
-      rightArg <= PositionSource.LAST,
-      "rightArg must be less than LAST",
-      rightArg,
+      right <= PositionSource.LAST,
+      "right must be less than or equal to LAST",
+      right,
       PositionSource.LAST
     );
 
-    const left = leftArg === PositionSource.FIRST ? null : leftArg;
-    const right = rightArg === PositionSource.LAST ? null : rightArg;
+    const leftFixed = left === PositionSource.FIRST ? null : left;
+    const rightFixed = right === PositionSource.LAST ? null : right;
 
     let ans: string;
 
-    if (right !== null && (left === null || right.startsWith(left))) {
+    if (
+      rightFixed !== null &&
+      (leftFixed === null || rightFixed.startsWith(leftFixed))
+    ) {
       // Left child of right.
-      ans = right.slice(0, -1) + "L" + this.newWaypoint();
+      ans = rightFixed.slice(0, -1) + "L" + this.newWaypoint();
     } else {
       // Right child of left.
-      if (left === null) {
+      if (leftFixed === null) {
         ans = this.newWaypoint();
       } else {
         // Check if we can reuse right's leaf waypoint.
@@ -163,39 +190,36 @@ export class PositionSource {
         // have been used already (i.e., the node matches
         // this.lastValueIndices).
         let success = false;
-        const lastComma = left.lastIndexOf(",");
-        const secondLastComma = left.lastIndexOf(",", lastComma - 1);
-        const leafSender = left.slice(
+        const lastComma = leftFixed.lastIndexOf(",");
+        const secondLastComma = leftFixed.lastIndexOf(",", lastComma - 1);
+        const leafSender = leftFixed.slice(
           secondLastComma - this.ID.length,
           secondLastComma
         );
         if (leafSender === this.ID) {
           const leafCounter = Number.parseInt(
-            left.slice(secondLastComma + 1, lastComma)
+            leftFixed.slice(secondLastComma + 1, lastComma)
           );
-          const leafValueIndex = Number.parseInt(left.slice(lastComma + 1, -1));
+          const leafValueIndex = Number.parseInt(
+            leftFixed.slice(lastComma + 1, -1)
+          );
           if (this.lastValueIndices[leafCounter] === leafValueIndex) {
             // Success; reuse a's leaf waypoint.
             const valueIndex = lexSucc(leafValueIndex);
             this.lastValueIndices[leafCounter] = valueIndex;
-            ans = left.slice(0, lastComma + 1) + valueIndex.toString() + "R";
+            ans =
+              leftFixed.slice(0, lastComma + 1) + valueIndex.toString() + "R";
             success = true;
           }
         }
         if (!success) {
           // Failure; cannot reuse left's leaf waypoint.
-          ans = left + this.newWaypoint();
+          ans = leftFixed + this.newWaypoint();
         }
       }
     }
 
-    assert(
-      leftArg < ans! && ans! < rightArg,
-      "Bad position:",
-      leftArg,
-      ans!,
-      rightArg
-    );
+    assert(left < ans! && ans! < right, "Bad position:", left, ans!, right);
     return ans!;
   }
 

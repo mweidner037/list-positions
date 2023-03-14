@@ -2,19 +2,21 @@ import { PositionSource } from "./position_source";
 import { assert, precond } from "./util";
 
 /**
- * A Cursor points to a particular spot in a list that uses
- * [[PositionSource]] positions, in between two list
- * elements - e.g., a cursor in a text editor. When elements are inserted or
- * deleted in front of the cursor, it moves around in the expected way.
+ * Utilities for working with cursors in a collaborative list
+ * or text string.
  *
- * Cursor is an alias for `string`, and Cursors are always RTDB-key-compatible.
+ * A *cursor* points to a particular spot in a list, in between
+ * two list elements (or text characters). This class handles
+ * cursors for lists that use [[PositionSource]] position strings.
  *
- * Internally, a Cursor is the position of the list element to its left at
- * the time it was created (via [[PositionSource.cursor]]).
- * The Cursor changes index (via [[PositionSource.index]]) so as to remain directly
- * to the right of that element. If that element is deleted, the Cursor instead
- * remains directly to the right of the element with the greatest lesser
- * position.
+ * A cursor is represented as a string.
+ * Specifically, it is the position of the element
+ * to its left, or [[PositionSource.FIRST]] if it is at the beginning
+ * of the list. If that position is later deleted, the cursor stays the
+ * same, but its index shifts to next element on its left.
+ *
+ * You can use cursor strings as ordinary cursors, selection endpoints,
+ * range endpoints for a comment or formatting span, etc.
  */
 export class Cursors {
   private constructor() {
@@ -22,13 +24,19 @@ export class Cursors {
   }
 
   /**
-   * DIY:
-   * - If `index` is 0, [[PositionSource.FIRST]] (`""`)
-   * - Else `positions[index - 1]`.
+   * Returns the cursor at `index` within the given list of positions.
    *
-   * @param index
-   * @param positions
-   * @returns
+   * That is, the cursor is between the list elements at `index - 1` and `index`.
+   *
+   * If this method is inconvenient (e.g., the positions are in a database
+   * instead of an array), you can instead run the following algorithm yourself:
+   * - If `index` is 0, return [[PositionSource.FIRST]] (`""`).
+   * - Else return `positions[index - 1]`.
+   *
+   * Invert with [[toIndex]].
+   *
+   * @param positions The target list's positions, in lexicographic order.
+   * There should be no duplicate positions.
    */
   static fromIndex(index: number, positions: ArrayLike<string>): string {
     precond(
@@ -41,15 +49,25 @@ export class Cursors {
   }
 
   /**
-   * DIY: The number of positions `< cursor`.
-   * E.g. `SELECT COUNT(*) FROM table WHERE position < [cursor]`
+   * Returns the current index of `cursor` within the given list of
+   * positions.
    *
-   * This implementation uses a binary search.
+   * That is, the cursor is between the list elements at `index - 1` and `index`.
+   *
+   * If this method is inconvenient (e.g., the positions are in a database
+   * instead of an array), you can instead run the following algorithm yourself:
+   * - Return the number of positions less than `cursor`.
+   *
+   * For example, in SQL, use:
+   * ```sql
+   * SELECT COUNT(*) FROM table WHERE position < $cursor
+   * ```
+   *
+   * Inverse of [[fromIndex]].
    *
    * @param cursor
-   * @param positions Must be ordered lexicographically, preferably without
-   * duplicates
-   * @returns
+   * @param positions The target list's positions, in lexicographic order.
+   * There should be no duplicate positions.
    */
   static toIndex(cursor: string, positions: ArrayLike<string>): number {
     // Use binary search to find cIndex, the index of the char with the greatest

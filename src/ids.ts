@@ -106,9 +106,9 @@ export class IDs {
    * - The first character is lexicographically less than `'~'` (code point 126).
    */
   static validate(ID: string): void {
-    precond(ID < LastInternal, "ID must be less than", LastInternal, ":", ID);
     for (const char of ID) {
       precond(char > ",", "All ID chars must be greater than ',':", ID);
     }
+    precond(ID < LastInternal, "ID must be less than", LastInternal, ":", ID);
   }
 }
