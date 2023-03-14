@@ -3,6 +3,8 @@
 A source of lexicographically-ordered "position strings" for
 collaborative lists and text.
 
+<!-- TODO: contents -->
+
 ## About
 
 In a collaborative list (or text string), you need a way to refer
@@ -64,6 +66,8 @@ const source = new PositionSource();
 const position = source.createBetween(
   myList[index - 1].position,
   myList[index].position
+  // If the index is 0 or myList.length, the above behaves reasonably,
+  // since undefined defaults to PositionSource.FIRST or LAST.
 );
 myList.splice(index, 0, { char, position });
 // Or insert it into a database table, ordered map, etc.
@@ -149,6 +153,9 @@ Returns a new position between `left` and `right`
 The new position is unique across the entire collaborative application,
 even in the face on concurrent calls to this method on other
 PositionSources.
+
+_@param_ `left` Defaults to `PositionSource.FIRST` (insert at the beginning).
+_@param_ `right` Defaults to `PositionSource.LAST` (insert at the end).
 
 #### Properties
 

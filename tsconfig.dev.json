@@ -1,4 +1,4 @@
 {
   "extends": "./tsconfig.commonjs.json",
-  "include": ["src", "test"]
+  "include": ["src", "test", "benchmarks"]
 }

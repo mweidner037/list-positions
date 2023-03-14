@@ -153,6 +153,9 @@ export class PositionSource {
    * The new position is unique across the entire collaborative application,
    * even in the face on concurrent calls to this method on other
    * PositionSources.
+   *
+   * @param left Defaults to `PositionSource.FIRST` (insert at the beginning).
+   * @param right Defaults to `PositionSource.LAST` (insert at the end).
    */
   createBetween(
     left: string = PositionSource.FIRST,

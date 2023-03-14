@@ -61,10 +61,11 @@
     "build:ts": "tsc -p tsconfig.json && tsc -p tsconfig.commonjs.json",
     "test": "npm-run-all test:*",
     "test:lint": "eslint --ext .ts,.js .",
-    "test:unit": "cross-env TS_NODE_PROJECT='./tsconfig.mocha.json' mocha",
+    "test:unit": "cross-env TS_NODE_PROJECT='./tsconfig.dev.json' mocha",
     "test:format": "prettier --check .",
     "fix": "npm-run-all fix:*",
     "fix:format": "prettier --write .",
+    "benchmarks": "ts-node --project tsconfig.dev.json benchmarks/main.ts",
     "clean": "rimraf generated generated_esm build"
   }
 }
