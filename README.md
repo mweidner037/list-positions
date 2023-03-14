@@ -64,8 +64,8 @@ const source = new PositionSource();
 
 // When the user types `char` at `index`:
 const position = source.createBetween(
-  myList[index - 1].position,
-  myList[index].position
+  myList[index - 1]?.position,
+  myList[index]?.position
   // If the index is 0 or myList.length, the above behaves reasonably,
   // since undefined defaults to PositionSource.FIRST or LAST.
 );
@@ -124,9 +124,9 @@ more than one PositionSource for the same document (list/text string).
 An exception is if multiple logical users share the same runtime;
 we then recommend one PositionSource per user.
 
-_@param_ `options.id` A unique ID for this PositionSource. Defaults to `IDs.random()`.
+_@param_ `options.ID` A unique ID for this PositionSource. Defaults to `IDs.random()`.
 
-If provided, `options.id` must satisfy:
+If provided, `options.ID` must satisfy:
 
 - It is unique across the entire collaborative application, i.e.,
   all PositionSources whose positions may be compared to ours. This
@@ -135,7 +135,7 @@ If provided, `options.id` must satisfy:
 - All characters are lexicographically greater than `','` (code point 44).
 - The first character is lexicographically less than `'~'` (code point 126).
 
-If `options.id` contains non-alphanumeric characters, created positions
+If `options.ID` contains non-alphanumeric characters, created positions
 will contain those characters and `','`.
 
 #### createBetween
