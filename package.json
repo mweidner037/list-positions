@@ -1,6 +1,6 @@
 {
   "name": "position-strings",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Lexicographically-ordered position strings for collaborative lists and text",
   "author": "Matthew Weidner",
   "license": "Apache-2.0",
@@ -18,10 +18,10 @@
     "collaboration",
     "fractional indexing"
   ],
-  "module": "build/esm/src/index.js",
-  "browser": "build/esm/src/index.js",
-  "types": "build/esm/src/index.d.ts",
-  "main": "build/commonjs/src/index.js",
+  "module": "build/esm/index.js",
+  "browser": "build/esm/index.js",
+  "types": "build/esm/index.d.ts",
+  "main": "build/commonjs/index.js",
   "files": [
     "/build",
     "/src"
