@@ -15,11 +15,12 @@ const { edits, finalText } = realTextTraceEdits as unknown as {
 
 function run(ops?: number, rotateFreq?: number) {
   console.log(
-    "\nRun:",
+    "## Run:",
     ops ?? "all",
     "ops; rotate",
     rotateFreq ? `every ${rotateFreq} ops` : "never"
   );
+  console.log();
 
   const rng = seedrandom("42");
   let source = new PositionSource({ ID: IDs.pseudoRandom(rng) });
@@ -73,12 +74,13 @@ function run(ops?: number, rotateFreq?: number) {
 
   // Write data files.
   if (!fs.existsSync(resultsDir)) fs.mkdirSync(resultsDir);
-  const fileName = rotateFreq ? `results_${rotateFreq}.csv` : "results.csv";
+  const fileName = `results_${ops ?? "all"}_${rotateFreq ?? "never"}.csv`;
   const csv =
-    "Length,Nodes,ValueIndexCount\n" +
+    "Length,CompressedLength,Nodes,ValueIndexCount\n" +
     metrics
       .map(
-        (metric) => `${metric.length},${metric.nodes},${metric.valueIndexCount}`
+        (metric) =>
+          `${metric.length},${metric.compressedLength},${metric.nodes},${metric.valueIndexCount}`
       )
       .join("\n");
   fs.writeFileSync(resultsDir + fileName, csv);
@@ -132,15 +134,16 @@ function lexSuccCount(n: number): number {
 }
 
 function printStats(name: string, data: number[]) {
-  console.log(`${name} statistics:`);
+  console.log(`### ${name}\n`);
   console.log(
-    "\tAverage:",
+    "- Average:",
     Math.round(data.reduce((a, b) => a + b, 0) / data.length)
   );
   data.sort((a, b) => a - b);
-  console.log("\tMedian:", percentile(data, 0.5));
-  console.log("\t99th percentile:", percentile(data, 0.99));
-  console.log("\tMax:", percentile(data, 1));
+  console.log("- Median:", percentile(data, 0.5));
+  console.log("- 99th percentile:", percentile(data, 0.99));
+  console.log("- Max:", percentile(data, 1));
+  console.log();
 }
 
 function percentile(sortedData: number[], alpha: number) {

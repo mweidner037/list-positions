@@ -352,8 +352,4 @@ Default characters used in IDs: alphanumeric chars.
 
 - Build with `npm run build`.
 - Test, lint, etc. with `npm run test`.
-- Publish with `npm publish`.
-
-```
-
-```
+- Benchmark with `npm run benchmarks`. It simulates [Martin Kleppmann's text trace](https://github.com/automerge/automerge-perf) and measures properties of the created positions. Summary stats are printed to stdout (current outputs in `stats.md`); full data is written to `benchmark_results/`.
