@@ -1,6 +1,7 @@
 import { assert } from "chai";
 import fs from "fs";
 import createRBTree from "functional-red-black-tree";
+import pako from "pako";
 import seedrandom from "seedrandom";
 import { IDs, PositionSource } from "../src";
 import realTextTraceEdits from "./real_text_trace_edits.json";
@@ -51,9 +52,15 @@ function run(ops?: number, rotateFreq?: number) {
   }
 
   // Print summary stats.
+  // Note: collecting & summarizing data contributes a noticable
+  // fraction of the runtime.
   printStats(
     "length",
     metrics.map((metric) => metric.length)
+  );
+  printStats(
+    "compressedLength",
+    metrics.map((metric) => metric.compressedLength)
   );
   printStats(
     "nodes",
@@ -79,6 +86,7 @@ function run(ops?: number, rotateFreq?: number) {
 
 interface PositionMetric {
   length: number;
+  compressedLength: number;
   nodes: number;
   valueIndexCount: number;
 }
@@ -100,6 +108,9 @@ function getMetric(position: string): PositionMetric {
 
   return {
     length: position.length,
+    // Note: this deflate contributes > 75% of the runtime.
+    // OPT: Write a faster compression algorithm that just dedupes IDs.
+    compressedLength: pako.deflate(position).byteLength,
     nodes,
     valueIndexCount: lexSuccCount(valueIndex),
   };
