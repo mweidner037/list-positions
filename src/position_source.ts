@@ -38,22 +38,22 @@ import { assert, LastInternal, precond } from "./util";
  * Each pair of nodes (waypoint = (ID, counter), valueIndex)
  * is represented by the substring (here written like a template literal):
  * ```
- * ${ID},${counter},${valueIndex}${L or R}
+ * ${ID},${counter},${valueIndex}${l or r}
  * ```
- * where the final value is L if the next node is a left
- * child, else R (including if this pair is the final node pair,
+ * where the final value is 'l' if the next node is a left
+ * child, else 'r' (including if this pair is the final node pair,
  * to ensure that a terminal node is sorted in between its
- * left and right children).
+ * left and right children). For efficiency, counter and valueIndex
+ * are base36-encoded.
  *
  * For the above representation to sort correctly even if fields have
  * different lengths, we use the relations:
  * - ',' < all ID characters: Thus if ID1 < ID2, also `${ID1},${etc}` < ID2,
  * including in the case when ID1 is a prefix of ID2.
  * - ',' < all base-36 numeric characters: Likewise for counters.
- * - 'L', 'R' < all numeric characters: Thus if valueIndex1 < valueIndex2,
- * also `${valueIndex1}R` < valueIndex2, including in the case when
- * valueIndex1 is a prefix of valueIndex2 (although prefixes do not
- * occur with our current lexSucc implementation).
+ * - No valueIndex is a prefix of another (lexSucc property):
+ * Thus if valueIndex1 < valueIndex2, also `${valueIndex1}r` < valueIndex2
+ * and `${valueIndex1}l` < valueIndex2.
  */
 
 /**
@@ -192,7 +192,7 @@ export class PositionSource {
       (leftFixed === null || rightFixed.startsWith(leftFixed))
     ) {
       // Left child of right.
-      ans = rightFixed.slice(0, -1) + "L" + this.newWaypoint();
+      ans = rightFixed.slice(0, -1) + "l" + this.newWaypoint();
     } else {
       // Right child of left.
       if (leftFixed === null) {
@@ -211,11 +211,10 @@ export class PositionSource {
           secondLastComma
         );
         if (leafSender === this.ID) {
-          const leafCounter = Number.parseInt(
-            leftFixed.slice(secondLastComma + 1, lastComma),
-            36
+          const leafCounter = parseNumber(
+            leftFixed.slice(secondLastComma + 1, lastComma)
           );
-          const leafValueIndex = Number.parseInt(
+          const leafValueIndex = parseNumber(
             leftFixed.slice(lastComma + 1, -1)
           );
           if (this.lastValueIndices[leafCounter] === leafValueIndex) {
@@ -223,7 +222,9 @@ export class PositionSource {
             const valueIndex = lexSucc(leafValueIndex);
             this.lastValueIndices[leafCounter] = valueIndex;
             ans =
-              leftFixed.slice(0, lastComma + 1) + valueIndex.toString() + "R";
+              leftFixed.slice(0, lastComma + 1) +
+              stringifyNumber(valueIndex) +
+              "r";
             success = true;
           }
         }
@@ -245,9 +246,27 @@ export class PositionSource {
   private newWaypoint(): string {
     const counter = this.lastValueIndices.length;
     this.lastValueIndices.push(0);
-    return `${this.ID},${counter.toString(36)},0R`;
+    return `${this.ID},${stringifyNumber(counter)},0r`;
   }
 }
+
+/**
+ * Base 36 encoding, using capital letters to avoid confusion
+ * with 'l' and 'r'. This works with lexSucc since the base36
+ * chars are lexicographically ordered by value.
+ */
+function stringifyNumber(n: number): string {
+  return n.toString(36).toUpperCase();
+}
+
+/**
+ * Inverse of stringifyNumber.
+ */
+function parseNumber(s: string): number {
+  return Number.parseInt(s.toLowerCase(), 36);
+}
+
+const log36 = Math.log(36);
 
 /**
  * Returns the successor of n in an enumeration of a special
@@ -256,36 +275,36 @@ export class PositionSource {
  * That enumeration has the following properties:
  * 1. Each number is a nonnegative integer (however, not all
  * nonnegative integers are enumerated).
- * 2. The number's decimal representations are enumerated in
- * lexicographic order, with no prefixes (i.e., no decimal
+ * 2. The number's base-36 representations are enumerated in
+ * lexicographic order, with no prefixes (i.e., no string
  * representation is a prefix of another).
- * 3. The n-th enumerated number has O(log(n)) decimal digits.
+ * 3. The n-th enumerated number has O(log(n)) base-36 digits.
  *
  * Properties (2) and (3) are analogous to normal counting,
  * with the usual order by magnitude; the novelty here is that
- * we instead use the lexicographic order on decimal representations.
+ * we instead use the lexicographic order on base-36 representations.
  * It is also the case that
  * the numbers are in order by magnitude, although we do not
  * use this property.
  *
  * The specific enumeration is:
  * - Start with 0.
- * - Enumerate 9^0 numbers (i.e., just 0).
- * - Add 1, multiply by 10, then enumerate 9^1 numbers (i.e.,
- * 10, 11, ..., 18).
- * - Add 1, multiply by 10, then enumerate 9^2 numbers (i.e.,
- * 190, 191, ..., 270).
+ * - Enumerate 18^1 numbers (0, 1, ..., h = 17).
+ * - Add 1, multiply by 36, then enumerate 18^2 numbers
+ * (i0, i1, ..., qz).
+ * - Add 1, multiply by 36, then enumerate 18^3 numbers
+ * (r0, r1, ..., vhz).
  * - Repeat this pattern indefinitely, enumerating
- * 9^(d-1) d-digit numbers for each d >= 1.
- *
+ * 18^d d-digit numbers for each d >= 1. Putting a decimal place
+ * in front of each number, each d consumes 2^(-d) of the remaining
+ * values, so we never "reach 1" (overflow to d+1 digits when
+ * we meant to use d digits).
  */
 function lexSucc(n: number): number {
-  // OPT: more chars than just numbers (must be < 'R')/
-  // OPT: fill out first digit, to benefit common case (low reuse).
-  const d = n === 0 ? 1 : Math.floor(Math.log10(n)) + 1;
-  if (n === Math.pow(10, d) - Math.pow(9, d) - 1) {
-    // n -> (n + 1) * 10
-    return (n + 1) * 10;
+  const d = n === 0 ? 1 : Math.floor(Math.log(n) / log36) + 1;
+  if (n === Math.pow(36, d) - Math.pow(18, d) - 1) {
+    // n -> (n + 1) * 36
+    return (n + 1) * 36;
   } else {
     // n -> n + 1
     return n + 1;

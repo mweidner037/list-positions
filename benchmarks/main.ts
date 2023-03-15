@@ -83,6 +83,10 @@ interface PositionMetric {
   valueIndexCount: number;
 }
 
+function parseValueIndex(s: string): number {
+  return Number.parseInt(s.toLowerCase(), 36);
+}
+
 function getMetric(position: string): PositionMetric {
   // Nodes = # commas / 2.
   let commas = 0;
@@ -92,7 +96,7 @@ function getMetric(position: string): PositionMetric {
   const nodes = commas / 2;
   // Get valueIndex: after last comma, before last R.
   const lastComma = position.lastIndexOf(",");
-  const valueIndex = Number.parseInt(position.slice(lastComma + 1, -1));
+  const valueIndex = parseValueIndex(position.slice(lastComma + 1, -1));
 
   return {
     length: position.length,
@@ -105,13 +109,13 @@ function getMetric(position: string): PositionMetric {
  * Returns n's index in the lexSucc output sequence.
  */
 function lexSuccCount(n: number): number {
-  const d = n === 0 ? 1 : Math.floor(Math.log10(n)) + 1;
-  // First d-digit number is 10^d - 10 * 9^(d-1); check how far
+  const d = n === 0 ? 1 : Math.floor(Math.log(n) / Math.log(36)) + 1;
+  // First d-digit number is 36^d - 36 * 18^(d-1); check how far
   // we are from there (= index in d-digit sequence)
-  let ans = n - (Math.pow(10, d) - 10 * Math.pow(9, d - 1));
-  // Previous digits d2 get 9^(d2-1) digits each.
+  let ans = n - (Math.pow(36, d) - 36 * Math.pow(18, d - 1));
+  // Previous digits d2 get 18^d2 digits each.
   for (let d2 = 1; d2 < d; d2++) {
-    ans += Math.pow(9, d2 - 1);
+    ans += Math.pow(18, d2);
   }
   return ans;
 }
