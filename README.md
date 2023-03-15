@@ -194,10 +194,11 @@ Returns `{ index, isPresent }`, where:
 
 If this method is inconvenient (e.g., the positions are in a database
 instead of an array), you can instead compute
-`index` by finding the number of positions less than or equal to `position`. For example, in SQL, use:
+`index` by finding the number of positions less than `position`.
+For example, in SQL, use:
 
 ```sql
-SELECT COUNT() FROM table WHERE position <= $position
+SELECT COUNT() FROM table WHERE position < $position
 ```
 
 See also: `Cursors.toIndex`.
@@ -229,7 +230,7 @@ range endpoints for a comment or formatting span, etc.
 static fromIndex(index: number, positions: ArrayLike<string>): string
 ```
 
-Returns the cursor at `index` within the given list of positions.
+Returns the cursor at `index` within the given list of positions. Invert with `Cursors.toIndex`.
 
 That is, the cursor is between the list elements at `index - 1` and `index`.
 
@@ -238,8 +239,6 @@ instead of an array), you can instead run the following algorithm yourself:
 
 - If `index` is 0, return `PositionSource.FIRST` (`""`).
 - Else return `positions[index - 1]`.
-
-Invert with `Cursors.toIndex`.
 
 _@param_ `positions` The target list's positions, in lexicographic order.
 There should be no duplicate positions.
@@ -251,22 +250,21 @@ static toIndex(cursor: string, positions: ArrayLike<string>): number
 ```
 
 Returns the current index of `cursor` within the given list of
-positions.
+positions. Inverse of `Cursors.fromIndex`.
 
 That is, the cursor is between the list elements at `index - 1` and `index`.
 
 If this method is inconvenient (e.g., the positions are in a database
-instead of an array), you can instead run the following algorithm yourself:
-
-- Return the number of positions less than `cursor`.
-
+instead of an array), you can instead compute
+`index` by finding the number of positions less than
+or equal to `position`.
 For example, in SQL, use:
 
 ```sql
-SELECT COUNT() FROM table WHERE position < $cursor
+SELECT COUNT(*) FROM table WHERE position <= $position
 ```
 
-Inverse of `Cursors.fromIndex`.
+See also: `findPosition`.
 
 _@param_ positions The target list's positions, in lexicographic order.
 There should be no duplicate positions.
