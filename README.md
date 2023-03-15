@@ -305,6 +305,9 @@ generated using `rng` from package [seedrandom](https://www.npmjs.com/package/se
 > dependency, install version `2.4.28`, even though `seedrandom` itself
 > has version `3.0.5`.
 
+Pseudorandom IDs with a fixed seed are recommended for
+tests and benchmarks, to make them deterministic.
+
 _@param_ `options.length` The length of the ID, in characters.
 Default: `DEFAULT_LENGTH`.
 

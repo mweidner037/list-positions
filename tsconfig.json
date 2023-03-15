@@ -13,9 +13,8 @@
     /* Emit .d.ts files. */
     "declaration": true,
     /* Emit sourcemap files. */
-    "sourceMap": true,
-    /* Use tslib to reduce generated js file sizes. */
-    "importHelpers": true
+    "sourceMap": true
+    /* Don't turn on importHelpers, so we can avoid tslib dependency. */
   },
   "include": ["src"]
 }

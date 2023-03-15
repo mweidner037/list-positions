@@ -1,4 +1,5 @@
 import * as crypto from "crypto";
+import type seedrandom from "seedrandom";
 import { LastInternal, precond } from "./util";
 
 /**
@@ -75,7 +76,10 @@ export class IDs {
 
   /**
    * Returns a psuedorandom ID made of alphanumeric characters,
-   * generated using `rng` from package [seedrandom](https://www.npmjs.com/package/seedrandom)
+   * generated using `rng` from package [seedrandom](https://www.npmjs.com/package/seedrandom).
+   *
+   * Pseudorandom IDs with a fixed seed are recommended for
+   * tests and benchmarks, to make them deterministic.
    *
    * @param options.length The length of the ID, in characters.
    * Default: `IDs.DEFAULT_LENGTH`.
