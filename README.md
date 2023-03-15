@@ -3,7 +3,11 @@
 A source of lexicographically-ordered "position strings" for
 collaborative lists and text.
 
-<!-- TODO: contents -->
+- [About](#about)
+- [Usage](#usage)
+- [API](#api)
+- [Example App](#example-app)
+- [Developing](#developing)
 
 ## About
 
@@ -105,6 +109,11 @@ cursorIndex = Cursors.toIndex(cursor, myListPositions);
 <!-- TODO: test usage snippets -->
 
 ## API
+
+- [Class `PositionSource`](#class-positionsource)
+- [Function `findPosition`](#function-findposition)
+- [Class `Cursors`](#class-cursors)
+- [Class `IDs`](#class-ids)
 
 ### Class `PositionSource`
 
@@ -341,6 +350,14 @@ static readonly DEFAULT_CHARS: string =
 ```
 
 Default characters used in IDs: alphanumeric chars.
+
+## Example App
+
+[Firebase text-editor](https://firebase-text-editor.herokuapp.com/) uses position-strings to implement collaborative (plain) text editing on top of [Firebase RTDB](https://firebase.google.com/docs/database). Each character is stored together with its position, and a Firebase query is used to list the characters in order.
+
+The app also demonstrates using `Cursors` to track the local user's selection start and end.
+
+[Source code](https://github.com/mweidner037/firebase-text-editor/blob/master/src/site/main.ts)
 
 ## Developing
 
