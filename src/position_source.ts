@@ -2,61 +2,6 @@ import { IDs } from "./ids";
 import { assert, LastInternal, precond } from "./util";
 
 /**
- * ALGORITHM
- *
- * The underlying total order is similar to the string implementation
- * of Plain Tree described
- * [here](https://mattweidner.com/2022/10/21/basic-list-crdt.html#intro-string-implementation).
- * The difference is a common-case optimization: left-to-right insertions
- * by the same PositionSource reuse the same (ID, counter)
- * pair (we call this a _waypoint_), just using
- * an extra _valueIndex_ to distinguish positions
- * within the sequence, instead of creating a long
- * rightward path in the tree. In this way,
- * a sequence of m left-to-right insertions see their
- * positions grow by O(log(m)) length (the size of
- * valueIndex) instead of O(m) length (the size of
- * a path containing one node per insertion).
- *
- * In more detail, the underlying tree consists of alternating
- * layers:
- * - Nodes in even layers (starting with the root's children)
- * are __waypoints__, each labeled by a pair (ID, counter). A waypoint can be either a left or right
- * child of its parent, except that the root only has right
- * children. Waypoint same-siblings siblings are sorted arbitrarily,
- * as in Plain Tree.
- * - Nodes in odd layers are __value indices__, each labelled
- * by a nonnegative integer. A value index is always a right
- * child of its parent. Value indices are sorted
- * *lexicographically*; we use a subset of numbers for which
- * this coincides with the usual order by magnitude.
- *
- * Each position corresponds to a value index node in the tree
- * whose parent waypoint's ID equals the position's
- * creator. A position is a string description of the path
- * from the root to its node (excluding the root).
- * Each pair of nodes (waypoint = (ID, counter), valueIndex)
- * is represented by the substring (here written like a template literal):
- * ```
- * ${ID},${counter},${valueIndex}${l or r}
- * ```
- * where the final value is 'l' if the next node is a left
- * child, else 'r' (including if this pair is the final node pair,
- * to ensure that a terminal node is sorted in between its
- * left and right children). For efficiency, counter and valueIndex
- * are base36-encoded.
- *
- * For the above representation to sort correctly even if fields have
- * different lengths, we use the relations:
- * - ',' < all ID characters: Thus if ID1 < ID2, also `${ID1},${etc}` < ID2,
- * including in the case when ID1 is a prefix of ID2.
- * - ',' < all base-36 numeric characters: Likewise for counters.
- * - No valueIndex is a prefix of another (lexSucc property):
- * Thus if valueIndex1 < valueIndex2, also `${valueIndex1}r` < valueIndex2
- * and `${valueIndex1}l` < valueIndex2.
- */
-
-/**
  * A source of lexicographically-ordered "position strings" for
  * collaborative lists and text.
  *
@@ -69,36 +14,36 @@ import { assert, LastInternal, precond } from "./util";
  * 4. Are unique, even if different users concurrently create positions
  * at the same place.
  *
- * PositionSource gives you such positions, in the form
+ * `PositionSource` gives you such positions, in the form
  * of lexicographically-ordered strings. Specifically, `createBetween`
- * returns a new position string in between two existing position strings.
+ * returns a new "position string" in between two existing position strings.
  *
  * These strings have the bonus properties:
- * - 5. (Non-Interleaving) If two PositionSources concurrently create a (forward or backward)
+ * - 5. (Non-Interleaving) If two `PositionSource`s concurrently create a (forward or backward)
  * sequence of positions at the same place,
  * their sequences will not be interleaved.
  * For example, if
  * Alice types "Hello" while Bob types "World" at the same place,
- * and they each use a PositionSource to create a position for each
+ * and they each use a `PositionSource` to create a position for each
  * character, then
  * the resulting order will be "HelloWorld" or "WorldHello", not
  * "HWeolrllod".
- * - 6. If a PositionSource creates positions in a forward (increasing)
+ * - 6. If a `PositionSource` creates positions in a forward (increasing)
  * sequence, their lengths as strings will only grow logarithmically,
  * not linearly.
  *
  * Position strings are printable ASCII. Specifically, they
- * contain alphanumeric characters and `','`.
+ * contain alphanumeric characters, `','`, and `'.'`.
  * Also, the special string `PositionSource.LAST` is `'~'`.
  *
  * Further reading:
  * - [Fractional indexing](https://www.figma.com/blog/realtime-editing-of-ordered-sequences/#fractional-indexing),
  * a related scheme that satisfies 1-3 but not 4-6.
  * - [List CRDTs](https://mattweidner.com/2022/10/21/basic-list-crdt.html)
- * and how they map to position strings. PositionSource uses an optimized
+ * and how they map to position strings. `PositionSource` uses an optimized
  * variant of that link's string implementation.
- * - [Paper](https://www.repository.cam.ac.uk/handle/1810/290391) about
- * interleaving in collaborative text editors.
+ * - [Paper about interleaving](https://www.repository.cam.ac.uk/handle/1810/290391)
+ * in collaborative text editors.
  */
 export class PositionSource {
   /**
@@ -115,48 +60,60 @@ export class PositionSource {
   static readonly LAST: string = LastInternal;
 
   /**
-   * The unique ID for this PositionSource.
+   * The unique ID for this `PositionSource`.
    */
   readonly ID: string;
-
   /**
-   * Maps counter to the most recently used
-   * valueIndex for the waypoint (this.ID, counter).
+   * Our waypoints' long name: `,${ID}.`.
    */
-  private lastValueIndices: number[] = [];
+  private readonly longName: string;
+  /**
+   * Variant of longName used for a position's first ID: `${ID}.`.
+   * (Otherwise every position would start with a redundant ','.)
+   */
+  private readonly firstName: string;
 
   /**
-   * Constructs a new PositionSource.
+   * For each waypoint that we created, maps a prefix (see getPrefix)
+   * for that waypoint to its last (most recent) valueSeq.
+   * We always store the right-side version (odd valueSeq).
+   */
+  private lastValueSeqs = new Map<string, number>();
+
+  /**
+   * Constructs a new `PositionSource`.
    *
-   * It is okay to share a single PositionSource between
+   * It is okay to share a single `PositionSource` between
    * all documents (lists/text strings) in the same JavaScript runtime.
    *
-   * For efficiency, within each JavaScript runtime, you should not use
-   * more than one PositionSource for the same document (list/text string).
+   * For efficiency (shorter position strings),
+   * within each JavaScript runtime, you should not use
+   * more than one `PositionSource` for the same document.
    * An exception is if multiple logical users share the same runtime;
-   * we then recommend one PositionSource per user.
+   * we then recommend one `PositionSource` per user.
    *
-   * @param options.ID A unique ID for this PositionSource. Defaults to
+   * @param options.ID A unique ID for this `PositionSource`. Defaults to
    * `IDs.random()`.
    *
    * If provided, `options.ID` must satisfy:
    * - It is unique across the entire collaborative application, i.e.,
-   * all PositionSources whose positions may be compared to ours. This
-   * includes past PositionSources, even if they correspond to the same
+   * all `PositionSource`s whose positions may be compared to ours. This
+   * includes past `PositionSource`s, even if they correspond to the same
    * user/device.
-   * - All characters are lexicographically greater than `','` (code point 44).
+   * - It does not contain `','` or `'.'`.
    * - The first character is lexicographically less than `'~'` (code point 126).
    *
-   * If `options.ID` contains non-alphanumeric characters, created positions
-   * will contain those characters and `','`.
+   * If `options.ID` contains non-alphanumeric characters, then created
+   * positions will contain those characters in addition to
+   * alphanumeric characters, `','`, and `'.'`.
    */
   constructor(options?: { ID?: string }) {
     if (options?.ID !== undefined) {
       IDs.validate(options.ID);
     }
     this.ID = options?.ID ?? IDs.random();
-    // OPT: flag where you promise to use fixed ID lengths, then we get
-    // rid of the comma after ID? Though makes createBetween trickier.
+    this.longName = `,${this.ID}.`;
+    this.firstName = `${this.ID}.`;
   }
 
   /**
@@ -164,10 +121,11 @@ export class PositionSource {
    * (`left < new < right`).
    *
    * The new position is unique across the entire collaborative application,
-   * even in the face on concurrent calls to this method on other
-   * PositionSources.
+   * even in the face of concurrent calls to this method on other
+   * `PositionSource`s.
    *
    * @param left Defaults to `PositionSource.FIRST` (insert at the beginning).
+   *
    * @param right Defaults to `PositionSource.LAST` (insert at the end).
    */
   createBetween(
@@ -177,8 +135,9 @@ export class PositionSource {
     precond(left < right, "left must be less than right:", left, "!<", right);
     precond(
       right <= PositionSource.LAST,
-      "right must be less than or equal to LAST",
+      "right must be less than or equal to LAST:",
       right,
+      "!<=",
       PositionSource.LAST
     );
 
@@ -191,122 +150,192 @@ export class PositionSource {
       rightFixed !== null &&
       (leftFixed === null || rightFixed.startsWith(leftFixed))
     ) {
-      // Left child of right.
-      ans = rightFixed.slice(0, -1) + "l" + this.newWaypoint();
+      // Left child of right. This always appends a waypoint.
+      const ancestor = leftVersion(rightFixed);
+      ans = this.appendWaypoint(ancestor);
     } else {
       // Right child of left.
       if (leftFixed === null) {
-        ans = this.newWaypoint();
+        // ancestor is FIRST.
+        ans = this.appendWaypoint("");
       } else {
-        // Check if we can reuse right's leaf waypoint.
-        // For this to happen, right's leaf waypoint must have also
-        // been sent by us, and its next valueIndex must not
-        // have been used already (i.e., the node matches
-        // this.lastValueIndices).
-        let success = false;
-        const lastComma = leftFixed.lastIndexOf(",");
-        const secondLastComma = leftFixed.lastIndexOf(",", lastComma - 1);
-        const leafSender = leftFixed.slice(
-          secondLastComma - this.ID.length,
-          secondLastComma
-        );
-        if (leafSender === this.ID) {
-          const leafCounter = parseNumber(
-            leftFixed.slice(secondLastComma + 1, lastComma)
-          );
-          const leafValueIndex = parseNumber(
-            leftFixed.slice(lastComma + 1, -1)
-          );
-          if (this.lastValueIndices[leafCounter] === leafValueIndex) {
-            // Success; reuse a's leaf waypoint.
-            const valueIndex = lexSucc(leafValueIndex);
-            this.lastValueIndices[leafCounter] = valueIndex;
-            ans =
-              leftFixed.slice(0, lastComma + 1) +
-              stringifyNumber(valueIndex) +
-              "r";
-            success = true;
-          }
-        }
-        if (!success) {
-          // Failure; cannot reuse left's leaf waypoint.
-          ans = leftFixed + this.newWaypoint();
+        // Check if we can reuse left's prefix.
+        // It needs to be one of ours, and right can't use the same
+        // prefix (otherwise we would get ans > right by comparing right's
+        // older valueIndex to our new valueIndex).
+        const prefix = getPrefix(leftFixed);
+        const lastValueSeq = this.lastValueSeqs.get(prefix);
+        if (
+          lastValueSeq !== undefined &&
+          !(rightFixed !== null && rightFixed.startsWith(prefix))
+        ) {
+          // Reuse.
+          const valueSeq = nextOddValueSeq(lastValueSeq);
+          ans = prefix + stringifyBase52(valueSeq);
+          this.lastValueSeqs.set(prefix, valueSeq);
+        } else {
+          // Append waypoint.
+          ans = this.appendWaypoint(leftFixed);
         }
       }
     }
 
-    assert(left < ans! && ans! < right, "Bad position:", left, ans!, right);
-    return ans!;
+    assert(left < ans && ans < right, "Bad position:", left, ans, right);
+    return ans;
   }
 
   /**
-   * Returns a node corresponding to a new waypoint, also
-   * updating this.lastValueIndices accordingly.
+   * Appends a wayoint to the given ancestor (= prefix adjusted for
+   * side), returning a unique new position using that waypoint.
+   *
+   * lastValueSeqs is also updated as needed for the waypoint.
    */
-  private newWaypoint(): string {
-    const counter = this.lastValueIndices.length;
-    this.lastValueIndices.push(0);
-    return `${this.ID},${stringifyNumber(counter)},0r`;
+  private appendWaypoint(ancestor: string): string {
+    let waypointName = ancestor === "" ? this.firstName : this.longName;
+    // If our ID already appears in ancestor, instead use a short
+    // name for the waypoint.
+    // Here we use the uniqueness of ',' and '.' to
+    // claim that if this.longName (= `,${ID}.`) appears in ancestor, then it
+    // must actually be from a waypoint that we created.
+    let existing = ancestor.lastIndexOf(this.longName);
+    if (ancestor.startsWith(this.firstName)) existing = 0;
+    if (existing !== -1) {
+      // Find the index of existing among the long-name
+      // waypoints, in backwards order. Here we use the fact that
+      // each longName ends with '.' and that '.' does not appear otherwise.
+      let index = -1;
+      for (let i = existing; i < ancestor.length; i++) {
+        if (ancestor[i] === ".") index++;
+      }
+      waypointName = stringifyShortName(index);
+    }
+
+    const prefix = ancestor + waypointName;
+    const lastValueSeq = this.lastValueSeqs.get(prefix);
+    // Use next odd (right-side) valueSeq (1 if it's a new waypoint).
+    const valueSeq =
+      lastValueSeq === undefined ? 1 : nextOddValueSeq(lastValueSeq);
+    this.lastValueSeqs.set(prefix, valueSeq);
+    return prefix + stringifyBase52(valueSeq);
   }
 }
 
 /**
- * Base 36 encoding, using capital letters to avoid confusion
- * with 'l' and 'r'. This works with lexSucc since the base36
- * chars are lexicographically ordered by value.
+ * Returns position's *prefix*: the string through the last waypoint
+ * name, or equivalently, without the final valueSeq.
  */
-function stringifyNumber(n: number): string {
-  return n.toString(36).toUpperCase();
+function getPrefix(position: string): string {
+  // Last waypoint char is the last '.' (for long names) or
+  // digit (for short names). Note that neither appear in valueSeq,
+  // which is all letters.
+  for (let i = position.length - 2; i >= 0; i--) {
+    const char = position[i];
+    if (char === "." || ("0" <= char && char <= "9")) {
+      // i is the last waypoint char, i.e., the end of the prefix.
+      return position.slice(0, i + 1);
+    }
+  }
+  assert(false, "No last waypoint char found (not a position?)", position);
+  return "";
 }
 
 /**
- * Inverse of stringifyNumber.
- */
-function parseNumber(s: string): number {
-  return Number.parseInt(s.toLowerCase(), 36);
-}
-
-const log36 = Math.log(36);
-
-/**
- * Returns the successor of n in an enumeration of a special
- * set of numbers.
+ * Returns the variant of position ending with a "left" marker
+ * instead of the default "right" marker.
  *
- * That enumeration has the following properties:
+ * I.e., the ancestor for position's left descendants.
+ */
+function leftVersion(position: string) {
+  // We need to subtract one from the (odd) valueSeq, equivalently, from
+  // its last base52 digit.
+  const last = parseBase52(position[position.length - 1]);
+  assert(last % 2 === 1, "Bad valueSeq (not a position?)", last, position);
+  return position.slice(0, -1) + stringifyBase52(last - 1);
+}
+
+/**
+ * Base 52, except for last digit, which is base 10 using
+ * digits. That makes it easy to find the end of a short name
+ * in getPrefix: it ends at the last digit.
+ */
+function stringifyShortName(n: number): string {
+  if (n < 10) return String.fromCharCode(48 + n);
+  else
+    return (
+      stringifyBase52(Math.floor(n / 10)) + String.fromCharCode(48 + (n % 10))
+    );
+}
+
+/**
+ * Base 52 encoding using letters (with "digits" in order by code point).
+ */
+function stringifyBase52(n: number): string {
+  if (n === 0) return "A";
+  const codes: number[] = [];
+  while (n > 0) {
+    const digit = n % 52;
+    codes.unshift((digit >= 26 ? 71 : 65) + digit);
+    n = Math.floor(n / 52);
+  }
+  return String.fromCharCode(...codes);
+}
+
+function parseBase52(s: string): number {
+  let n = 0;
+  for (let i = 0; i < s.length; i++) {
+    const code = s.charCodeAt(i);
+    const digit = code - (code >= 97 ? 71 : 65);
+    n = 52 * n + digit;
+  }
+  return n;
+}
+
+const log52 = Math.log(52);
+
+/**
+ * Returns the next odd valueSeq in the special sequence.
+ * This is equivalent to mapping n to its valueIndex, adding 2,
+ * then mapping back.
+ *
+ * The sequence has the following properties:
  * 1. Each number is a nonnegative integer (however, not all
  * nonnegative integers are enumerated).
- * 2. The number's base-36 representations are enumerated in
+ * 2. The numbers' base-52 representations are enumerated in
  * lexicographic order, with no prefixes (i.e., no string
  * representation is a prefix of another).
- * 3. The n-th enumerated number has O(log(n)) base-36 digits.
+ * 3. The n-th enumerated number has O(log(n)) base-52 digits.
  *
- * Properties (2) and (3) are analogous to normal counting,
- * with the usual order by magnitude; the novelty here is that
- * we instead use the lexicographic order on base-36 representations.
- * It is also the case that
+ * Properties (2) and (3) are analogous to normal counting, except
+ * that we order by the (base-52) lexicographic order instead of the
+ * usual order by magnitude. It is also the case that
  * the numbers are in order by magnitude, although we do not
  * use this property.
  *
- * The specific enumeration is:
+ * The specific sequence is as follows:
  * - Start with 0.
- * - Enumerate 18^1 numbers (0, 1, ..., h = 17).
- * - Add 1, multiply by 36, then enumerate 18^2 numbers
- * (i0, i1, ..., qz).
- * - Add 1, multiply by 36, then enumerate 18^3 numbers
- * (r0, r1, ..., vhz).
+ * - Enumerate 26^1 numbers (A, B, ..., Z).
+ * - Add 1, multiply by 52, then enumerate 26^2 numbers
+ * (aA, aB, ..., mz).
+ * - Add 1, multiply by 52, then enumerate 26^3 numbers
+ * (nAA, nAB, ..., tZz).
  * - Repeat this pattern indefinitely, enumerating
- * 18^d d-digit numbers for each d >= 1. Putting a decimal place
- * in front of each number, each d consumes 2^(-d) of the remaining
- * values, so we never "reach 1" (overflow to d+1 digits when
+ * 26^d d-digit numbers for each d >= 1. Imagining a decimal place
+ * in front of each number, each d consumes 2^(-d) of the unit interval,
+ * so we never "reach 1" (overflow to d+1 digits when
  * we meant to use d digits).
+ *
+ * I believe this is related to
+ * [Elias gamma coding](https://en.wikipedia.org/wiki/Elias_gamma_coding).
  */
-function lexSucc(n: number): number {
-  const d = n === 0 ? 1 : Math.floor(Math.log(n) / log36) + 1;
-  if (n === Math.pow(36, d) - Math.pow(18, d) - 1) {
-    // n -> (n + 1) * 36
-    return (n + 1) * 36;
+function nextOddValueSeq(n: number): number {
+  const d = n === 0 ? 1 : Math.floor(Math.log(n) / log52) + 1;
+  // You can calculate that the last d-digit number is 52^d - 26^d - 1.
+  if (n === Math.pow(52, d) - Math.pow(26, d) - 1) {
+    // First step is a new length: n -> (n + 1) * 52.
+    // Second step is n -> n + 1.
+    return (n + 1) * 52 + 1;
   } else {
-    // n -> n + 1
-    return n + 1;
+    // n -> n + 1 twice.
+    return n + 2;
   }
 }

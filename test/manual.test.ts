@@ -1,7 +1,7 @@
 import { assert } from "chai";
 import seedrandom from "seedrandom";
 import { IDs, PositionSource } from "../src";
-import { assertIsOrdered } from "./util";
+import { assertIsOrdered, testUniqueAfterDelete } from "./util";
 
 describe("manual", () => {
   const rng = seedrandom("42");
@@ -137,6 +137,23 @@ function testSingleUser(ID: string) {
     }
     assertIsOrdered(list);
   });
+
+  it("unique after delete", () => {
+    let previous = PositionSource.FIRST;
+    const list: string[] = [];
+    for (let i = 0; i < 20; i++) {
+      previous = alice.createBetween(previous, PositionSource.LAST);
+      list.push(previous);
+    }
+    const midLeft = list[9];
+    previous = list[10];
+    for (let i = 0; i < 20; i++) {
+      previous = alice.createBetween(midLeft, previous);
+      list.splice(10, 0, previous);
+    }
+
+    testUniqueAfterDelete(list, alice);
+  });
 }
 
 function testTwoUsers(ID1: string, ID2: string) {
@@ -270,5 +287,46 @@ function testTwoUsers(ID1: string, ID2: string) {
     assert.notEqual(e1, e2);
     assertIsOrdered([a, c, e1, d, b]);
     assertIsOrdered([a, c, e2, d, b]);
+  });
+
+  it("unique after delete", () => {
+    const list: string[] = [];
+    for (let j = 0; j < 5; j++) {
+      let previous = PositionSource.FIRST;
+      let after = list[0]; // out-of-bounds okay
+      for (let i = 0; i < 10; i++) {
+        const user = i % 2 === 0 ? bob : alice;
+        previous = user.createBetween(previous, after);
+        list.splice(i, 0, previous);
+      }
+    }
+    assertIsOrdered(list);
+
+    testUniqueAfterDelete(list, alice);
+    testUniqueAfterDelete(list, bob);
+  });
+
+  it("left children", () => {
+    const gParent = alice.createBetween();
+    // Each parent is a child of gParent with the same waypoint but
+    // a range of valueIndex's.
+    const parents: string[] = [];
+    let previous = gParent;
+    for (let i = 0; i < 500; i++) {
+      previous = bob.createBetween(previous, PositionSource.LAST);
+      parents.push(previous);
+    }
+    const list = [gParent, ...parents];
+    // Create positions between gParent and the parents; since parent
+    // starts with gParent, they'll be left children of parent.
+    // This checks that leftVersion() works on those valueSeq's.
+    for (let i = 0; i < parents.length; i++) {
+      const child = bob.createBetween(gParent, parents[i]);
+      list.splice(2 * i + 1, 0, child);
+    }
+    assertIsOrdered(list);
+
+    testUniqueAfterDelete(list, alice);
+    testUniqueAfterDelete(list, bob);
   });
 }

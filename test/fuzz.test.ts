@@ -1,5 +1,5 @@
 import seedrandom from "seedrandom";
-import { assertIsOrdered, newSources } from "./util";
+import { assertIsOrdered, newSources, testUniqueAfterDelete } from "./util";
 
 describe("fuzz", () => {
   describe("sequential", () => {
@@ -29,6 +29,7 @@ function sequential(numUsers: number) {
     }
 
     assertIsOrdered(list);
+    testUniqueAfterDelete(list, sources[0]);
   });
 
   it("random LtR runs", () => {
@@ -51,6 +52,7 @@ function sequential(numUsers: number) {
     }
 
     assertIsOrdered(list);
+    testUniqueAfterDelete(list, sources[0]);
   });
 
   it("random RtL runs", () => {
@@ -70,6 +72,7 @@ function sequential(numUsers: number) {
     }
 
     assertIsOrdered(list);
+    testUniqueAfterDelete(list, sources[0]);
   });
 
   it("biased", () => {
@@ -88,5 +91,6 @@ function sequential(numUsers: number) {
     }
 
     assertIsOrdered(list);
+    testUniqueAfterDelete(list, sources[0]);
   });
 }

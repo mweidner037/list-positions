@@ -18,3 +18,14 @@ export function newSources(
   }
   return sources;
 }
+
+export function testUniqueAfterDelete(list: string[], source: PositionSource) {
+  // In each slot, create two positions with same left & right,
+  // simulating that the first was deleted. Then make sure they
+  // are still distinct, in case the first is resurrected.
+  for (let i = 0; i <= list.length; i++) {
+    const a = source.createBetween(list[i - 1], list[i]);
+    const b = source.createBetween(list[i - 1], list[i]);
+    assert.notStrictEqual(a, b);
+  }
+}

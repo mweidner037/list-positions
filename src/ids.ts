@@ -25,7 +25,6 @@ export class IDs {
   // consider the total probability across 100,000,000
   // documents with 1,000 IDs each
   // (= 10 users x 100 days x 1 ID/user/day).
-
   /**
    * The default length of an ID, in characters.
    */
@@ -39,7 +38,7 @@ export class IDs {
    * @param options.chars The characters to draw from. Default: `IDs.DEFAULT_CHARS`.
    *
    * If specified, only the first 256 elements are used, and you achieve
-   * about `floor(log_2(chars.length))` bits of entropy per `length`.
+   * about `log_2(chars.length)` bits of entropy per `length`.
    */
   static random(options?: { length?: number; chars?: string }): string {
     const length = options?.length ?? this.DEFAULT_LENGTH;
@@ -86,7 +85,7 @@ export class IDs {
    * @param options.chars The characters to draw from. Default: `IDs.DEFAULT_CHARS`.
    *
    * If specified, only the first 256 elements are used, and you achieve
-   * about `floor(log_2(chars.length))` bits of entropy per `length`.
+   * about `log_2(chars.length)` bits of entropy per `length`.
    */
   static pseudoRandom(
     rng: seedrandom.prng,
@@ -105,15 +104,14 @@ export class IDs {
   }
 
   /**
-   * Throws an error if `ID` does not satisfy the requirements from
-   * `PositionSource`'s constructor:
-   * - All characters are lexicographically greater than `','` (code point 44).
+   * Throws an error if `ID` does not satisfy the
+   * following requirements from `PositionSource`'s constructor:
+   * - It does not contain `','` or `'.'`.
    * - The first character is lexicographically less than `'~'` (code point 126).
    */
   static validate(ID: string): void {
-    for (const char of ID) {
-      precond(char > ",", "All ID chars must be greater than ',':", ID);
-    }
     precond(ID < LastInternal, "ID must be less than", LastInternal, ":", ID);
+    precond(!ID.includes(","), "ID must not contain ',':", ID);
+    precond(!ID.includes("."), "ID must not contain '.':", ID);
   }
 }

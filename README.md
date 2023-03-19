@@ -7,7 +7,7 @@ collaborative lists and text.
 - [Usage](#usage)
 - [API](#api)
 - [Example App](#example-app)
-- [Developing](#developing)
+- [Performance](#performance)
 
 ## About
 
@@ -21,9 +21,9 @@ to "positions" within that list that:
 4. Are unique, even if different users concurrently create positions
    at the same place.
 
-`PositionSource` gives you such positions, in the form
+This package gives you such positions, in the form
 of lexicographically-ordered strings. Specifically, `PositionSource.createBetween`
-returns a new position string in between two existing position strings.
+returns a new "position string" in between two existing position strings.
 
 These strings have the bonus properties:
 
@@ -43,7 +43,7 @@ These strings have the bonus properties:
    not linearly.
 
 Position strings are printable ASCII. Specifically, they
-contain alphanumeric characters and `','`.
+contain alphanumeric characters, `','`, and `'.'`.
 Also, the special string `PositionSource.LAST` is `'~'`.
 
 ### Further reading
@@ -51,10 +51,11 @@ Also, the special string `PositionSource.LAST` is `'~'`.
 - [Fractional indexing](https://www.figma.com/blog/realtime-editing-of-ordered-sequences/#fractional-indexing),
   a related scheme that satisfies 1-3 but not 4-6.
 - [List CRDTs](https://mattweidner.com/2022/10/21/basic-list-crdt.html)
-  and how they map to position strings. PositionSource uses an optimized
-  variant of that link's string implementation.
-- [Paper](https://www.repository.cam.ac.uk/handle/1810/290391) about
-  interleaving in collaborative text editors.
+  and how they map to position strings. `PositionSource` uses an optimized
+  variant of that link's string implementation, described in
+  [algorithm.md](https://github.com/mweidner037/position-strings/blob/master/algorithm.md).
+- [Paper about interleaving](https://www.repository.cam.ac.uk/handle/1810/290391)
+  in collaborative text editors.
 
 ## Usage
 
@@ -68,13 +69,14 @@ const source = new PositionSource();
 
 // When the user types `char` at `index`:
 const position = source.createBetween(
-  myList[index - 1]?.position,
-  myList[index]?.position
-  // If the index is 0 or myList.length, the above behaves reasonably,
+  myListPositions[index - 1],
+  myListPositions[index]
+  // If index is 0 or myListPositions.length, the above behaves reasonably,
   // since undefined defaults to PositionSource.FIRST or LAST.
 );
-myList.splice(index, 0, { char, position });
-// Or insert it into a database table, ordered map, etc.
+myListPositions.splice(index, 0, position);
+myList.splice(index, 0, char);
+// Or insert { position, char } into a database table, ordered map, etc.
 ```
 
 If your list is collaborative:
@@ -84,18 +86,20 @@ import { findPosition } from "position-strings";
 
 // After creating { char, position }, also broadcast it to other users.
 // When you receive `remote = { char, position }` from another user:
-const index = findPosition(remote.position).index;
-myList.splice(index, remote);
+const index = findPosition(remote.position, myListPositions).index;
+myListPositions.splice(index, 0, remote.position);
+myList.splice(index, 0, remote.char);
 // Or insert `remote` into a database table and query
 // "SELECT char FROM table ORDER BY position".
+// Or insert `remote` into an ordered map, etc.
 ```
 
 To use cursors:
 
 ```ts
-import { Cursors } from "position-strings";
+import { Cursors, PositionSource } from "position-strings";
 
-let cursor: string = "";
+let cursor: string = PositionSource.FIRST;
 
 // When the user deliberately moves their cursor to `cursorIndex`:
 cursor = Cursors.fromIndex(cursorIndex, myListPositions);
@@ -105,8 +109,6 @@ cursor = Cursors.fromIndex(cursorIndex, myListPositions);
 cursorIndex = Cursors.toIndex(cursor, myListPositions);
 // Or run the query in the `Cursors.toIndex` docs.
 ```
-
-<!-- TODO: test usage snippets -->
 
 ## API
 
@@ -123,29 +125,32 @@ cursorIndex = Cursors.toIndex(cursor, myListPositions);
 constructor(options?: { ID?: string })
 ```
 
-Constructs a new PositionSource.
+Constructs a new `PositionSource`.
 
-It is okay to share a single PositionSource between
+It is okay to share a single `PositionSource` between
 all documents (lists/text strings) in the same JavaScript runtime.
 
-For efficiency, within each JavaScript runtime, you should not use
-more than one PositionSource for the same document (list/text string).
+For efficiency (shorter position strings),
+within each JavaScript runtime, you should not use
+more than one `PositionSource` for the same document.
 An exception is if multiple logical users share the same runtime;
-we then recommend one PositionSource per user.
+we then recommend one `PositionSource` per user.
 
-_@param_ `options.ID` A unique ID for this PositionSource. Defaults to `IDs.random()`.
+_@param_ `options.ID` A unique ID for this `PositionSource`. Defaults to
+`IDs.random()`.
 
 If provided, `options.ID` must satisfy:
 
 - It is unique across the entire collaborative application, i.e.,
-  all PositionSources whose positions may be compared to ours. This
-  includes past PositionSources, even if they correspond to the same
+  all `PositionSource`s whose positions may be compared to ours. This
+  includes past `PositionSource`s, even if they correspond to the same
   user/device.
-- All characters are lexicographically greater than `','` (code point 44).
+- It does not contain `','` or `'.'`.
 - The first character is lexicographically less than `'~'` (code point 126).
 
-If `options.ID` contains non-alphanumeric characters, created positions
-will contain those characters and `','`.
+If `options.ID` contains non-alphanumeric characters, then created
+positions will contain those characters in addition to
+alphanumeric characters, `','`, and `'.'`.
 
 #### createBetween
 
@@ -160,10 +165,11 @@ Returns a new position between `left` and `right`
 (`left < new < right`).
 
 The new position is unique across the entire collaborative application,
-even in the face on concurrent calls to this method on other
-PositionSources.
+even in the face of concurrent calls to this method on other
+`PositionSource`s.
 
 _@param_ `left` Defaults to `PositionSource.FIRST` (insert at the beginning).
+
 _@param_ `right` Defaults to `PositionSource.LAST` (insert at the end).
 
 #### Properties
@@ -172,7 +178,7 @@ _@param_ `right` Defaults to `PositionSource.LAST` (insert at the end).
 readonly ID: string
 ```
 
-The unique ID for this PositionSource.
+The unique ID for this `PositionSource`.
 
 ```ts
 static readonly FIRST: string = ""
@@ -207,12 +213,12 @@ instead of an array), you can instead compute
 For example, in SQL, use:
 
 ```sql
-SELECT COUNT() FROM table WHERE position < $position
+SELECT COUNT(*) FROM table WHERE position < $position
 ```
 
 See also: `Cursors.toIndex`.
 
-_@param_ positions The target list's positions, in lexicographic order.
+_@param_ `positions` The target list's positions, in lexicographic order.
 There should be no duplicate positions.
 
 ### Class `Cursors`
@@ -222,7 +228,7 @@ or text string.
 
 A cursor points to a particular spot in a list, in between
 two list elements (or text characters). This class handles
-cursors for lists that use `PositionSource` position strings.
+cursors for lists that use our position strings.
 
 A cursor is represented as a string.
 Specifically, it is the position of the element
@@ -246,7 +252,7 @@ That is, the cursor is between the list elements at `index - 1` and `index`.
 If this method is inconvenient (e.g., the positions are in a database
 instead of an array), you can instead run the following algorithm yourself:
 
-- If `index` is 0, return `PositionSource.FIRST` (`""`).
+- If `index` is 0, return `PositionSource.FIRST = ""`.
 - Else return `positions[index - 1]`.
 
 _@param_ `positions` The target list's positions, in lexicographic order.
@@ -275,7 +281,7 @@ SELECT COUNT(*) FROM table WHERE position <= $position
 
 See also: `findPosition`.
 
-_@param_ positions The target list's positions, in lexicographic order.
+_@param_ `positions` The target list's positions, in lexicographic order.
 There should be no duplicate positions.
 
 ### Class `IDs`
@@ -291,12 +297,12 @@ static random(options?: { length?: number; chars?: string }): string
 Returns a cryptographically random ID made of alphanumeric characters.
 
 _@param_ `options.length` The length of the ID, in characters.
-Default: `DEFAULT_LENGTH`.
+Default: `IDs.DEFAULT_LENGTH`.
 
-_@param_ `options.chars` The characters to draw from. Default: `DEFAULT_CHARS`.
+_@param_ `options.chars` The characters to draw from. Default: `IDs.DEFAULT_CHARS`.
 
 If specified, only the first 256 elements are used, and you achieve
-about `floor(log_2(chars.length))` bits of entropy per `length`.
+about `log_2(chars.length)` bits of entropy per `length`.
 
 #### pseudoRandom
 
@@ -318,12 +324,12 @@ Pseudorandom IDs with a fixed seed are recommended for
 tests and benchmarks, to make them deterministic.
 
 _@param_ `options.length` The length of the ID, in characters.
-Default: `DEFAULT_LENGTH`.
+Default: `IDs.DEFAULT_LENGTH`.
 
-_@param_ `options.chars` The characters to draw from. Default: `DEFAULT_CHARS`.
+_@param_ `options.chars` The characters to draw from. Default: `IDs.DEFAULT_CHARS`.
 
 If specified, only the first 256 elements are used, and you achieve
-about `floor(log_2(chars.length))` bits of entropy per `length`.
+about `log_2(chars.length)` bits of entropy per `length`.
 
 #### validate
 
@@ -331,9 +337,10 @@ about `floor(log_2(chars.length))` bits of entropy per `length`.
 static validate(ID: string): void
 ```
 
-Throws an error if `ID` does not satisfy the requirements from `PositionSource`'s constructor:
+Throws an error if `ID` does not satisfy the
+following requirements from `PositionSource`'s constructor:
 
-- All characters are lexicographically greater than `','` (code point 44).
+- It does not contain `','` or `'.'`.
 - The first character is lexicographically less than `'~'` (code point 126).
 
 #### Properties
@@ -359,15 +366,24 @@ The app also demonstrates using `Cursors` to track the local user's selection st
 
 [Source code](https://github.com/mweidner037/firebase-text-editor/blob/master/src/site/main.ts)
 
-## Developing
+## Performance
 
-### Files
+_Position string length_ is our main performance metric. This determines the memory, storage, and network overhead due to a collaborative list's positions.
 
-- `src/`: Source folder. Entry point is `index.ts`. Built to `build/esm` and `build/commonjs`.
-- `test/`: Test folder. Runs using mocha.
+> Additionally, each `PositionSource` instance uses some memory, and `PositionSource.createBetween` takes some time, but these are usually small enough to ignore.
 
-### Commands
+To measure position string length in a realistic setting, we benchmark against [Martin Kleppmann's text trace](https://github.com/automerge/automerge-perf). That is, we pretend a user is typing into a collaborative text editor that attaches a position string to each character, then output statistics for those positions.
 
-- Build with `npm run build`.
-- Test, lint, etc. with `npm run test`.
-- Benchmark with `npm run benchmarks`. It simulates [Martin Kleppmann's text trace](https://github.com/automerge/automerge-perf) and measures properties of the created positions. Summary stats are printed to stdout (current outputs in `stats.md`); full data is written to `benchmark_results/`.
+For the complete trace (182k positions, 260k total edits) typed by a single `PositionSource`, the average position length is **33 characters**, and the max length is 55.
+
+For a more realistic scenario with 260 `PositionSource`s (a new one every 1,000 edits), the average position length is **111 characters**, and the max length is 237. "Rotating" `PositionSource`s in this way simulates the effect of multiple users, or a single user who occasionally reloads the page. (The extra length comes from referencing multiple [IDs](#properties) per position: an average of 8 IDs/position x 8 chars/ID = 64 chars/position.)
+
+If we only consider the first 10,000 edits, the averages decrease to **23 characters** (single `PositionSource`) and **50 characters** (new `PositionSource` every 1,000 edits).
+
+More stats for these four scenarios are in [stats.md](https://github.com/mweidner037/position-strings/blob/master/stats.md). For full data, run `npm run benchmarks` (after `npm ci`) and look in `benchmark_results/`.
+
+### Performance Considerations
+
+- In realistic scenarios with multiple `PositionSource`s, most of the positions' length comes from referencing [IDs](#properties). By default, IDs are 8 random alphanumeric characters to give a low probability of collisions, but you can pass your own shorter IDs to [`PositionSource`'s constructor](#constructor). For example, you could assign IDs sequentially from a server.
+- A set of positions from the same list compress reasonably well together, since they represent different paths in the same tree. In particular, a list's worth of positions should compress well under gzip or prefix compression. However, compressing individual positions is not recommended.
+- [`PositionSource.createBetween`](#createbetween) is optimized for left-to-right insertions. If you primarily insert right-to-left or at random, you will see worse performance.

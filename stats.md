@@ -1,124 +1,144 @@
 
-> position-strings@1.0.0 benchmarks
+> position-strings@2.0.0 benchmarks
 > ts-node --project tsconfig.dev.json benchmarks/main.ts
-
-## Run: 1000 ops; rotate never
-
-### length
-
-- Average: 97
-- Median: 109
-- 99th percentile: 163
-- Max: 164
-
-### compressedLength
-
-- Average: 56
-- Median: 61
-- 99th percentile: 81
-- Max: 82
-
-### nodes
-
-- Average: 7
-- Median: 8
-- 99th percentile: 12
-- Max: 12
-
-### valueIndexCount
-
-- Average: 84
-- Median: 53
-- 99th percentile: 315
-- Max: 324
-
-## Run: 10000 ops; rotate every 1000 ops
-
-### length
-
-- Average: 268
-- Median: 260
-- 99th percentile: 463
-- Max: 478
-
-### compressedLength
-
-- Average: 124
-- Median: 126
-- 99th percentile: 190
-- Max: 196
-
-### nodes
-
-- Average: 20
-- Median: 19
-- 99th percentile: 34
-- Max: 35
-
-### valueIndexCount
-
-- Average: 56
-- Median: 38
-- 99th percentile: 243
-- Max: 324
 
 ## Run: all ops; rotate never
 
 ### length
 
-- Average: 423
-- Median: 390
-- 99th percentile: 916
-- Max: 1091
+- Average: 33
+- Median: 32
+- 99th percentile: 51
+- Max: 55
 
-### compressedLength
+### longNames
 
-- Average: 148
-- Median: 141
-- 99th percentile: 271
-- Max: 316
+- Average: 1
+- Median: 1
+- 99th percentile: 1
+- Max: 1
 
-### nodes
+### waypoints
 
-- Average: 29
-- Median: 27
-- 99th percentile: 62
-- Max: 72
+- Average: 9
+- Median: 8
+- 99th percentile: 15
+- Max: 17
 
-### valueIndexCount
+### valueIndex
 
-- Average: 86
-- Median: 44
-- 99th percentile: 671
-- Max: 1395
+- Average: 615
+- Median: 208
+- 99th percentile: 5780
+- Max: 7603
+
+### PositionSource memory usage
+
+- Map size: 3333
+- Sum of map key lengths: 112034
 
 ## Run: all ops; rotate every 1000 ops
 
 ### length
 
-- Average: 457
-- Median: 432
-- 99th percentile: 949
-- Max: 1100
+- Average: 111
+- Median: 109
+- 99th percentile: 206
+- Max: 237
 
-### compressedLength
+### longNames
 
-- Average: 210
-- Median: 206
-- 99th percentile: 364
-- Max: 431
+- Average: 8
+- Median: 8
+- 99th percentile: 16
+- Max: 18
 
-### nodes
+### waypoints
 
-- Average: 33
-- Median: 31
-- 99th percentile: 69
-- Max: 80
+- Average: 13
+- Median: 13
+- 99th percentile: 24
+- Max: 26
 
-### valueIndexCount
+### valueIndex
 
-- Average: 70
-- Median: 39
-- 99th percentile: 454
+- Average: 185
+- Median: 108
+- 99th percentile: 851
 - Max: 999
+
+### PositionSource memory usage
+
+- Map size: 20
+- Sum of map key lengths: 2574
+
+## Run: 10000 ops; rotate never
+
+### length
+
+- Average: 23
+- Median: 25
+- 99th percentile: 32
+- Max: 35
+
+### longNames
+
+- Average: 1
+- Median: 1
+- 99th percentile: 1
+- Max: 1
+
+### waypoints
+
+- Average: 5
+- Median: 6
+- 99th percentile: 8
+- Max: 9
+
+### valueIndex
+
+- Average: 293
+- Median: 183
+- 99th percentile: 1029
+- Max: 1069
+
+### PositionSource memory usage
+
+- Map size: 151
+- Sum of map key lengths: 3666
+
+## Run: 10000 ops; rotate every 1000 ops
+
+### length
+
+- Average: 50
+- Median: 49
+- 99th percentile: 86
+- Max: 86
+
+### longNames
+
+- Average: 3
+- Median: 3
+- 99th percentile: 6
+- Max: 6
+
+### waypoints
+
+- Average: 7
+- Median: 7
+- 99th percentile: 11
+- Max: 12
+
+### valueIndex
+
+- Average: 173
+- Median: 113
+- 99th percentile: 686
+- Max: 759
+
+### PositionSource memory usage
+
+- Map size: 7
+- Sum of map key lengths: 580
 

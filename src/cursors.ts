@@ -8,7 +8,7 @@ import { precond } from "./util";
  *
  * A *cursor* points to a particular spot in a list, in between
  * two list elements (or text characters). This class handles
- * cursors for lists that use `PositionSource` position strings.
+ * cursors for lists that use our position strings.
  *
  * A cursor is represented as a string.
  * Specifically, it is the position of the element
@@ -31,7 +31,7 @@ export class Cursors {
    *
    * If this method is inconvenient (e.g., the positions are in a database
    * instead of an array), you can instead run the following algorithm yourself:
-   * - If `index` is 0, return `PositionSource.FIRST` (`""`).
+   * - If `index` is 0, return `PositionSource.FIRST = ""`.
    * - Else return `positions[index - 1]`.
    *
    * @param positions The target list's positions, in lexicographic order.
