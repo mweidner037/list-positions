@@ -59,6 +59,12 @@ Also, the special string `PositionSource.LAST` is `'~'`.
 
 ## Usage
 
+Install with npm:
+
+```bash
+npm i --save position-strings
+```
+
 Creating position strings:
 
 ```ts
