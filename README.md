@@ -52,7 +52,7 @@ Also, the special string `PositionSource.LAST` is `'~'`.
   a related scheme that satisfies 1-3 but not 4-6.
 - [List CRDTs](https://mattweidner.com/2022/10/21/basic-list-crdt.html)
   and how they map to position strings. `PositionSource` uses an optimized
-  variant of that link's string implementation, described in
+  variant of that link's [string implementation](https://mattweidner.com/2022/10/21/basic-list-crdt.html#intro-string-implementation), described in
   [algorithm.md](https://github.com/mweidner037/position-strings/blob/master/algorithm.md).
 - [Paper about interleaving](https://www.repository.cam.ac.uk/handle/1810/290391)
   in collaborative text editors.
