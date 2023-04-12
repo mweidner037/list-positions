@@ -1,6 +1,6 @@
 {
   "name": "position-strings",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "Lexicographically-ordered position strings for collaborative lists and text",
   "author": "Matthew Weidner",
   "license": "MIT",
