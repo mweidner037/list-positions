@@ -4,7 +4,7 @@
 
 At a high level, position-strings implements the core of a List CRDT. Each position string corresponds to an element in the list, such that the lexicographic order on strings matches the list order. We don't implement a literal List CRDT with state and operations, but it's straightforward to implement one on top of position-strings.
 
-More specifically, position-strings is based on [Plain Tree: A Basic List CRDT](https://mattweidner.com/2022/10/21/basic-list-crdt.html#a-basic-uniquely-dense-total-order). It is an optimized version of that post's [string implementation](https://mattweidner.com/2022/10/21/basic-list-crdt.html#intro-string-implementation), which uses strings to represent paths in a tree. The strings are designed so that their lexicographic order matches the tree's [in-order traversal](https://en.wikipedia.org/wiki/Tree_traversal#In-order,_LNR) order.
+More specifically, position-strings is based on [Fugue: A Basic List CRDT](https://mattweidner.com/2022/10/21/basic-list-crdt.html#a-basic-uniquely-dense-total-order). It is an optimized version of that post's [string implementation](https://mattweidner.com/2022/10/21/basic-list-crdt.html#intro-string-implementation), which uses strings to represent paths in a tree. The strings are designed so that their lexicographic order matches the tree's [in-order traversal](https://en.wikipedia.org/wiki/Tree_traversal#In-order,_LNR) order.
 
 ## Tree Structure
 
