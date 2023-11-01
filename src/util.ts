@@ -27,9 +27,3 @@ export function assert(
     }
   }
 }
-
-/**
- * [[PositionSource.LAST]] copy that avoids circular dependencies
- * (PositionSource <-> IDs).
- */
-export const LastInternal = "~";

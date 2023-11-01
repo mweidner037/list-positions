@@ -1,6 +1,5 @@
 import * as crypto from "crypto";
 import type seedrandom from "seedrandom";
-import { LastInternal, precond } from "./util";
 
 /**
  * Utitilies for generating `PositionSource` IDs
@@ -19,8 +18,8 @@ export class IDs {
 
   // Rationale for value 8:
   // Each character of the ID gives us ~6 bits of entropy,
-  //  for a total of ~48 bits.  This gives a < 1%
-  // probability that two connected `PositionSource`s
+  // for a total of ~48 bits.  This gives a < 1%
+  // probability that two connected replicas
   // will ever choose the same IDs, even if we
   // consider the total probability across 100,000,000
   // documents with 1,000 IDs each
@@ -101,17 +100,5 @@ export class IDs {
       arr[i] = chars[Math.floor(rng() * 256) % chars.length];
     }
     return arr.join("");
-  }
-
-  /**
-   * Throws an error if `ID` does not satisfy the
-   * following requirements from `PositionSource`'s constructor:
-   * - It does not contain `','` or `'.'`.
-   * - The first character is lexicographically less than `'~'` (code point 126).
-   */
-  static validate(ID: string): void {
-    precond(ID < LastInternal, "ID must be less than", LastInternal, ":", ID);
-    precond(!ID.includes(","), "ID must not contain ',':", ID);
-    precond(!ID.includes("."), "ID must not contain '.':", ID);
   }
 }
