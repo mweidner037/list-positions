@@ -1,5 +1,5 @@
 import { IDs } from "./ids";
-import { MetaEntry, Position, positionEqual } from "./types";
+import { MetaEntry, Position, positionEquals } from "./types";
 
 /**
  * Info about a MetaEntry within a List.
@@ -31,16 +31,16 @@ export class List<T> {
   readonly ID: string;
   private timestamp = 0;
 
-  // Can't be set etc., but can be insertAfter'd or appear in a Cursor.
-  // Or should we just use null for that?
-  // Make static / const?
-  readonly rootPos: Position = {
-    creatorID: "ROOT",
+  // Can't be set etc., but can be createPositionAfter'd or appear in a Cursor.
+  // TODO: Make static / const?
+  static readonly ROOT_POSITION: Position = {
+    creatorID: IDs.ROOT,
     timestamp: 0,
     valueIndex: 0,
   };
   private readonly rootInfo: EntryInfo<T> = {
-    parent: this.rootPos,
+    parent: List.ROOT_POSITION,
+    children: [],
     total: 0,
   };
 
@@ -56,8 +56,8 @@ export class List<T> {
     this.ID = options?.ID ?? IDs.random();
 
     this.state.set(
-      this.rootPos.creatorID,
-      new Map([[this.rootPos.timestamp, this.rootInfo]])
+      List.ROOT_POSITION.creatorID,
+      new Map([[List.ROOT_POSITION.timestamp, this.rootInfo]])
     );
     this.state.set(this.ID, new Map());
   }
@@ -81,12 +81,13 @@ export class List<T> {
   }
 
   /**
-   * Set this to get called when a new MetaEntry is created by an
-   * insert* method (which also returns that MetaEntry).
+   * Set this to get called when a new MetaEntry is created by a
+   * createPosition* method (which also returns that MetaEntry).
    */
   onNewMeta: ((meta: MetaEntry) => void) | undefined = undefined;
 
   addMetas(metas: Iterable<MetaEntry>): void {
+    // TODO: needs to work with out-of-causal-order iteration.
     for (const meta of metas) this.addMeta(meta);
   }
 
@@ -108,10 +109,9 @@ export class List<T> {
       byCreator.set(meta.timestamp, info);
       this.updateTimestamp(meta.timestamp);
       this.addToChildren(info, parentInfo);
-      // TODO: add to children
     } else {
       // Redundant MetaEntry. Make sure it matches existing.
-      if (!positionEqual(meta.parent, existing.parent)) {
+      if (!positionEquals(meta.parent, existing.parent)) {
         throw new Error(
           `MetaEntry added twice with different parents: existing = ${JSON.stringify(
             existing.parent
@@ -147,6 +147,11 @@ export class List<T> {
     }
   }
 
+  // TODO: hasMeta, to let you query if a meta is okay to add yet?
+
+  /**
+   * No particular order - usually not causal.
+   */
   *metas(): IterableIterator<MetaEntry> {
     for (const [creatorID, byCreator] of this.state) {
       for (const [timestamp, info] of byCreator) {
@@ -167,7 +172,7 @@ export class List<T> {
       );
     }
 
-    const prevPos = index === 0 ? this.rootPos : this.position(index - 1);
+    const prevPos = index === 0 ? List.ROOT_POSITION : this.position(index - 1);
     return this.createPositionAfter(prevPos);
   }
 

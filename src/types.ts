@@ -10,7 +10,7 @@ export type MetaEntry = {
   readonly parent: Position;
 };
 
-export function positionEqual(a: Position, b: Position): boolean {
+export function positionEquals(a: Position, b: Position): boolean {
   return (
     a.creatorID === b.creatorID &&
     a.timestamp === b.timestamp &&
