@@ -1,223 +1,59 @@
 import { IDs } from "./ids";
-import { MetaEntry, Position, positionEquals } from "./types";
+import { Node, NodeInfo, Order, Position } from "./order";
 
 /**
- * Info about a MetaEntry within a List.
+ * A Node's data in a List.
  */
-interface EntryInfo<T> {
-  readonly parent: Position;
-  /**
-   * Child EntryInfo's, in list order.
-   */
-  children?: EntryInfo<T>[];
+interface NodeData<T> {
   /**
    * The total number of present values at this
-   * waypoint and its descendants.
-   *
-   * Possibly omitted when 0.
+   * Node and its descendants.
    */
-  total?: number;
+  total: number;
   /**
    * Map from valueIndex to value. Possibly omitted when empty.
    */
   values?: Map<number, T>;
-  /**
-   * If this MetaEntry was created by us, the next valueIndex to create.
-   */
-  nextValueIndex?: number;
 }
 
 export class List<T> {
-  readonly ID: string;
-  private timestamp = 0;
-
-  // Can't be set etc., but can be createPositionAfter'd or appear in a Cursor.
-  // TODO: Make static / const?
-  static readonly ROOT_POSITION: Position = {
-    creatorID: IDs.ROOT,
-    timestamp: 0,
-    valueIndex: 0,
-  };
-  private readonly rootInfo: EntryInfo<T> = {
-    parent: List.ROOT_POSITION,
-    children: [],
-    total: 0,
-  };
+  private readonly rootData: NodeData<T>;
 
   /**
-   * Maps from (creatorID, timestamp) to that waypoint's info.
+   * Maps from (creatorID, timestamp) to that Node's NodeValues.
    */
-  private readonly state = new Map<string, Map<number, EntryInfo<T>>>();
+  private readonly state = new Map<string, Map<number, NodeData<T>>>();
 
-  constructor(options?: { ID?: string }) {
-    if (options?.ID !== undefined) {
-      IDs.validate(options.ID);
-    }
-    this.ID = options?.ID ?? IDs.random();
-
+  constructor(readonly order: Order) {
+    this.rootData = { total: 0 };
     this.state.set(
-      List.ROOT_POSITION.creatorID,
-      new Map([[List.ROOT_POSITION.timestamp, this.rootInfo]])
+      this.order.rootPosition.creatorID,
+      new Map([[this.order.rootPosition.timestamp, this.rootData]])
     );
-    this.state.set(this.ID, new Map());
   }
 
-  private getInfo(pos: Position): EntryInfo<T> {
-    const info = this.state.get(pos.creatorID)?.get(pos.timestamp);
-    if (info === undefined) {
-      throw new Error(
-        `Position references unknown MetaEntry: ${JSON.stringify({
-          creatorID: pos.creatorID,
-          timestamp: pos.timestamp,
-        })}. You must call addMeta/addMetas before referencing a MetaEntry.`
-      );
-    }
-    if (pos.valueIndex < 0) {
-      throw new Error(
-        `Position has negative valueIndex: ${JSON.stringify(pos)}`
-      );
-    }
-    return info;
-  }
-
-  /**
-   * Set this to get called when a new MetaEntry is created by a
-   * createPosition* method (which also returns that MetaEntry).
-   */
-  onNewMeta: ((meta: MetaEntry) => void) | undefined = undefined;
-
-  addMetas(metas: Iterable<MetaEntry>): void {
-    // TODO: needs to work with out-of-causal-order iteration.
-    for (const meta of metas) this.addMeta(meta);
-  }
-
-  addMeta(meta: MetaEntry): void {
-    let byCreator = this.state.get(meta.creatorID);
-    if (byCreator === undefined) {
-      byCreator = new Map();
-      this.state.set(meta.creatorID, byCreator);
-    }
-
-    const existing = byCreator.get(meta.timestamp);
-    if (existing === undefined) {
-      // New MetaEntry.
-      // getInfo also checks that parent is valid.
-      const parentInfo = this.getInfo(meta.parent);
-      const info = {
-        parent: meta.parent,
-      };
-      byCreator.set(meta.timestamp, info);
-      this.updateTimestamp(meta.timestamp);
-      this.addToChildren(info, parentInfo);
-    } else {
-      // Redundant MetaEntry. Make sure it matches existing.
-      if (!positionEquals(meta.parent, existing.parent)) {
-        throw new Error(
-          `MetaEntry added twice with different parents: existing = ${JSON.stringify(
-            existing.parent
-          )}, new = ${JSON.stringify(meta.parent)}`
-        );
-      }
-    }
-  }
-
-  /**
-   * Adds a new MetaEntry info to parentInfo.children.
-   */
-  private addToChildren(info: EntryInfo<T>, parentInfo: EntryInfo<T>) {
-    if (parentInfo.children === undefined) parentInfo.children = [info];
-    else {
-      // Find the index of the first child > info.
-      let i = 0;
-      for (; i < parentInfo.children.length; i++) {
-        const child = parentInfo.children[i];
-        // Children sort order: first by valueIndex, then by *reverse* timestamp,
-        // then by creatorID.
-        // Break if child > info.
-        if (child.parent.valueIndex > info.parent.valueIndex) break;
-        else if (child.parent.valueIndex === info.parent.valueIndex) {
-          if (child.parent.timestamp < info.parent.timestamp) break;
-          else if (child.parent.timestamp === info.parent.timestamp) {
-            if (child.parent.creatorID > info.parent.creatorID) break;
-          }
-        }
-      }
-      // Insert info just before that child.
-      parentInfo.children.splice(i, 0, info);
-    }
-  }
-
-  // TODO: hasMeta, to let you query if a meta is okay to add yet?
-
-  /**
-   * No particular order - usually not causal.
-   */
-  *metas(): IterableIterator<MetaEntry> {
-    for (const [creatorID, byCreator] of this.state) {
-      for (const [timestamp, info] of byCreator) {
-        yield { creatorID, timestamp, parent: info.parent };
-      }
-    }
-  }
-
-  updateTimestamp(otherTimestamp: number): number {
-    this.timestamp = Math.max(otherTimestamp, this.timestamp);
-    return this.timestamp;
-  }
-
-  createPosition(index: number): { pos: Position; meta: MetaEntry | null } {
+  createPosition(index: number): { pos: Position; meta: Node | null } {
     if (index < 0 || index > this.length) {
       throw new Error(
         `index out of bounds for createPosition: ${index}, length=${this.length}`
       );
     }
 
-    const prevPos = index === 0 ? List.ROOT_POSITION : this.position(index - 1);
-    return this.createPositionAfter(prevPos);
+    const prevPos =
+      index === 0 ? this.order.rootPosition : this.position(index - 1);
+    return this.order.createPositionAfter(prevPos);
   }
 
+  /**
+   *
+   * @param prevPos TODO: e.g. the Cursor
+   * @returns
+   */
   createPositionAfter(prevPos: Position): {
     pos: Position;
-    meta: MetaEntry | null;
+    meta: Node | null;
   } {
-    // getInfo also checks that prevPos is valid.
-    const prevInfo = this.getInfo(prevPos);
-
-    // First try to extend prevPos's MetaEntry.
-    if (prevPos.creatorID === this.ID) {
-      if (prevInfo.nextValueIndex! === prevPos.valueIndex + 1) {
-        // Success.
-        const pos: Position = {
-          creatorID: prevPos.creatorID,
-          timestamp: prevPos.timestamp,
-          valueIndex: prevInfo.nextValueIndex,
-        };
-        prevInfo.nextValueIndex++;
-        return { pos, meta: null };
-      }
-    }
-
-    // Else create a new MetaEntry.
-    const meta: MetaEntry = {
-      creatorID: this.ID,
-      timestamp: ++this.timestamp,
-      parent: prevPos,
-    };
-    const pos: Position = {
-      creatorID: meta.creatorID,
-      timestamp: meta.timestamp,
-      valueIndex: 0,
-    };
-
-    const info = {
-      parent: meta.parent,
-      nextValueIndex: 1,
-    };
-    this.state.get(this.ID)!.set(meta.timestamp, info);
-    this.addToChildren(info, prevInfo);
-    this.onNewMeta?.(meta);
-
-    return { pos, meta };
+    return this.order.createPositionAfter(prevPos);
   }
 
   set(index: number, value: T): Position {
@@ -227,11 +63,15 @@ export class List<T> {
   }
 
   setAt(pos: Position, value: T): void {
-    const info = this.getInfo(pos);
-    if (info.values === undefined) info.values = new Map();
-    const had = info.values.has(pos.valueIndex);
-    info.values.set(pos.valueIndex, value);
-    if (!had) this.updateTotals(info, 1);
+    // Check that pos's Node is known.
+    const nodeInfo = this.order.getNodeInfo(pos);
+
+    const data = this.getOrCreateData(pos);
+    if (data.values === undefined) data.values = new Map();
+
+    const had = data.values.has(pos.valueIndex);
+    data.values.set(pos.valueIndex, value);
+    if (!had) this.updateTotals(pos, data, nodeInfo, 1);
   }
 
   delete(index: number): Position {
@@ -240,28 +80,67 @@ export class List<T> {
     return pos;
   }
 
-  deleteAt(pos: Position): void {
-    const info = this.getInfo(pos);
-    if (info.values !== undefined) {
-      const had = info.values.delete(pos.valueIndex);
-      if (had) this.updateTotals(info, -1);
+  deleteAt(pos: Position): boolean {
+    // Check that pos's Node is known.
+    const nodeInfo = this.order.getNodeInfo(pos);
+
+    const data = this.state.get(pos.creatorID)?.get(pos.timestamp);
+    if (data?.values === undefined) return false;
+    else {
+      const had = data.values.delete(pos.valueIndex);
+      if (had) this.updateTotals(pos, data, nodeInfo, -1);
+      return had;
     }
   }
 
-  private updateTotals(info: EntryInfo<T>, delta: number): void {
-    for (; info.parent !== null; info = this.getInfo(info.parent)) {
-      info.total = (info.total ?? 0) + delta;
+  private updateTotals(
+    pos: Position,
+    data: NodeData<T>,
+    nodeInfo: NodeInfo,
+    delta: number
+  ): void {
+    data.total += delta;
+    if (data.total === 0) this.deleteData(pos);
+
+    while (nodeInfo.parent !== null) {
+      const ancData = this.getOrCreateData(nodeInfo.parent);
+      ancData.total += delta;
+      if (ancData.total === 0) this.deleteData(nodeInfo.parent);
+
+      nodeInfo = this.order.getNodeInfo(nodeInfo.parent);
     }
+  }
+
+  private getOrCreateData(pos: Position): NodeData<T> {
+    let byCreator = this.state.get(pos.creatorID);
+    if (byCreator === undefined) {
+      byCreator = new Map();
+      this.state.set(pos.creatorID, byCreator);
+    }
+
+    let data = byCreator.get(pos.timestamp);
+    if (data === undefined) {
+      data = { total: 0 };
+      byCreator.set(pos.timestamp, data);
+    }
+
+    return data;
+  }
+
+  /**
+   * Delete the NodeData for pos's Node.
+   */
+  private deleteData(pos: Position): void {
+    this.state.get(pos.creatorID)?.delete(pos.timestamp);
   }
 
   clear(): void {
-    for (const byCreator of this.state.values()) {
-      for (const info of byCreator.values()) {
-        // We don't delete the fields to avoid hidden class de-opts.
-        if (info.total !== undefined) info.total = 0;
-        if (info.values !== undefined) info.values.clear();
-      }
-    }
+    this.rootData.total = 0;
+    this.state.clear();
+    this.state.set(
+      this.order.rootPosition.creatorID,
+      new Map([[this.order.rootPosition.timestamp, this.rootData]])
+    );
   }
 
   get(index: number): T {
@@ -269,17 +148,30 @@ export class List<T> {
     return this.getAt(pos)!;
   }
 
+  /**
+   * Okay to call on not-received Node - it's just not present.
+   * @param pos
+   * @returns
+   */
   getAt(pos: Position): T | undefined {
-    return this.getInfo(pos).values?.get(pos.valueIndex);
+    return this.state
+      .get(pos.creatorID)
+      ?.get(pos.timestamp)
+      ?.values?.get(pos.valueIndex);
   }
 
+  /**
+   * Okay to call on not-received Node - it's just not present.
+   * @param pos
+   * @returns
+   */
   hasAt(pos: Position): boolean {
-    const values = this.getInfo(pos).values;
+    const values = this.state.get(pos.creatorID)?.get(pos.timestamp)?.values;
     return values === undefined ? false : values.has(pos.valueIndex);
   }
 
   get length(): number {
-    return this.rootInfo.total!;
+    return this.rootData.total;
   }
 
   position(index: number): Position {}
@@ -315,8 +207,6 @@ export class List<T> {
    * value in the list, in list order.
    */
   *entries(): IterableIterator<[index: number, value: T, position: Position]> {}
-
-  // TODO: bulk representation of values? Mirroring internal / saved state.
 
   /**
    * Returns a copy of a section of this list, as an array.
@@ -357,4 +247,32 @@ export class List<T> {
       return ans;
     }
   }
+
+  save() {
+    const savedState: {
+      [creatorID: string]: {
+        [timestamp: number]: {
+          [valueIndex: number]: T;
+        };
+      };
+    } = {};
+
+    for (const [creatorID, byCreator] of this.state) {
+      if (creatorID === IDs.ROOT) continue;
+
+      savedState[creatorID] = {};
+      for (const [timestamp, data] of byCreator) {
+        if (data.values?.size) {
+          savedState[creatorID][timestamp] = {};
+          for (const [valueIndex, value] of data.values) {
+            savedState[creatorID][timestamp][valueIndex] = value;
+          }
+        }
+      }
+    }
+
+    return savedState;
+  }
+
+  // TODO: load
 }

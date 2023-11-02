@@ -1,5 +1,5 @@
-import { Position } from "./c_total_order";
-import { LocalList } from "./local_list";
+import { List } from "./list";
+import { Position, positionEquals } from "./order";
 
 /**
  * A cursor in a collaborative list or text string.
@@ -16,8 +16,6 @@ import { LocalList } from "./local_list";
  * of the list. If that position is later deleted, the cursor stays the
  * same, but its index shifts to the next element on its left.
  */
-// TODO: make "START" have same type sig as Position. E.g. (root, 0).
-export type Cursor = Position | "START";
 
 /**
  * Utilities for working with [[Cursor]]s.
@@ -35,8 +33,8 @@ export class Cursors {
    *
    * @param list The target list.
    */
-  static fromIndex(index: number, list: LocalList<any>): Cursor {
-    return index === 0 ? "START" : list.getPosition(index - 1);
+  static fromIndex(index: number, list: List<any>): Position {
+    return index === 0 ? list.order.rootPosition : list.position(index - 1);
   }
 
   /**
@@ -47,7 +45,9 @@ export class Cursors {
    * @param cursor The [[Cursor]].
    * @param list The target list.
    */
-  static toIndex(cursor: Cursor, list: LocalList<any>): number {
-    return cursor === "START" ? 0 : list.indexOfPosition(cursor, "left") + 1;
+  static toIndex(cursor: Position, list: List<any>): number {
+    return positionEquals(cursor, list.order.rootPosition)
+      ? 0
+      : list.index(cursor, "left") + 1;
   }
 }
