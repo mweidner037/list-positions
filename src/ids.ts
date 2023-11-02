@@ -11,6 +11,11 @@ export class IDs {
   }
 
   /**
+   * ID reserved for the special root node.
+   */
+  static readonly ROOT = "ROOT";
+
+  /**
    * Default characters used in IDs: alphanumeric chars.
    */
   static readonly DEFAULT_CHARS: string =
@@ -100,5 +105,14 @@ export class IDs {
       arr[i] = chars[Math.floor(rng() * 256) % chars.length];
     }
     return arr.join("");
+  }
+
+  static validate(ID: string): void {
+    if (ID === this.ROOT) {
+      throw new Error(`Invalid ID: "${this.ROOT}" (IDs.ROOT) is reserved.`);
+    }
+    if (ID === "") {
+      throw new Error(`Invalid ID: "" is reserved.`);
+    }
   }
 }

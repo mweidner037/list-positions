@@ -1,53 +1,40 @@
 import { IDs } from "./ids";
-
-export type Position = {
-  readonly creatorID: string;
-  readonly timestamp: number;
-  readonly valueIndex: number;
-};
-
-export type MetaEntry = {
-  readonly creatorID: string;
-  readonly timestamp: number;
-  readonly parent: Position;
-};
+import { MetaEntry, Position, positionEqual } from "./types";
 
 /**
- * Info about a waypoint's values within a LocalList.
+ * Info about a MetaEntry within a List.
  */
-interface WaypointInfo<T> {
+interface EntryInfo<T> {
   readonly parent: Position;
   /**
    * The total number of present values at this
    * waypoint and its descendants.
+   *
+   * Possibly omitted when 0.
    */
-  total: number;
+  total?: number;
   /**
-   * The values (or not) at the waypoint's positions,
-   * in order from left to right, represented as
-   * an array of "items": T[] for present values,
-   * positive count for deleted values.
-   *
-   * The items always alternate types. If the last
-   * item would be a number (deleted), it is omitted.
-   *
-   * TODO: omit when empty?
+   * Map from valueIndex to value. Possibly omitted when empty.
    */
-  items: (T[] | number)[];
+  values?: Map<number, T>;
+  /**
+   * If this MetaEntry was created by us, the next valueIndex to create.
+   */
+  nextValueIndex?: number;
 }
 
 export class List<T> {
   // Can't be set etc., but can be insertAfter'd or appear in a Cursor.
   // Or should we just use null for that?
+  // Make static / const?
   readonly rootPos: Position = {
     creatorID: "ROOT",
     timestamp: 0,
     valueIndex: 0,
   };
-  private readonly rootInfo = {
+  private readonly rootInfo: EntryInfo<T> = {
     parent: this.rootPos,
     total: 0,
-    items: [],
   };
 
   readonly ID: string;
@@ -56,7 +43,7 @@ export class List<T> {
   /**
    * Maps from (creatorID, timestamp) to that waypoint's info.
    */
-  private readonly state = new Map<string, Map<number, WaypointInfo<T>>>();
+  private readonly state = new Map<string, Map<number, EntryInfo<T>>>();
 
   constructor(options?: { ID?: string }) {
     if (options?.ID !== undefined) {
@@ -68,10 +55,32 @@ export class List<T> {
       this.rootPos.creatorID,
       new Map([[this.rootPos.timestamp, this.rootInfo]])
     );
+    this.state.set(this.ID, new Map());
   }
 
-  // TODO: events: on, off. Has-a instead of subclass?
-  // Meta mgmt & normal list changes.
+  private getInfo(pos: Position): EntryInfo<T> {
+    const info = this.state.get(pos.creatorID)?.get(pos.timestamp);
+    if (info === undefined) {
+      throw new Error(
+        `Position references unknown MetaEntry: ${JSON.stringify({
+          creatorID: pos.creatorID,
+          timestamp: pos.timestamp,
+        })}. You must call addMeta/addMetas before referencing a MetaEntry.`
+      );
+    }
+    if (pos.valueIndex < 0) {
+      throw new Error(
+        `Position has negative valueIndex: ${JSON.stringify(pos)}`
+      );
+    }
+    return info;
+  }
+
+  /**
+   * Set this to get called when a new MetaEntry is created by an
+   * insert* method (which also returns that MetaEntry).
+   */
+  onNewMeta: ((meta: MetaEntry) => void) | undefined = undefined;
 
   addMeta(meta: MetaEntry): void {
     let byCreator = this.state.get(meta.creatorID);
@@ -83,15 +92,16 @@ export class List<T> {
     const existing = byCreator.get(meta.timestamp);
     if (existing === undefined) {
       // New MetaEntry.
-      this.validate(meta.parent);
+      // Check that parent is valid.
+      void this.getInfo(meta.parent);
       byCreator.set(meta.timestamp, {
         parent: meta.parent,
-        total: 0,
-        items: [],
       });
+      this.updateTimestamp(meta.timestamp);
+      // TODO: add to children
     } else {
       // Redundant MetaEntry. Make sure it matches existing.
-      if (!this.posEqual(meta.parent, existing.parent)) {
+      if (!positionEqual(meta.parent, existing.parent)) {
         throw new Error(
           `MetaEntry added twice with different parents: existing = ${JSON.stringify(
             existing.parent
@@ -119,62 +129,139 @@ export class List<T> {
   }
 
   set(index: number, value: T): Position {
-    const pos = this.positionOfIndex(index);
+    const pos = this.position(index);
     this.setAt(pos, value);
     return pos;
   }
 
-  setAt(pos: Position, value: T): void {}
+  setAt(pos: Position, value: T): void {
+    const info = this.getInfo(pos);
+    if (info.values === undefined) info.values = new Map();
+    info.values.set(pos.valueIndex, value);
+    this.updateTotals(info, 1);
+  }
 
-  // For loading quickly
-  setBulk(startPos: Position, values: T[]): void {}
+  private updateTotals(info: EntryInfo<T>, delta: number): void {
+    for (; info.parent !== null; info = this.getInfo(info.parent)) {
+      info.total = (info.total ?? 0) + delta;
+    }
+  }
 
   insert(index: number, value: T): { pos: Position; meta: MetaEntry | null } {
+    const ret = this.insertPosition(index);
+    // OPT: pass index hint
+    this.setAt(ret.pos, value);
+    return ret;
+  }
+
+  insertAfter(
+    prevPos: Position,
+    value: T
+  ): { pos: Position; meta: MetaEntry | null } {
+    const ret = this.insertPositionAfter(prevPos);
+    this.setAt(ret.pos, value);
+    return ret;
+  }
+
+  insertPosition(index: number): { pos: Position; meta: MetaEntry | null } {
     if (index < 0 || index > this.length) {
       throw new Error(
         `index out of bounds for insert: ${index}, length=${this.length}`
       );
     }
 
-    const prevPos =
-      index === 0 ? this.rootPos : this.positionOfIndex(index - 1);
-    return this.insertAfter(prevPos, value);
+    const prevPos = index === 0 ? this.rootPos : this.position(index - 1);
+    return this.insertPositionAfter(prevPos);
   }
 
-  insertAfter(
-    prevPos: Position,
-    value: T
-  ): { pos: Position; meta: MetaEntry | null } {}
+  insertPositionAfter(prevPos: Position): {
+    pos: Position;
+    meta: MetaEntry | null;
+  } {
+    // First try to extend prevPos's MetaEntry.
+    if (prevPos.creatorID === this.ID) {
+      const prevInfo = this.getInfo(prevPos);
+      if (prevInfo.nextValueIndex! === prevPos.valueIndex + 1) {
+        // Success.
+        const pos: Position = {
+          creatorID: prevPos.creatorID,
+          timestamp: prevPos.timestamp,
+          valueIndex: prevInfo.nextValueIndex,
+        };
+        prevInfo.nextValueIndex++;
+        return { pos, meta: null };
+      }
+    }
+
+    // Else create a new MetaEntry.
+    const meta: MetaEntry = {
+      creatorID: this.ID,
+      timestamp: ++this.timestamp,
+      parent: prevPos,
+    };
+    const pos: Position = {
+      creatorID: meta.creatorID,
+      timestamp: meta.timestamp,
+      valueIndex: 0,
+    };
+
+    this.state.get(this.ID)!.set(meta.timestamp, {
+      parent: meta.parent,
+      nextValueIndex: 1,
+    });
+    // TODO: add to children
+    this.onNewMeta?.(meta);
+
+    return { pos, meta };
+  }
 
   delete(index: number): Position {
-    const pos = this.positionOfIndex(index);
+    const pos = this.position(index);
     this.deleteAt(pos);
     return pos;
   }
 
-  deleteAt(pos: Position): void {}
+  deleteAt(pos: Position): void {
+    const info = this.getInfo(pos);
+    if (info.values !== undefined) {
+      info.values.delete(pos.valueIndex);
+      this.updateTotals(info, -1);
+    }
+  }
 
-  clear(): void {}
+  clear(): void {
+    for (const byCreator of this.state.values()) {
+      for (const info of byCreator.values()) {
+        // We don't delete the fields to avoid hidden class de-opts.
+        if (info.total !== undefined) info.total = 0;
+        if (info.values !== undefined) info.values.clear();
+      }
+    }
+  }
 
   get(index: number): T {
-    const pos = this.positionOfIndex(index);
+    const pos = this.position(index);
     return this.getAt(pos)!;
   }
 
-  getAt(pos: Position): T | undefined {}
-
-  hasAt(pos: Position): boolean {}
-
-  get length(): number {
-    return this.rootInfo.total;
+  getAt(pos: Position): T | undefined {
+    return this.getInfo(pos).values?.get(pos.valueIndex);
   }
 
-  positionOfIndex(index: number): Position {}
+  hasAt(pos: Position): boolean {
+    const values = this.getInfo(pos).values;
+    return values === undefined ? false : values.has(pos.valueIndex);
+  }
 
-  indexOfPosition(
-    pos: Position,
-    searchDir: "none" | "left" | "right" = "none"
-  ): number {}
+  get length(): number {
+    return this.rootInfo.total!;
+  }
+
+  position(index: number): Position {}
+
+  index(pos: Position, searchDir: "none" | "left" | "right" = "none"): number {}
+
+  // TODO: compare method?
 
   /**
    * Returns an iterator for values in the list, in list order.
@@ -237,7 +324,7 @@ export class List<T> {
     if (start === 0 && end === len) {
       return [...this.values()];
     } else {
-      // OPT: optimize.
+      // TODO: optimize.
       const ans = new Array<T>(end - start);
       for (let i = 0; i < end - start; i++) {
         ans[i] = this.get(start + i);
