@@ -160,34 +160,18 @@ export class List<T> {
     return this.timestamp;
   }
 
-  insert(index: number, value: T): { pos: Position; meta: MetaEntry | null } {
-    const ret = this.insertPosition(index);
-    // OPT: pass index hint
-    this.setAt(ret.pos, value);
-    return ret;
-  }
-
-  insertAfter(
-    prevPos: Position,
-    value: T
-  ): { pos: Position; meta: MetaEntry | null } {
-    const ret = this.insertPositionAfter(prevPos);
-    this.setAt(ret.pos, value);
-    return ret;
-  }
-
-  insertPosition(index: number): { pos: Position; meta: MetaEntry | null } {
+  createPosition(index: number): { pos: Position; meta: MetaEntry | null } {
     if (index < 0 || index > this.length) {
       throw new Error(
-        `index out of bounds for insert: ${index}, length=${this.length}`
+        `index out of bounds for createPosition: ${index}, length=${this.length}`
       );
     }
 
     const prevPos = index === 0 ? this.rootPos : this.position(index - 1);
-    return this.insertPositionAfter(prevPos);
+    return this.createPositionAfter(prevPos);
   }
 
-  insertPositionAfter(prevPos: Position): {
+  createPositionAfter(prevPos: Position): {
     pos: Position;
     meta: MetaEntry | null;
   } {
