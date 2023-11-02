@@ -7,6 +7,10 @@ import { MetaEntry, Position, positionEqual } from "./types";
 interface EntryInfo<T> {
   readonly parent: Position;
   /**
+   * Child EntryInfo's, in list order.
+   */
+  children?: EntryInfo<T>[];
+  /**
    * The total number of present values at this
    * waypoint and its descendants.
    *
@@ -24,6 +28,9 @@ interface EntryInfo<T> {
 }
 
 export class List<T> {
+  readonly ID: string;
+  private timestamp = 0;
+
   // Can't be set etc., but can be insertAfter'd or appear in a Cursor.
   // Or should we just use null for that?
   // Make static / const?
@@ -36,9 +43,6 @@ export class List<T> {
     parent: this.rootPos,
     total: 0,
   };
-
-  readonly ID: string;
-  private timestamp = 0;
 
   /**
    * Maps from (creatorID, timestamp) to that waypoint's info.
@@ -82,6 +86,10 @@ export class List<T> {
    */
   onNewMeta: ((meta: MetaEntry) => void) | undefined = undefined;
 
+  addMetas(metas: Iterable<MetaEntry>): void {
+    for (const meta of metas) this.addMeta(meta);
+  }
+
   addMeta(meta: MetaEntry): void {
     let byCreator = this.state.get(meta.creatorID);
     if (byCreator === undefined) {
@@ -92,12 +100,14 @@ export class List<T> {
     const existing = byCreator.get(meta.timestamp);
     if (existing === undefined) {
       // New MetaEntry.
-      // Check that parent is valid.
-      void this.getInfo(meta.parent);
-      byCreator.set(meta.timestamp, {
+      // getInfo also checks that parent is valid.
+      const parentInfo = this.getInfo(meta.parent);
+      const info = {
         parent: meta.parent,
-      });
+      };
+      byCreator.set(meta.timestamp, info);
       this.updateTimestamp(meta.timestamp);
+      this.addToChildren(info, parentInfo);
       // TODO: add to children
     } else {
       // Redundant MetaEntry. Make sure it matches existing.
@@ -111,8 +121,30 @@ export class List<T> {
     }
   }
 
-  addMetas(metas: Iterable<MetaEntry>): void {
-    for (const meta of metas) this.addMeta(meta);
+  /**
+   * Adds a new MetaEntry info to parentInfo.children.
+   */
+  private addToChildren(info: EntryInfo<T>, parentInfo: EntryInfo<T>) {
+    if (parentInfo.children === undefined) parentInfo.children = [info];
+    else {
+      // Find the index of the first child > info.
+      let i = 0;
+      for (; i < parentInfo.children.length; i++) {
+        const child = parentInfo.children[i];
+        // Children sort order: first by valueIndex, then by *reverse* timestamp,
+        // then by creatorID.
+        // Break if child > info.
+        if (child.parent.valueIndex > info.parent.valueIndex) break;
+        else if (child.parent.valueIndex === info.parent.valueIndex) {
+          if (child.parent.timestamp < info.parent.timestamp) break;
+          else if (child.parent.timestamp === info.parent.timestamp) {
+            if (child.parent.creatorID > info.parent.creatorID) break;
+          }
+        }
+      }
+      // Insert info just before that child.
+      parentInfo.children.splice(i, 0, info);
+    }
   }
 
   *metas(): IterableIterator<MetaEntry> {
@@ -126,25 +158,6 @@ export class List<T> {
   updateTimestamp(otherTimestamp: number): number {
     this.timestamp = Math.max(otherTimestamp, this.timestamp);
     return this.timestamp;
-  }
-
-  set(index: number, value: T): Position {
-    const pos = this.position(index);
-    this.setAt(pos, value);
-    return pos;
-  }
-
-  setAt(pos: Position, value: T): void {
-    const info = this.getInfo(pos);
-    if (info.values === undefined) info.values = new Map();
-    info.values.set(pos.valueIndex, value);
-    this.updateTotals(info, 1);
-  }
-
-  private updateTotals(info: EntryInfo<T>, delta: number): void {
-    for (; info.parent !== null; info = this.getInfo(info.parent)) {
-      info.total = (info.total ?? 0) + delta;
-    }
   }
 
   insert(index: number, value: T): { pos: Position; meta: MetaEntry | null } {
@@ -178,9 +191,11 @@ export class List<T> {
     pos: Position;
     meta: MetaEntry | null;
   } {
+    // getInfo also checks that prevPos is valid.
+    const prevInfo = this.getInfo(prevPos);
+
     // First try to extend prevPos's MetaEntry.
     if (prevPos.creatorID === this.ID) {
-      const prevInfo = this.getInfo(prevPos);
       if (prevInfo.nextValueIndex! === prevPos.valueIndex + 1) {
         // Success.
         const pos: Position = {
@@ -205,14 +220,29 @@ export class List<T> {
       valueIndex: 0,
     };
 
-    this.state.get(this.ID)!.set(meta.timestamp, {
+    const info = {
       parent: meta.parent,
       nextValueIndex: 1,
-    });
-    // TODO: add to children
+    };
+    this.state.get(this.ID)!.set(meta.timestamp, info);
+    this.addToChildren(info, prevInfo);
     this.onNewMeta?.(meta);
 
     return { pos, meta };
+  }
+
+  set(index: number, value: T): Position {
+    const pos = this.position(index);
+    this.setAt(pos, value);
+    return pos;
+  }
+
+  setAt(pos: Position, value: T): void {
+    const info = this.getInfo(pos);
+    if (info.values === undefined) info.values = new Map();
+    const had = info.values.has(pos.valueIndex);
+    info.values.set(pos.valueIndex, value);
+    if (!had) this.updateTotals(info, 1);
   }
 
   delete(index: number): Position {
@@ -224,8 +254,14 @@ export class List<T> {
   deleteAt(pos: Position): void {
     const info = this.getInfo(pos);
     if (info.values !== undefined) {
-      info.values.delete(pos.valueIndex);
-      this.updateTotals(info, -1);
+      const had = info.values.delete(pos.valueIndex);
+      if (had) this.updateTotals(info, -1);
+    }
+  }
+
+  private updateTotals(info: EntryInfo<T>, delta: number): void {
+    for (; info.parent !== null; info = this.getInfo(info.parent)) {
+      info.total = (info.total ?? 0) + delta;
     }
   }
 
@@ -261,7 +297,7 @@ export class List<T> {
 
   index(pos: Position, searchDir: "none" | "left" | "right" = "none"): number {}
 
-  // TODO: compare method?
+  // TODO: compare method? Better than index() when both not present.
 
   /**
    * Returns an iterator for values in the list, in list order.
