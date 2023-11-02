@@ -16,6 +16,14 @@ interface NodeData<T> {
   values?: Map<number, T>;
 }
 
+export type ListSavedState<T> = {
+  [creatorID: string]: {
+    [timestamp: number]: {
+      [valueIndex: number]: T;
+    };
+  };
+};
+
 export class List<T> {
   private readonly rootData: NodeData<T>;
 
@@ -248,14 +256,8 @@ export class List<T> {
     }
   }
 
-  save() {
-    const savedState: {
-      [creatorID: string]: {
-        [timestamp: number]: {
-          [valueIndex: number]: T;
-        };
-      };
-    } = {};
+  save(): ListSavedState<T> {
+    const savedState: ListSavedState<T> = {};
 
     for (const [creatorID, byCreator] of this.state) {
       if (creatorID === IDs.ROOT) continue;
@@ -274,5 +276,43 @@ export class List<T> {
     return savedState;
   }
 
-  // TODO: load
+  /**
+   * Overwrites the current state (not state-based merge).
+   *
+   * On failure due to missing nodes, the state is left empty.
+   *
+   * @param savedState
+   */
+  load(savedState: ListSavedState<T>): void {
+    this.clear();
+
+    try {
+      for (const [creatorID, byCreatorSave] of Object.entries(savedState)) {
+        for (const [timestampStr, dataSave] of Object.entries(byCreatorSave)) {
+          // Fake pos corresonding to the current Node, for API reasons.
+          const nodePos: Position = {
+            creatorID,
+            timestamp: Number.parseInt(timestampStr),
+            valueIndex: 0,
+          };
+
+          const data = this.getOrCreateData(nodePos);
+          data.values = new Map();
+          for (const [valueIndexStr, value] of Object.entries(dataSave)) {
+            data.values.set(Number.parseInt(valueIndexStr), value);
+          }
+
+          this.updateTotals(
+            nodePos,
+            data,
+            this.order.getNodeInfo(nodePos),
+            data.values.size
+          );
+        }
+      }
+    } catch (exc) {
+      this.clear();
+      throw exc;
+    }
+  }
 }

@@ -114,6 +114,9 @@ export class Order {
    */
   onNewNode: ((meta: Node) => void) | undefined = undefined;
 
+  /**
+   * Also used for loading output of [...nodes()].
+   */
   receiveNodes(nodes: Iterable<Node>): void {
     // TODO: needs to work with out-of-causal-order iteration.
     for (const meta of nodes) this.receiveNode(meta);
@@ -186,6 +189,8 @@ export class Order {
    * No particular order - usually not causal.
    *
    * Excludes root.
+   *
+   * Use for saving.
    */
   *nodes(): IterableIterator<Node> {
     for (const [creatorID, byCreator] of this.tree) {
