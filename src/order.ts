@@ -12,6 +12,18 @@ export type Node = {
   readonly parent: Position;
 };
 
+export type ItemDesc = {
+  readonly creatorID: string;
+  readonly timestamp: number;
+  readonly startValueIndex: number;
+  /**
+   * The exclusive end of the item's valueIndex range.
+   *
+   * null to include all further Positions at this Node (unbounded valueIndex).
+   */
+  readonly endValueIndex: number | null;
+};
+
 export function positionEquals(a: Position, b: Position): boolean {
   return (
     a.creatorID === b.creatorID &&
@@ -21,6 +33,8 @@ export function positionEquals(a: Position, b: Position): boolean {
 }
 
 export interface NodeInfo {
+  readonly creatorID: string;
+  readonly timestamp: number;
   /**
    * null only for the root.
    */
@@ -43,7 +57,12 @@ class NodeInfoInternal implements NodeInfo {
    */
   nextValueIndex?: number;
 
-  constructor(readonly parent: Position | null, readonly depth: number) {}
+  constructor(
+    readonly creatorID: string,
+    readonly timestamp: number,
+    readonly parent: Position | null,
+    readonly depth: number
+  ) {}
 
   get children() {
     return this._children ?? [];
@@ -55,6 +74,7 @@ export class Order {
   private timestamp = 0;
 
   // Can't be set etc., but can be createPositionAfter'd or appear in a Cursor.
+  // TODO: instead, start & end positions? (Latter is root, 1).
   readonly rootPosition: Position;
   private readonly rootInfo: NodeInfoInternal;
 
@@ -74,11 +94,12 @@ export class Order {
       timestamp: 0,
       valueIndex: 0,
     };
-    this.rootInfo = {
-      parent: null,
-      depth: 0,
-      children: [],
-    };
+    this.rootInfo = new NodeInfoInternal(
+      this.rootPosition.creatorID,
+      this.rootPosition.timestamp,
+      null,
+      0
+    );
     this.tree.set(
       this.rootPosition.creatorID,
       new Map([[this.rootPosition.timestamp, this.rootInfo]])
@@ -136,7 +157,12 @@ export class Order {
       // New Node.
       // getInfo also checks that parent is valid.
       const parentInfo = this.getNodeInfoInternal(node.parent);
-      const info = new NodeInfoInternal(node.parent, parentInfo.depth + 1);
+      const info = new NodeInfoInternal(
+        node.creatorID,
+        node.timestamp,
+        node.parent,
+        parentInfo.depth + 1
+      );
       byCreator.set(node.timestamp, info);
       this.updateTimestamp(node.timestamp);
       this.addToChildren(info, parentInfo);
@@ -241,7 +267,12 @@ export class Order {
       valueIndex: 0,
     };
 
-    const info = new NodeInfoInternal(meta.parent, prevInfo.depth + 1);
+    const info = new NodeInfoInternal(
+      meta.creatorID,
+      meta.timestamp,
+      meta.parent,
+      prevInfo.depth + 1
+    );
     info.nextValueIndex = 1;
     this.tree.get(this.ID)!.set(meta.timestamp, info);
     this.addToChildren(info, prevInfo);
@@ -289,5 +320,53 @@ export class Order {
 
     // Walk up the tree in lockstep until we find a common Node parent.
     // TODO
+  }
+
+  *items(): IterableIterator<ItemDesc> {
+    const stack = [
+      {
+        info: this.rootInfo,
+        nextChildIndex: 0,
+        nextValueIndex: 0,
+      },
+    ];
+    while (stack.length !== 0) {
+      const top = stack[stack.length - 1];
+      if (top.nextChildIndex === (top.info._children?.length ?? 0)) {
+        // Out of children. Finish the values and then go up.
+        if (top.info !== this.rootInfo) {
+          yield {
+            creatorID: top.info.creatorID,
+            timestamp: top.info.timestamp,
+            startValueIndex: top.nextValueIndex,
+            endValueIndex: null,
+          };
+        }
+        stack.pop();
+      } else {
+        const nextChild = top.info._children![top.nextChildIndex];
+        top.nextChildIndex++;
+        // Emit values less than that child.
+        const startValueIndex = top.nextValueIndex;
+        const endValueIndex = nextChild.parent!.valueIndex + 1;
+        if (endValueIndex !== startValueIndex) {
+          if (top.info !== this.rootInfo) {
+            yield {
+              creatorID: top.info.creatorID,
+              timestamp: top.info.timestamp,
+              startValueIndex,
+              endValueIndex,
+            };
+          }
+          top.nextValueIndex = endValueIndex;
+        }
+        // Visit the child.
+        stack.push({
+          info: nextChild,
+          nextChildIndex: 0,
+          nextValueIndex: 0,
+        });
+      }
+    }
   }
 }
