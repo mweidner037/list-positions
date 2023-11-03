@@ -32,11 +32,14 @@ export function positionEquals(a: Position, b: Position): boolean {
   );
 }
 
+// TODO: remove? Don't see point.
 export interface NodeInfo {
   readonly creatorID: string;
   readonly timestamp: number;
   /**
    * null only for the root.
+   *
+   * TODO: change to NodeInfo and valueIndex
    */
   readonly parent: Position | null;
   readonly depth: number;
@@ -318,11 +321,19 @@ export class Order {
       }
     }
 
+    // Now aAnc and bAnc are distinct nodes at the same depth.
     // Walk up the tree in lockstep until we find a common Node parent.
-    // TODO
+    while (true) {
+      const aAncParentInfo = this.getNodeInfo(aAnc);
+      const bAncParentInfo = this.getNodeInfo(bAnc);
+    }
   }
 
+  // TODO: slice args (startPos, endPos). For when you only view part of a doc.
+  // Opt to avoid depth scan when they're in the same subtree?
   *items(): IterableIterator<ItemDesc> {
+    // Use a manual stack instead of recursion, to prevent stack overflows
+    // in deep trees.
     const stack = [
       {
         info: this.rootInfo,
@@ -369,4 +380,126 @@ export class Order {
       }
     }
   }
+
+  index(
+    listData: ListData,
+    pos: Position,
+    searchDir: "none" | "left" | "right" = "none"
+  ): number {
+    // Count the number of values < pos.
+    let valuesBefore = 0;
+
+    let currentPos = pos;
+    while (true) {
+      const currentNodeInfo = this.getNodeInfo(currentPos);
+      if (currentNodeInfo.parent === null) break; // Root position
+
+      valuesBefore += listData.valueCount(
+        currentPos.creatorID,
+        currentPos.timestamp,
+        0,
+        currentPos.valueIndex
+      );
+      for (const child of currentNodeInfo.children) {
+        if (child.parent!.valueIndex < currentPos.valueIndex) {
+          valuesBefore += listData.descCount(child.creatorID, child.timestamp);
+        }
+      }
+
+      currentPos = currentNodeInfo.parent;
+    }
+
+    if (listData.has(pos)) return valuesBefore;
+    else {
+      switch (searchDir) {
+        case "none":
+          return -1;
+        case "left":
+          return valuesBefore - 1;
+        case "right":
+          return valuesBefore;
+      }
+    }
+  }
+
+  position(listData: ListData, index: number): Position {
+    const length = listData.length;
+    if (index < 0 || index >= length) {
+      throw new Error(`index out of bounds: ${index}, length=${length}`);
+    }
+
+    let remaining = index;
+    let currentNodeInfo = this.rootInfo;
+    while (true) {
+      let recurse = false;
+      let lastValueIndex = 0;
+      for (const child of currentNodeInfo.children) {
+        const valuesBefore = listData.valueCount(
+          currentNodeInfo.creatorID,
+          this.timestamp,
+          lastValueIndex,
+          child.parent!.valueIndex + 1
+        );
+        if (remaining < valuesBefore) {
+          return {
+            creatorID: currentNodeInfo.creatorID,
+            timestamp: currentNodeInfo.timestamp,
+            valueIndex: listData.nthValueIndex(
+              currentNodeInfo.creatorID,
+              currentNodeInfo.timestamp,
+              lastValueIndex,
+              remaining
+            ),
+          };
+        } else {
+          remaining -= valuesBefore;
+          const childCount = listData.descCount(
+            child.creatorID,
+            child.timestamp
+          );
+          if (remaining < childCount) {
+            recurse = true;
+            currentNodeInfo = child;
+            break;
+          } else {
+            remaining -= childCount;
+            lastValueIndex = child.parent!.valueIndex + 1;
+          }
+        }
+      }
+      if (!recurse) {
+        throw new Error(
+          `Bad listData: index ${index} less than length ${length}, but there are not that many present values.`
+        );
+      }
+    }
+  }
+}
+
+export interface ListData {
+  /**
+   * Should cache this (called often).
+   */
+  descCount(creatorID: string, timestamp: number): number;
+
+  valueCount(
+    creatorID: string,
+    timestamp: number,
+    startValueIndex: number,
+    endValueIndex: number
+  ): number;
+
+  /**
+   * valueIndex corresponding to the n-th present value in the node after startValueIndex (0-indexed).
+   */
+  nthValueIndex(
+    creatorID: string,
+    timestamp: number,
+    startValueIndex: number,
+    n: number
+  ): number;
+
+  readonly length: number;
+
+  has(pos: Position): boolean;
 }
