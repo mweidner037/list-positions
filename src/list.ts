@@ -184,9 +184,53 @@ export class List<T> {
 
   position(index: number): Position {}
 
-  index(pos: Position, searchDir: "none" | "left" | "right" = "none"): number {}
+  /**
+   * Returns the current index of pos.
+   *
+   * If position is not currently present in the list
+   * (`hasAt(pos)` returns false), then the result depends on searchDir:
+   * - "none" (default): Returns -1.
+   * - "left": Returns the next index to the left of position.
+   * If there are no values to the left of position,
+   * returns -1.
+   * - "right": Returns the next index to the right of position.
+   * If there are no values to the right of position,
+   * returns `this.length`.
+   *
+   * To find the index where a position would be if
+   * present, use `searchDir = "right"`.
+   *
+   * See also: Cursors
+   */
+  index(pos: Position, searchDir: "none" | "left" | "right" = "none"): number {
+    // The count of values < pos.
+    let valuesBefore = 0;
 
-  // TODO: compare method? Better than index() when both not present.
+    // 1. Count lesser values at the same Node.
+    const nodeValues = this.state
+      .get(pos.creatorID)
+      ?.get(pos.timestamp)?.values;
+    if (nodeValues !== undefined) {
+      // Loop over the map instead of the indices, so tombstones don't affect us.
+      for (const valueIndex of nodeValues.keys()) {
+        if (valueIndex < pos.valueIndex) valuesBefore++;
+      }
+    }
+
+    // TODO
+
+    if (this.hasAt(pos)) return valuesBefore;
+    else {
+      switch (searchDir) {
+        case "none":
+          return -1;
+        case "left":
+          return valuesBefore - 1;
+        case "right":
+          return valuesBefore;
+      }
+    }
+  }
 
   /**
    * Returns an iterator for values in the list, in list order.
@@ -214,7 +258,9 @@ export class List<T> {
    * Returns an iterator of [index, value, position] tuples for every
    * value in the list, in list order.
    */
-  *entries(): IterableIterator<[index: number, value: T, position: Position]> {}
+  *entries(): IterableIterator<[index: number, value: T, position: Position]> {
+    const stack: { childIndex: number }[] = [];
+  }
 
   /**
    * Returns a copy of a section of this list, as an array.
