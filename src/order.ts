@@ -32,45 +32,22 @@ export function positionEquals(a: Position, b: Position): boolean {
   );
 }
 
-// TODO: remove? Don't see point.
-export interface NodeInfo {
+type NodeInternal = {
   readonly creatorID: string;
   readonly timestamp: number;
-  /**
-   * null only for the root.
-   *
-   * TODO: change to NodeInfo and valueIndex
-   */
-  readonly parent: Position | null;
-  readonly depth: number;
-  /**
-   * Child NodeInfos, in list order.
-   */
-  readonly children: NodeInfo[];
-}
+  readonly parentNode: NodeInternal | null;
+  readonly parentValueIndex: number;
 
-class NodeInfoInternal implements NodeInfo {
   /**
-   * Internal version of children.
+   * May be undefined if empty.
    */
-  _children?: NodeInfoInternal[];
+  children?: NodeInternal[];
 
   /**
    * If this Node was created by us, the next valueIndex to create.
    */
   nextValueIndex?: number;
-
-  constructor(
-    readonly creatorID: string,
-    readonly timestamp: number,
-    readonly parent: Position | null,
-    readonly depth: number
-  ) {}
-
-  get children() {
-    return this._children ?? [];
-  }
-}
+};
 
 export class Order {
   readonly ID: string;
@@ -79,12 +56,12 @@ export class Order {
   // Can't be set etc., but can be createPositionAfter'd or appear in a Cursor.
   // TODO: instead, start & end positions? (Latter is root, 1).
   readonly rootPosition: Position;
-  private readonly rootInfo: NodeInfoInternal;
+  private readonly rootNode: NodeInternal;
 
   /**
-   * Maps from (creatorID, timestamp) to that node's NodeInfo.
+   * Maps from (creatorID, timestamp) to that node.
    */
-  private readonly tree = new Map<string, Map<number, NodeInfoInternal>>();
+  private readonly tree = new Map<string, Map<number, NodeInternal>>();
 
   constructor(options?: { ID?: string }) {
     if (options?.ID !== undefined) {
@@ -92,41 +69,48 @@ export class Order {
     }
     this.ID = options?.ID ?? IDs.random();
 
-    this.rootPosition = {
+    this.rootNode = {
       creatorID: IDs.ROOT,
       timestamp: 0,
+      parentNode: null,
+      parentValueIndex: 0,
+    };
+    this.rootPosition = {
+      creatorID: this.rootNode.creatorID,
+      timestamp: this.rootNode.timestamp,
       valueIndex: 0,
     };
-    this.rootInfo = new NodeInfoInternal(
-      this.rootPosition.creatorID,
-      this.rootPosition.timestamp,
-      null,
-      0
-    );
     this.tree.set(
       this.rootPosition.creatorID,
-      new Map([[this.rootPosition.timestamp, this.rootInfo]])
+      new Map([[this.rootPosition.timestamp, this.rootNode]])
     );
     this.tree.set(this.ID, new Map());
   }
 
-  getNodeInfo(pos: Position): NodeInfo {
-    return this.getNodeInfoInternal(pos);
-  }
-
-  private getNodeInfoInternal(pos: Position): NodeInfoInternal {
+  /**
+   * Also validates pos.
+   */
+  private getNode(pos: Position): NodeInternal {
     const info = this.tree.get(pos.creatorID)?.get(pos.timestamp);
     if (info === undefined) {
       throw new Error(
         `Position references unknown Node: ${JSON.stringify({
           creatorID: pos.creatorID,
           timestamp: pos.timestamp,
+          parent: "<unknown>",
         })}. You must call Order.receiveNodes before referencing a Node.`
       );
     }
     if (pos.valueIndex < 0) {
       throw new Error(
         `Position has negative valueIndex: ${JSON.stringify(pos)}`
+      );
+    }
+    if (info === this.rootNode && pos.valueIndex !== 0) {
+      throw new Error(
+        `Position uses root Node but non-zero valueIndex: ${JSON.stringify(
+          pos
+        )}`
       );
     }
     return info;
@@ -147,6 +131,7 @@ export class Order {
   }
 
   private receiveNode(node: Node): void {
+    // This also checks that node is not the root.
     IDs.validate(node.creatorID);
 
     let byCreator = this.tree.get(node.creatorID);
@@ -158,24 +143,28 @@ export class Order {
     const existing = byCreator.get(node.timestamp);
     if (existing === undefined) {
       // New Node.
-      // getInfo also checks that parent is valid.
-      const parentInfo = this.getNodeInfoInternal(node.parent);
-      const info = new NodeInfoInternal(
-        node.creatorID,
-        node.timestamp,
-        node.parent,
-        parentInfo.depth + 1
-      );
-      byCreator.set(node.timestamp, info);
-      this.updateTimestamp(node.timestamp);
-      this.addToChildren(info, parentInfo);
+      const nodeInternal: NodeInternal = {
+        creatorID: node.creatorID,
+        timestamp: node.timestamp,
+        // getNode also validates node.parent.
+        parentNode: this.getNode(node.parent),
+        parentValueIndex: node.parent.valueIndex,
+      };
+      byCreator.set(nodeInternal.timestamp, nodeInternal);
+      this.updateTimestamp(nodeInternal.timestamp);
+      this.addToChildren(nodeInternal);
     } else {
       // Redundant Node. Make sure it matches existing.
-      if (!positionEquals(node.parent, existing.parent!)) {
+      const existingParent: Position = {
+        creatorID: existing.parentNode!.creatorID,
+        timestamp: existing.parentNode!.timestamp,
+        valueIndex: existing.parentValueIndex,
+      };
+      if (!positionEquals(node.parent, existingParent)) {
         throw new Error(
-          `Node added twice with different parents: existing = ${JSON.stringify(
-            existing.parent
-          )}, new = ${JSON.stringify(node.parent)}`
+          `Node added twice with different parents: existing=${JSON.stringify(
+            existingParent
+          )}, new=${JSON.stringify(node.parent)}`
         );
       }
     }
@@ -184,30 +173,35 @@ export class Order {
   /**
    * Adds a new Node info to parentInfo.children.
    */
-  private addToChildren(toAdd: NodeInfoInternal, parentInfo: NodeInfoInternal) {
-    if (parentInfo.children === undefined) parentInfo._children = [toAdd];
+  private addToChildren(node: NodeInternal) {
+    const parentNode = node.parentNode!;
+    if (parentNode.children === undefined) parentNode.children = [node];
     else {
-      // Find the index of the first child > info.
-      const toAddParent = toAdd.parent!;
+      // Find the index of the first sibling > node.
       let i = 0;
-      for (; i < parentInfo.children.length; i++) {
-        const childParent = parentInfo.children[i].parent!;
-        // Children sort order: first by valueIndex, then by *reverse* timestamp,
-        // then by creatorID.
-        // Break if child > info.
-        if (childParent.valueIndex > toAddParent.valueIndex) break;
-        else if (childParent.valueIndex === toAddParent.valueIndex) {
-          if (childParent.timestamp < toAddParent.timestamp) break;
-          else if (childParent.timestamp === toAddParent.timestamp) {
-            if (childParent.creatorID > toAddParent.creatorID) break;
-          }
-        }
+      for (; i < parentNode.children.length; i++) {
+        // Break if sibling > node.
+        if (this.isSiblingLess(node, parentNode.children[i])) break;
       }
-      // Insert info just before that child.
-      parentInfo.children.splice(i, 0, toAdd);
+      // Insert node just before that sibling.
+      parentNode.children.splice(i, 0, node);
     }
   }
 
+  private isSiblingLess(a: NodeInternal, b: NodeInternal): boolean {
+    // Sibling sort order: first by valueIndex, then by *reverse* timestamp,
+    // then by creatorID.
+    if (a.parentValueIndex < b.parentValueIndex) return true;
+    else if (a.parentValueIndex === b.parentValueIndex) {
+      if (a.timestamp > b.timestamp) return true;
+      else if (a.timestamp === b.timestamp) {
+        if (a.creatorID < b.creatorID) return true;
+      }
+    }
+    return false;
+  }
+
+  // TODO: change to 'isPositionOkay' or similar? / isReady, isValid, readyFor
   hasNodeFor(pos: Position): boolean {
     return this.tree.get(pos.creatorID)?.get(pos.timestamp) !== undefined;
   }
@@ -219,18 +213,26 @@ export class Order {
    *
    * Excludes root.
    *
-   * Use for saving.
+   * Use for saving - natural JSON rep.
    */
-  *nodes(): IterableIterator<Node> {
+  nodes(): Node[] {
+    const ans: Node[] = [];
     for (const [creatorID, byCreator] of this.tree) {
-      if (creatorID === IDs.ROOT) continue;
-      for (const [timestamp, info] of byCreator) {
-        yield { creatorID, timestamp, parent: info.parent! };
+      for (const [timestamp, nodeInternal] of byCreator) {
+        if (nodeInternal.parentNode === null) continue; // Root
+        ans.push({
+          creatorID,
+          timestamp,
+          parent: {
+            creatorID: nodeInternal.parentNode.creatorID,
+            timestamp: nodeInternal.parentNode.timestamp,
+            valueIndex: nodeInternal.parentValueIndex,
+          },
+        });
       }
     }
+    return ans;
   }
-
-  // TODO: save() method that returns natural JSON rep?
 
   updateTimestamp(otherTimestamp: number): number {
     this.timestamp = Math.max(otherTimestamp, this.timestamp);
@@ -239,54 +241,54 @@ export class Order {
 
   createPositionAfter(prevPos: Position): {
     pos: Position;
-    meta: Node | null;
+    newNode: Node | null;
   } {
-    // getInfo also checks that prevPos is valid.
-    const prevInfo = this.getNodeInfoInternal(prevPos);
+    // getNode also checks that prevPos is valid.
+    const prevNode = this.getNode(prevPos);
 
     // First try to extend prevPos's Node.
     if (prevPos.creatorID === this.ID) {
-      if (prevInfo.nextValueIndex! === prevPos.valueIndex + 1) {
+      if (prevNode.nextValueIndex === prevPos.valueIndex + 1) {
         // Success.
         const pos: Position = {
           creatorID: prevPos.creatorID,
           timestamp: prevPos.timestamp,
-          valueIndex: prevInfo.nextValueIndex,
+          valueIndex: prevNode.nextValueIndex,
         };
-        prevInfo.nextValueIndex++;
-        return { pos, meta: null };
+        prevNode.nextValueIndex++;
+        return { pos, newNode: null };
       }
     }
 
     // Else create a new Node.
-    const meta: Node = {
+    const newNode: Node = {
       creatorID: this.ID,
       timestamp: ++this.timestamp,
       parent: prevPos,
     };
     const pos: Position = {
-      creatorID: meta.creatorID,
-      timestamp: meta.timestamp,
+      creatorID: newNode.creatorID,
+      timestamp: newNode.timestamp,
       valueIndex: 0,
     };
 
-    const info = new NodeInfoInternal(
-      meta.creatorID,
-      meta.timestamp,
-      meta.parent,
-      prevInfo.depth + 1
-    );
-    info.nextValueIndex = 1;
-    this.tree.get(this.ID)!.set(meta.timestamp, info);
-    this.addToChildren(info, prevInfo);
-    this.onNewNode?.(meta);
+    const newNodeInternal: NodeInternal = {
+      creatorID: newNode.creatorID,
+      timestamp: newNode.timestamp,
+      parentNode: prevNode,
+      parentValueIndex: prevPos.valueIndex,
+      nextValueIndex: 1,
+    };
+    this.tree.get(this.ID)!.set(newNodeInternal.timestamp, newNodeInternal);
+    this.addToChildren(newNodeInternal);
+    this.onNewNode?.(newNode);
 
-    return { pos, meta };
+    return { pos, newNode };
   }
 
   compare(a: Position, b: Position): number {
-    const aInfo = this.getNodeInfo(a);
-    const bInfo = this.getNodeInfo(b);
+    const aInfo = this.getNode(a);
+    const bInfo = this.getNode(b);
 
     if (aInfo === bInfo) return a.valueIndex - b.valueIndex;
     if (aInfo.depth === 0) return -1;
@@ -301,7 +303,7 @@ export class Order {
     if (aInfo.depth > bInfo.depth) {
       for (let i = aInfo.depth; i > bInfo.depth; i--) {
         aAnc = aAncInfo.parent!;
-        aAncInfo = this.getNodeInfo(aAnc);
+        aAncInfo = this.getNode(aAnc);
       }
       if (aAncInfo === bInfo) {
         // Descendant is greater than its ancestors.
@@ -312,7 +314,7 @@ export class Order {
     if (bInfo.depth > aInfo.depth) {
       for (let i = bInfo.depth; i > aInfo.depth; i--) {
         bAnc = bAncInfo.parent!;
-        bAncInfo = this.getNodeInfo(bAnc);
+        bAncInfo = this.getNode(bAnc);
       }
       if (bAncInfo === aInfo) {
         // Descendant is greater than its ancestors.
@@ -324,8 +326,8 @@ export class Order {
     // Now aAnc and bAnc are distinct nodes at the same depth.
     // Walk up the tree in lockstep until we find a common Node parent.
     while (true) {
-      const aAncParentInfo = this.getNodeInfo(aAnc);
-      const bAncParentInfo = this.getNodeInfo(bAnc);
+      const aAncParentInfo = this.getNode(aAnc);
+      const bAncParentInfo = this.getNode(bAnc);
     }
   }
 
@@ -336,35 +338,35 @@ export class Order {
     // in deep trees.
     const stack = [
       {
-        info: this.rootInfo,
+        node: this.rootNode,
         nextChildIndex: 0,
         nextValueIndex: 0,
       },
     ];
     while (stack.length !== 0) {
       const top = stack[stack.length - 1];
-      if (top.nextChildIndex === (top.info._children?.length ?? 0)) {
+      if (top.nextChildIndex === (top.node.children?.length ?? 0)) {
         // Out of children. Finish the values and then go up.
-        if (top.info !== this.rootInfo) {
+        if (top.node !== this.rootNode) {
           yield {
-            creatorID: top.info.creatorID,
-            timestamp: top.info.timestamp,
+            creatorID: top.node.creatorID,
+            timestamp: top.node.timestamp,
             startValueIndex: top.nextValueIndex,
             endValueIndex: null,
           };
         }
         stack.pop();
       } else {
-        const nextChild = top.info._children![top.nextChildIndex];
+        const nextChild = top.node.children![top.nextChildIndex];
         top.nextChildIndex++;
         // Emit values less than that child.
         const startValueIndex = top.nextValueIndex;
-        const endValueIndex = nextChild.parent!.valueIndex + 1;
+        const endValueIndex = nextChild.parentValueIndex + 1;
         if (endValueIndex !== startValueIndex) {
-          if (top.info !== this.rootInfo) {
+          if (top.node !== this.rootNode) {
             yield {
-              creatorID: top.info.creatorID,
-              timestamp: top.info.timestamp,
+              creatorID: top.node.creatorID,
+              timestamp: top.node.timestamp,
               startValueIndex,
               endValueIndex,
             };
@@ -373,7 +375,7 @@ export class Order {
         }
         // Visit the child.
         stack.push({
-          info: nextChild,
+          node: nextChild,
           nextChildIndex: 0,
           nextValueIndex: 0,
         });
@@ -389,24 +391,28 @@ export class Order {
     // Count the number of values < pos.
     let valuesBefore = 0;
 
-    let currentPos = pos;
-    while (true) {
-      const currentNodeInfo = this.getNodeInfo(currentPos);
-      if (currentNodeInfo.parent === null) break; // Root position
-
+    let currentNode = this.getNode(pos);
+    let currentValueIndex = pos.valueIndex;
+    while (currentNode.parentNode !== null) {
       valuesBefore += listData.valueCount(
-        currentPos.creatorID,
-        currentPos.timestamp,
+        currentNode.creatorID,
+        currentNode.timestamp,
         0,
-        currentPos.valueIndex
+        currentValueIndex
       );
-      for (const child of currentNodeInfo.children) {
-        if (child.parent!.valueIndex < currentPos.valueIndex) {
-          valuesBefore += listData.descCount(child.creatorID, child.timestamp);
+      if (currentNode.children !== undefined) {
+        for (const child of currentNode.children) {
+          if (child.parentValueIndex < currentValueIndex) {
+            valuesBefore += listData.descCount(
+              child.creatorID,
+              child.timestamp
+            );
+          }
         }
       }
 
-      currentPos = currentNodeInfo.parent;
+      currentValueIndex = currentNode.parentValueIndex;
+      currentNode = currentNode.parentNode;
     }
 
     if (listData.has(pos)) return valuesBefore;
@@ -429,48 +435,48 @@ export class Order {
     }
 
     let remaining = index;
-    let currentNodeInfo = this.rootInfo;
+    let currentNode = this.rootNode;
+    // eslint-disable-next-line no-constant-condition
     while (true) {
       let recurse = false;
       let lastValueIndex = 0;
-      for (const child of currentNodeInfo.children) {
+      for (const child of currentNode.children ?? []) {
         const valuesBefore = listData.valueCount(
-          currentNodeInfo.creatorID,
-          this.timestamp,
+          currentNode.creatorID,
+          currentNode.timestamp,
           lastValueIndex,
-          child.parent!.valueIndex + 1
+          child.parentValueIndex + 1
         );
-        if (remaining < valuesBefore) {
-          return {
-            creatorID: currentNodeInfo.creatorID,
-            timestamp: currentNodeInfo.timestamp,
-            valueIndex: listData.nthValueIndex(
-              currentNodeInfo.creatorID,
-              currentNodeInfo.timestamp,
-              lastValueIndex,
-              remaining
-            ),
-          };
-        } else {
+        if (remaining < valuesBefore) break;
+        else {
           remaining -= valuesBefore;
           const childCount = listData.descCount(
             child.creatorID,
             child.timestamp
           );
           if (remaining < childCount) {
+            currentNode = child;
+            // continue the outer loop.
             recurse = true;
-            currentNodeInfo = child;
             break;
           } else {
             remaining -= childCount;
-            lastValueIndex = child.parent!.valueIndex + 1;
+            lastValueIndex = child.parentValueIndex + 1;
           }
         }
       }
       if (!recurse) {
-        throw new Error(
-          `Bad listData: index ${index} less than length ${length}, but there are not that many present values.`
-        );
+        // pos is within currentNode, before the next child (if any).
+        return {
+          creatorID: currentNode.creatorID,
+          timestamp: currentNode.timestamp,
+          valueIndex: listData.nthValueIndex(
+            currentNode.creatorID,
+            currentNode.timestamp,
+            lastValueIndex,
+            remaining
+          ),
+        };
       }
     }
   }
