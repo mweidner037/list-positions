@@ -76,7 +76,7 @@ export class List<T> {
 
   setAt(pos: Position, value: T): void {
     // Check that pos's Node is known.
-    const nodeInfo = this.order.getNode(pos);
+    const nodeInfo = this.order.getNodeFor(pos);
 
     const data = this.getOrCreateData(pos);
     if (data.values === undefined) data.values = new Map();
@@ -94,7 +94,7 @@ export class List<T> {
 
   deleteAt(pos: Position): boolean {
     // Check that pos's Node is known.
-    const nodeInfo = this.order.getNode(pos);
+    const nodeInfo = this.order.getNodeFor(pos);
 
     const data = this.state.get(pos.creatorID)?.get(pos.timestamp);
     if (data?.values === undefined) return false;
@@ -119,7 +119,7 @@ export class List<T> {
       ancData.total += delta;
       if (ancData.total === 0) this.deleteData(nodeInfo.parent);
 
-      nodeInfo = this.order.getNode(nodeInfo.parent);
+      nodeInfo = this.order.getNodeFor(nodeInfo.parent);
     }
   }
 
@@ -355,7 +355,7 @@ export class List<T> {
           this.updateTotals(
             nodePos,
             data,
-            this.order.getNode(nodePos),
+            this.order.getNodeFor(nodePos),
             data.values.size
           );
         }
