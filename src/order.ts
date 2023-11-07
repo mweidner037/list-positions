@@ -88,6 +88,12 @@ export class Order {
   }
 
   /**
+   * Set this to get called when a new Node is created by a
+   * createPosition* method (which also returns that Node).
+   */
+  onNewNode: ((meta: Node) => void) | undefined = undefined;
+
+  /**
    * Also validates pos.
    */
   private getNode(pos: Position): NodeInternal {
@@ -116,11 +122,9 @@ export class Order {
     return info;
   }
 
-  /**
-   * Set this to get called when a new Node is created by a
-   * createPosition* method (which also returns that Node).
-   */
-  onNewNode: ((meta: Node) => void) | undefined = undefined;
+  validate(pos: Position): void {
+    void this.getNode(pos);
+  }
 
   /**
    * Also used for loading output of [...nodes()].
@@ -204,6 +208,17 @@ export class Order {
   // TODO: change to 'isPositionOkay' or similar? / isReady, isValid, readyFor
   hasNodeFor(pos: Position): boolean {
     return this.tree.get(pos.creatorID)?.get(pos.timestamp) !== undefined;
+  }
+
+  getParent(pos: Position): Position | null {
+    const node = this.getNode(pos);
+    if (node.parentNode === null) return null;
+    else
+      return {
+        creatorID: node.parentNode.creatorID,
+        timestamp: node.parentNode.timestamp,
+        valueIndex: node.parentValueIndex,
+      };
   }
 
   // TODO: hasMeta, to let you query if a meta is okay to add yet?
@@ -384,7 +399,7 @@ export class Order {
   }
 
   index(
-    listData: ListData,
+    outline: Outline,
     pos: Position,
     searchDir: "none" | "left" | "right" = "none"
   ): number {
@@ -394,7 +409,7 @@ export class Order {
     let currentNode = this.getNode(pos);
     let currentValueIndex = pos.valueIndex;
     while (currentNode.parentNode !== null) {
-      valuesBefore += listData.valueCount(
+      valuesBefore += outline.valueCount(
         currentNode.creatorID,
         currentNode.timestamp,
         0,
@@ -403,10 +418,7 @@ export class Order {
       if (currentNode.children !== undefined) {
         for (const child of currentNode.children) {
           if (child.parentValueIndex < currentValueIndex) {
-            valuesBefore += listData.descCount(
-              child.creatorID,
-              child.timestamp
-            );
+            valuesBefore += outline.descCount(child.creatorID, child.timestamp);
           }
         }
       }
@@ -415,7 +427,7 @@ export class Order {
       currentNode = currentNode.parentNode;
     }
 
-    if (listData.has(pos)) return valuesBefore;
+    if (outline.has(pos)) return valuesBefore;
     else {
       switch (searchDir) {
         case "none":
@@ -428,8 +440,11 @@ export class Order {
     }
   }
 
-  position(listData: ListData, index: number): Position {
-    const length = listData.length;
+  position(outline: Outline, index: number): Position {
+    const length = outline.descCount(
+      this.rootNode.creatorID,
+      this.rootNode.timestamp
+    );
     if (index < 0 || index >= length) {
       throw new Error(`index out of bounds: ${index}, length=${length}`);
     }
@@ -441,7 +456,7 @@ export class Order {
       let recurse = false;
       let lastValueIndex = 0;
       for (const child of currentNode.children ?? []) {
-        const valuesBefore = listData.valueCount(
+        const valuesBefore = outline.valueCount(
           currentNode.creatorID,
           currentNode.timestamp,
           lastValueIndex,
@@ -450,7 +465,7 @@ export class Order {
         if (remaining < valuesBefore) break;
         else {
           remaining -= valuesBefore;
-          const childCount = listData.descCount(
+          const childCount = outline.descCount(
             child.creatorID,
             child.timestamp
           );
@@ -470,7 +485,7 @@ export class Order {
         return {
           creatorID: currentNode.creatorID,
           timestamp: currentNode.timestamp,
-          valueIndex: listData.nthValueIndex(
+          valueIndex: outline.nthValueIndex(
             currentNode.creatorID,
             currentNode.timestamp,
             lastValueIndex,
@@ -482,9 +497,11 @@ export class Order {
   }
 }
 
-export interface ListData {
+export interface Outline {
   /**
    * Should cache this (called often).
+   *
+   * For root, this is length.
    */
   descCount(creatorID: string, timestamp: number): number;
 
@@ -504,8 +521,6 @@ export interface ListData {
     startValueIndex: number,
     n: number
   ): number;
-
-  readonly length: number;
 
   has(pos: Position): boolean;
 }
