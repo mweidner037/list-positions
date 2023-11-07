@@ -196,7 +196,7 @@ export class Order {
     const toCheck: NodeInternal[] = [];
 
     for (const nodeDesc of newNodeDescs) {
-      const parentNode = this.getNodeFor(nodeDesc.parent);
+      const parentNode = this.maybeGetNodeFor(nodeDesc.parent);
       if (parentNode !== undefined) {
         // Ready. Create Node.
         toCheck.push(this.newNode(nodeDesc, parentNode));
@@ -317,19 +317,10 @@ export class Order {
     return this.tree.get2(creatorID, timestamp);
   }
 
-  getNodeFor(pos: Position): Node | undefined {
-    return this.tree.get(pos);
-  }
-
-  validate(pos: Position): void {
-    const node = this.getNodeFor(pos);
-    if (node === undefined) {
-      throw new Error(
-        `Position references missing Node: ${JSON.stringify(
-          pos
-        )}. You must call Order.TODOreceiveNodes before referencing a Node.`
-      );
-    }
+  /**
+   * Validates pos except for checking that Node exists (rootPos okay).
+   */
+  private maybeGetNodeFor(pos: Position): Node | undefined {
     if (!Number.isInteger(pos.valueIndex) || pos.valueIndex < 0) {
       throw new Error(
         `Position.valueIndex is not a nonnegative integer: ${JSON.stringify(
@@ -337,6 +328,7 @@ export class Order {
         )}`
       );
     }
+    const node = this.tree.get(pos);
     if (node === this.rootNode && pos.valueIndex !== 0) {
       throw new Error(
         `Position uses the root Node but does not have valueIndex 0: ${JSON.stringify(
@@ -344,6 +336,22 @@ export class Order {
         )}`
       );
     }
+    return node;
+  }
+
+  /**
+   * Also validates pos (rootPos okay).
+   */
+  getNodeFor(pos: Position): Node {
+    const node = this.maybeGetNodeFor(pos);
+    if (node === undefined) {
+      throw new Error(
+        `Position references missing Node: ${JSON.stringify(
+          pos
+        )}. You must call Order.addNodeDescs before referencing a Node.`
+      );
+    }
+    return node;
   }
 
   compare(a: Position, b: Position): number {
@@ -363,7 +371,7 @@ export class Order {
     if (aInfo.depth > bInfo.depth) {
       for (let i = aInfo.depth; i > bInfo.depth; i--) {
         aAnc = aAncInfo.parent!;
-        aAncInfo = this.getNodeFor(aAnc);
+        aAncInfo = this.tree.get(aAnc)!;
       }
       if (aAncInfo === bInfo) {
         // Descendant is greater than its ancestors.
@@ -374,7 +382,7 @@ export class Order {
     if (bInfo.depth > aInfo.depth) {
       for (let i = bInfo.depth; i > aInfo.depth; i--) {
         bAnc = bAncInfo.parent!;
-        bAncInfo = this.getNodeFor(bAnc);
+        bAncInfo = this.tree.get(bAnc)!;
       }
       if (bAncInfo === aInfo) {
         // Descendant is greater than its ancestors.
@@ -386,8 +394,8 @@ export class Order {
     // Now aAnc and bAnc are distinct nodes at the same depth.
     // Walk up the tree in lockstep until we find a common Node parent.
     while (true) {
-      const aAncParentInfo = this.getNodeFor(aAnc);
-      const bAncParentInfo = this.getNodeFor(bAnc);
+      const aAncParentInfo = this.tree.get(aAnc)!;
+      const bAncParentInfo = this.tree.get(bAnc)!;
     }
   }
 
