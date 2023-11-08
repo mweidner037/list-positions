@@ -88,8 +88,10 @@ export class List<T> {
 
   /**
    * Sets the value at position.
+   *
+   * @returns Whether their was an existing value at position.
    */
-  set(pos: Position, value: T): void {
+  set(pos: Position, value: T): boolean {
     const node = this.order.getNodeFor(pos);
     const info = this.state.get(node);
     if (info === undefined) {
@@ -103,7 +105,7 @@ export class List<T> {
         items: newItems,
       });
       this.updateTotals(node, 1);
-      return;
+      return true;
     }
 
     const items = info.items;
@@ -114,7 +116,7 @@ export class List<T> {
         if (remaining < curItem.length) {
           // Already present. Replace the current value.
           curItem[remaining] = value;
-          return;
+          return false;
         } else remaining -= curItem.length;
       } else {
         if (remaining < curItem) {
@@ -146,7 +148,7 @@ export class List<T> {
 
           items.splice(startIndex, deleteCount, ...newItems);
           this.updateTotals(node, 1);
-          return;
+          return true;
         } else remaining -= curItem;
       }
     }
@@ -164,6 +166,7 @@ export class List<T> {
       }
     }
     this.updateTotals(node, 1);
+    return true;
   }
 
   // TODO: setBulk opt for loading a whole node?
@@ -749,7 +752,41 @@ export class List<T> {
    *
    * TODO: only saves values, not Order
    */
-  save(): ListSavedState<T> {}
+  save(): ListSavedState<T> {
+    const savedStatePre: ListSavedState<T> = {};
+    for (const [node, info] of this.state) {
+      if (info.items.length === 0) continue;
+
+      let byCreator = savedStatePre[node.creatorID];
+      if (byCreator === undefined) {
+        byCreator = {};
+        savedStatePre[node.creatorID] = byCreator;
+      }
+
+      // Deep copy info.items.
+      const itemsCopy = new Array<T[] | number>(info.items.length);
+      for (let i = 0; i < info.items.length; i++) {
+        const item = info.items[i];
+        if (typeof item === "number") itemsCopy[i] = item;
+        else itemsCopy[i] = item.slice();
+      }
+
+      byCreator[node.timestamp] = itemsCopy;
+    }
+
+    // Make a (shallow) copy of savedStatePre that touches all
+    // creatorIDs in lexicographic order, to ensure consistent JSON
+    // serialization order for identical states. (JSON field order is: non-negative
+    // integers in numeric order, then string keys in creation order.)
+    const sortedCreatorIDs = Object.keys(savedStatePre);
+    sortedCreatorIDs.sort();
+    const savedState: ListSavedState<T> = {};
+    for (const creatorID of sortedCreatorIDs) {
+      savedState[creatorID] = savedStatePre[creatorID];
+    }
+
+    return savedState;
+  }
 
   /**
    * Loads saved state. The saved state must be from
@@ -760,16 +797,25 @@ export class List<T> {
    *
    * TODO: overwrites whole state
    *
-   * @param savedState Saved state from another LocalList's
+   * @param savedState Saved state from a List's
    * [[save]] call.
-   * @param valueArraySerializer Used to deserialize values.
-   * Must be equivalent to [[save]]'s valueArraySerializer.
    */
   load(savedState: ListSavedState<T>): void {
     this.clear();
 
     // TODO
+
+    // TODO: updateTotals
   }
 }
 
-export type ListSavedState<T> = {};
+// TODO: should this be itemized instead? For compactness, and in
+// case you want to store it that way.
+// Indeed, the point of save() is to provide a lazy, non-mergable default instead
+// of inventing your own format. (But should provide separate iterator to let you assemble the
+// simpler, obvious format.)
+export type ListSavedState<T> = {
+  [creatorID: string]: {
+    [timestamp: number]: (T[] | number)[];
+  };
+};

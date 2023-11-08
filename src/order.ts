@@ -154,7 +154,14 @@ export class Order {
   // Mutators
   // ----------
 
-  addNodeDescs(nodeDescs: Iterable<NodeDesc>): MissingNode[] {
+  /**
+   * Set this to be notified when we locally create a new Node in createPosition.
+   * newNodeDesc (which is also returned by createPosition) must be broadcast to
+   * other replicas before they can use the new Position.
+   */
+  onCreatedNode: ((newNodeDesc: NodeDesc) => void) | undefined = undefined;
+
+  receiveNodeDescs(nodeDescs: Iterable<NodeDesc>): MissingNode[] {
     // We avoid making any state changes in this loop so that
     // failed validation = nothing happens. Instead, we put new
     // (non-redundant) NodeDescs in newNodeDescs for after the loop.
@@ -270,8 +277,8 @@ export class Order {
     pos: Position;
     newNodeDesc: NodeDesc | null;
   } {
-    this.validate(prevPos);
-    const prevNode = this.tree.get(prevPos)!;
+    // Also validates pos.
+    const prevNode = this.getNodeFor(prevPos) as NodeInternal;
 
     // First try to extend prevPos's Node.
     if (prevPos.creatorID === this.ID) {
@@ -300,6 +307,8 @@ export class Order {
     };
     const node = this.newNode(newNodeDesc, prevNode);
     node.nextValueIndex = 1;
+
+    this.onCreatedNode?.(newNodeDesc);
 
     return { pos, newNodeDesc };
   }
@@ -479,28 +488,34 @@ export class Order {
 
   save(): OrderSavedState {
     const savedState: OrderSavedState = {};
+    // Touch all creatorIDs in lexicographic order, to ensure consistent JSON
+    // serialization order for identical states. (JSON field order is: non-negative
+    // integers in numeric order, then string keys in creation order.)
+    const creatorIDs = new Set<string>();
+    for (const creatorID of this.tree.state.keys()) creatorIDs.add(creatorID);
+    for (const creatorID of this.pendingDescs.state.keys())
+      creatorIDs.add(creatorID);
+    creatorIDs.delete(IDs.ROOT);
+
+    const sortedCreatorIDs = [...creatorIDs];
+    sortedCreatorIDs.sort();
+    for (const creatorID of sortedCreatorIDs) savedState[creatorID] = {};
+
     // Nodes
     for (const [creatorID, byCreator] of this.tree.state) {
       if (creatorID === IDs.ROOT) continue;
-      const byCreatorSave: { [timestamp: number]: Position } = {};
-      savedState[creatorID] = byCreatorSave;
       for (const [timestamp, node] of byCreator) {
-        byCreatorSave[timestamp] = node.parent!;
+        savedState[creatorID][timestamp] = node.parent!;
       }
     }
     // Pending nodes
     for (const [creatorID, byCreator] of this.pendingDescs.state) {
       if (creatorID === IDs.ROOT) continue;
-      let byCreatorSave = savedState[creatorID];
-      if (byCreatorSave === undefined) {
-        byCreatorSave = {};
-        savedState[creatorID] = byCreatorSave;
-      }
-      savedState[creatorID] = byCreatorSave;
       for (const [timestamp, node] of byCreator) {
-        byCreatorSave[timestamp] = node.parent!;
+        savedState[creatorID][timestamp] = node.parent!;
       }
     }
+
     return savedState;
   }
 
@@ -515,6 +530,6 @@ export class Order {
         });
       }
     }
-    return this.addNodeDescs(nodeDescs);
+    return this.receiveNodeDescs(nodeDescs);
   }
 }
