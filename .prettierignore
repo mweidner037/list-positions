@@ -1,5 +1,6 @@
 /build/*
 /benchmark_results/*
+/docs/*
 real_text_trace_edits.json
 LICENSE
 stats.md

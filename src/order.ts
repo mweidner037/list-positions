@@ -232,6 +232,9 @@ export class Order {
         this.pendingChildren.delete(node);
       }
     }
+
+    // TODO
+    return [];
   }
 
   private newNode(nodeDesc: NodeDesc, parentNode: NodeInternal): NodeInternal {
@@ -364,48 +367,50 @@ export class Order {
   }
 
   compare(a: Position, b: Position): number {
-    const aInfo = this.getNodeFor(a);
-    const bInfo = this.getNodeFor(b);
+    // TODO
+    throw new Error("Not implemented");
+    // const aInfo = this.getNodeFor(a);
+    // const bInfo = this.getNodeFor(b);
 
-    if (aInfo === bInfo) return a.valueIndex - b.valueIndex;
-    if (aInfo.depth === 0) return -1;
-    if (bInfo.depth === 0) return 1;
+    // if (aInfo === bInfo) return a.valueIndex - b.valueIndex;
+    // if (aInfo.depth === 0) return -1;
+    // if (bInfo.depth === 0) return 1;
 
-    // Walk up the tree until a & b are the same depth.
-    let aAnc = a;
-    let bAnc = b;
-    let aAncInfo = aInfo;
-    let bAncInfo = bInfo;
+    // // Walk up the tree until a & b are the same depth.
+    // let aAnc = a;
+    // let bAnc = b;
+    // let aAncInfo = aInfo;
+    // let bAncInfo = bInfo;
 
-    if (aInfo.depth > bInfo.depth) {
-      for (let i = aInfo.depth; i > bInfo.depth; i--) {
-        aAnc = aAncInfo.parent!;
-        aAncInfo = this.tree.get(aAnc)!;
-      }
-      if (aAncInfo === bInfo) {
-        // Descendant is greater than its ancestors.
-        if (aAnc.valueIndex === b.valueIndex) return 1;
-        else return aAnc.valueIndex - b.valueIndex;
-      }
-    }
-    if (bInfo.depth > aInfo.depth) {
-      for (let i = bInfo.depth; i > aInfo.depth; i--) {
-        bAnc = bAncInfo.parent!;
-        bAncInfo = this.tree.get(bAnc)!;
-      }
-      if (bAncInfo === aInfo) {
-        // Descendant is greater than its ancestors.
-        if (bAnc.valueIndex === a.valueIndex) return -1;
-        else return bAnc.valueIndex - a.valueIndex;
-      }
-    }
+    // if (aInfo.depth > bInfo.depth) {
+    //   for (let i = aInfo.depth; i > bInfo.depth; i--) {
+    //     aAnc = aAncInfo.parent!;
+    //     aAncInfo = this.tree.get(aAnc)!;
+    //   }
+    //   if (aAncInfo === bInfo) {
+    //     // Descendant is greater than its ancestors.
+    //     if (aAnc.valueIndex === b.valueIndex) return 1;
+    //     else return aAnc.valueIndex - b.valueIndex;
+    //   }
+    // }
+    // if (bInfo.depth > aInfo.depth) {
+    //   for (let i = bInfo.depth; i > aInfo.depth; i--) {
+    //     bAnc = bAncInfo.parent!;
+    //     bAncInfo = this.tree.get(bAnc)!;
+    //   }
+    //   if (bAncInfo === aInfo) {
+    //     // Descendant is greater than its ancestors.
+    //     if (bAnc.valueIndex === a.valueIndex) return -1;
+    //     else return bAnc.valueIndex - a.valueIndex;
+    //   }
+    // }
 
-    // Now aAnc and bAnc are distinct nodes at the same depth.
-    // Walk up the tree in lockstep until we find a common Node parent.
-    while (true) {
-      const aAncParentInfo = this.tree.get(aAnc)!;
-      const bAncParentInfo = this.tree.get(bAnc)!;
-    }
+    // // Now aAnc and bAnc are distinct nodes at the same depth.
+    // // Walk up the tree in lockstep until we find a common Node parent.
+    // while (true) {
+    //   const aAncParentInfo = this.tree.get(aAnc)!;
+    //   const bAncParentInfo = this.tree.get(bAnc)!;
+    // }
   }
 
   // ----------

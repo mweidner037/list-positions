@@ -1,5 +1,5 @@
-import { List } from "./list_old";
-import { Position, positionEquals } from "./order";
+import { List } from "./list";
+import { Position, positionEquals } from "./position";
 
 /**
  * A cursor in a collaborative list or text string.
