@@ -29,4 +29,18 @@ export class NodeMap<T> {
   *values(): IterableIterator<T> {
     for (const byCreator of this.state.values()) yield* byCreator.values();
   }
+
+  isEmpty() {
+    return this.state.size === 0;
+  }
+
+  /** If empty, behavior is undefined. */
+  someKey(): { creatorID: string; timestamp: number } {
+    const [creatorID, byCreator] = this.state.entries().next().value as [
+      string,
+      Map<number, T>
+    ];
+    const timestamp = byCreator.keys().next().value as number;
+    return { creatorID, timestamp };
+  }
 }

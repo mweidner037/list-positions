@@ -2,6 +2,12 @@ import { IDs } from "./ids";
 import { NodeMap } from "./node_map";
 import { Position, positionEquals } from "./position";
 
+// TODO: OrderManager class, which wraps an Order to handle pending/missing
+// nodes and also supports VV-based p2p sync?
+// (Is that possible w/o extra causal dot / last-timestamp indicator
+// on each NodeDesc? I guess the OrderManager could add it,
+// or it could assume causal/PRAM consistency.)
+
 /**
  * Serializable form of a Node, used for collaboration.
  */
@@ -11,28 +17,30 @@ export type NodeDesc = {
   readonly parent: Position;
 };
 
-export type MissingNode = {
-  readonly creatorID: string;
-  readonly timestamp: number;
-};
-
 /**
- * By-reference = by-value (within same Order)
+ * By-reference = by-value (within same Order).
+ *
+ * Will be a class with extra properties - not JSON serialiable.
  */
 export interface Node {
   readonly creatorID: string;
   readonly timestamp: number;
   /** null for the root. */
   readonly parentNode: Node | null;
+  /** Unspecified for the root. */
   readonly parentValueIndex: number;
   /** null for the root. */
   readonly parent: Position | null;
-  readonly children: Node[];
+  /** 0 for the root. */
+  readonly depth: number;
 
   desc(): NodeDesc;
+  children(): IterableIterator<Node>;
 }
 
 class NodeInternal implements Node {
+  readonly depth: number;
+
   /**
    * May be undefined when empty.
    */
@@ -48,7 +56,9 @@ class NodeInternal implements Node {
     readonly timestamp: number,
     readonly parentNode: NodeInternal | null,
     readonly parentValueIndex: number
-  ) {}
+  ) {
+    this.depth = parentNode === null ? 0 : parentNode.depth + 1;
+  }
 
   get parent(): Position | null {
     if (this.parentNode === null) return null;
@@ -59,9 +69,8 @@ class NodeInternal implements Node {
     };
   }
 
-  get children(): NodeInternal[] {
-    // TODO: will reflect mutations except when [] - confusing.
-    return this._children ?? [];
+  children(): IterableIterator<NodeInternal> {
+    return (this._children ?? [])[Symbol.iterator]();
   }
 
   /**
@@ -85,6 +94,23 @@ class NodeInternal implements Node {
   }
 }
 
+export function compareSiblingNodes(a: Node, b: Node): number {
+  // Sibling sort order: first by parentValueIndex, then by *reverse* timestamp,
+  // then by creatorID.
+  if (a.parentValueIndex !== b.parentValueIndex) {
+    return a.parentValueIndex - b.parentValueIndex;
+  }
+  if (a.timestamp !== b.timestamp) {
+    // Reverse order.
+    return b.timestamp - a.timestamp;
+  }
+  if (a.creatorID !== b.creatorID) {
+    return a.creatorID > b.creatorID ? 1 : -1;
+  }
+  return 0;
+}
+
+// TODO: Item instead? Unless used by List.
 export type ItemDesc = {
   readonly node: Node;
   readonly startValueIndex: number;
@@ -102,9 +128,6 @@ export type ItemDesc = {
  * JSON saved state for an Order, representing all of its Nodes.
  *
  * Maps (creatorID, timestamp) -> parent Position. Excludes rootNode.
- *
- * TODO: include MissingNodes as well? Yes, can do this without extra fields
- * (they'll just ref a non-existent parent). Doc that this is possible.
  */
 export type OrderSavedState = {
   [creatorID: string]: {
@@ -126,15 +149,7 @@ export class Order {
    */
   private readonly tree = new NodeMap<NodeInternal>();
 
-  /**
-   * Maps from a pending node's ID to its NodeDesc.
-   */
-  private readonly pendingDescs = new NodeMap<NodeDesc>();
-  /**
-   * Maps from a missing or pending node to array of child NodeDescs waiting on it.
-   */
-  private readonly pendingChildren = new NodeMap<NodeDesc[]>();
-
+  // TODO: TimestampSource option.
   constructor(options?: { ID?: string }) {
     if (options?.ID !== undefined) {
       IDs.validate(options.ID);
@@ -156,88 +171,125 @@ export class Order {
 
   /**
    * Set this to be notified when we locally create a new Node in createPosition.
-   * newNodeDesc (which is also returned by createPosition) must be broadcast to
+   * newNodeDesc (which is also returned by createPosition & List.insert) must be broadcast to
    * other replicas before they can use the new Position.
    */
   onCreatedNode: ((newNodeDesc: NodeDesc) => void) | undefined = undefined;
 
-  receiveNodeDescs(nodeDescs: Iterable<NodeDesc>): MissingNode[] {
-    // We avoid making any state changes in this loop so that
-    // failed validation = nothing happens. Instead, we put new
-    // (non-redundant) NodeDescs in newNodeDescs for after the loop.
-    const newNodeDescs: NodeDesc[] = [];
-    for (const nodeDesc of nodeDescs) {
-      // Reject invalid IDs, including root node (can't have a valid parent).
-      IDs.validate(nodeDesc.creatorID);
+  receive(nodeDescs: Iterable<NodeDesc>): void {
+    // 1. Pick out the new (non-redundant) nodes in nodeDescs.
+    // For the redundant ones, check that their parents match.
+    // Redundancy also applies to duplicates within nodeDescs.
 
-      // Check if nodeDesc is already known. If so, compare its parent to
-      // the existing parent.
+    // New NodeDescs, stored as the identity map.
+    const newNodeDescs = new NodeMap<NodeDesc>();
+
+    for (const nodeDesc of nodeDescs) {
+      if (nodeDesc.creatorID === IDs.ROOT) {
+        throw new Error(
+          `Received NodeDesc describing the root node: ${JSON.stringify(
+            nodeDesc
+          )}`
+        );
+      }
       const existing = this.tree.get(nodeDesc);
       if (existing !== undefined) {
         if (!positionEquals(nodeDesc.parent, existing.parent!)) {
           throw new Error(
-            `NodeDesc added twice with different parents: existing=${JSON.stringify(
-              existing
-            )}, new=${JSON.stringify(nodeDesc)}`
+            `Received NodeDesc describing an existing node but with a different parent: received=${JSON.stringify(
+              nodeDesc
+            )}, existing=${JSON.stringify(existing.desc())}`
           );
         }
-        continue;
-      }
-
-      const pending = this.pendingDescs.get(nodeDesc);
-      if (pending !== undefined) {
-        if (!positionEquals(nodeDesc.parent, pending.parent)) {
-          throw new Error(
-            `NodeDesc added twice with different parents: existing=${JSON.stringify(
-              existing
-            )}, new=${JSON.stringify(nodeDesc)}`
-          );
-        }
-        continue;
-      }
-
-      newNodeDescs.push(nodeDesc);
-    }
-
-    // Stack of newly created Nodes that need checking for pending children.
-    const toCheck: NodeInternal[] = [];
-
-    for (const nodeDesc of newNodeDescs) {
-      const parentNode = this.maybeGetNodeFor(nodeDesc.parent);
-      if (parentNode !== undefined) {
-        // Ready. Create Node.
-        toCheck.push(this.newNode(nodeDesc, parentNode));
       } else {
-        // Not ready. Add to pending data structures.
-        this.pendingDescs.set(nodeDesc, nodeDesc);
-        let parentArray = this.pendingChildren.get(nodeDesc.parent);
-        if (parentArray === undefined) {
-          parentArray = [];
-          this.pendingChildren.set(nodeDesc.parent, parentArray);
-        }
-        parentArray.push(nodeDesc);
+        const otherNew = newNodeDescs.get(nodeDesc);
+        if (otherNew !== undefined) {
+          if (!positionEquals(nodeDesc.parent, otherNew.parent)) {
+            throw new Error(
+              `Received two NodeDescs for the same node with different parents: first=${JSON.stringify(
+                otherNew
+              )}, second=${JSON.stringify(nodeDesc)}`
+            );
+          }
+        } else newNodeDescs.set(nodeDesc, nodeDesc);
       }
     }
 
-    while (toCheck.length !== 0) {
-      const node = toCheck.pop()!;
-      // If node is a parent of any pending NodeDescs, create those as well.
-      const children = this.pendingChildren.get(node);
+    // 2. Sort newNodeDescs into a valid processing order, in which each node
+    // follows its parent (or its parent already exists).
+    const toProcess: NodeDesc[] = [];
+    // New NodeDescs that are waiting on a parent in newNodeDescs, keyed by
+    // that parent.
+    const pendingChildren = new NodeMap<NodeDesc[]>();
+
+    for (const nodeDesc of newNodeDescs.values()) {
+      if (this.tree.get(nodeDesc.parent) !== undefined) {
+        // Parent already exists - ready to process.
+        toProcess.push(nodeDesc);
+      } else {
+        // Parent should be in newNodeDescs. Store in pendingChildren for now.
+        let siblings = pendingChildren.get(nodeDesc.parent);
+        if (siblings === undefined) {
+          siblings = [];
+          pendingChildren.set(nodeDesc.parent, siblings);
+        }
+        siblings.push(nodeDesc);
+      }
+    }
+    // For each node in toProcess, if it has pending children, append those.
+    // That way they'll be processed after the node, including by this loop.
+    for (const nodeDesc of toProcess) {
+      const children = pendingChildren.get(nodeDesc);
       if (children !== undefined) {
-        for (const childDesc of children) {
-          // Push the newly created child onto the stack so it is also visited.
-          toCheck.push(this.newNode(childDesc, node));
-          this.pendingDescs.delete(childDesc);
-        }
-        this.pendingChildren.delete(node);
+        toProcess.push(...children);
+        // Delete so we can later check whether all pendingChildren were
+        // moved to toProcess.
+        pendingChildren.delete(nodeDesc);
       }
     }
 
-    // TODO
-    return [];
+    // Check that all pendingChildren were moved to toProcess.
+    if (!pendingChildren.isEmpty()) {
+      const someParent = pendingChildren.someKey();
+      const somePendingChild = pendingChildren.get(someParent)![0];
+      // someParent was never added to toProcess.
+      if (newNodeDescs.get(someParent) === undefined) {
+        // someParent is not already known and not in nodeDescs.
+        throw new Error(
+          `Received NodeDesc ${JSON.stringify(
+            somePendingChild
+          )}, but we have not yet received a NodeDesc for its parent node ${JSON.stringify(
+            someParent
+          )}`
+        );
+      } else {
+        // someParent is indeed in nodeDescs, but never reached. It must be
+        // part of a cycle.
+        throw new Error(
+          `Failed to process nodeDescs due to a cycle involving ${JSON.stringify(
+            somePendingChild
+          )}`
+        );
+      }
+    }
+
+    // Finally, we are guaranteed that:
+    // - All NodeDescs in toProcess are new and valid.
+    // - They are in a valid order (a node's parent will be known by the time
+    // it is reached).
+
+    for (const nodeDesc of toProcess) this.newNode(nodeDesc);
   }
 
-  private newNode(nodeDesc: NodeDesc, parentNode: NodeInternal): NodeInternal {
+  private newNode(nodeDesc: NodeDesc): NodeInternal {
+    const parentNode = this.tree.get(nodeDesc.parent);
+    if (parentNode === undefined) {
+      throw new Error(
+        `Internal error: NodeDesc ${JSON.stringify(
+          nodeDesc
+        )} passed validation checks, but its parent node was not found.`
+      );
+    }
     const node = new NodeInternal(
       nodeDesc.creatorID,
       nodeDesc.timestamp,
@@ -245,7 +297,7 @@ export class Order {
       nodeDesc.parent.valueIndex
     );
     this.tree.set(node, node);
-    this.updateTimestamp(node.timestamp);
+    this.timestamp = Math.max(this.timestamp, node.timestamp);
 
     // Add node to parentNode._children.
     if (parentNode._children === undefined) parentNode._children = [node];
@@ -254,26 +306,13 @@ export class Order {
       let i = 0;
       for (; i < parentNode._children.length; i++) {
         // Break if sibling > node.
-        if (this.isSiblingLess(node, parentNode._children[i])) break;
+        if (compareSiblingNodes(parentNode._children[i], node) > 0) break;
       }
       // Insert node just before that sibling.
       parentNode._children.splice(i, 0, node);
     }
 
     return node;
-  }
-
-  private isSiblingLess(a: Node, b: Node): boolean {
-    // Sibling sort order: first by valueIndex, then by *reverse* timestamp,
-    // then by creatorID.
-    if (a.parentValueIndex < b.parentValueIndex) return true;
-    else if (a.parentValueIndex === b.parentValueIndex) {
-      if (a.timestamp > b.timestamp) return true;
-      else if (a.timestamp === b.timestamp) {
-        if (a.creatorID < b.creatorID) return true;
-      }
-    }
-    return false;
   }
 
   createPosition(prevPos: Position): {
@@ -308,17 +347,12 @@ export class Order {
       timestamp: newNodeDesc.timestamp,
       valueIndex: 0,
     };
-    const node = this.newNode(newNodeDesc, prevNode);
+    const node = this.newNode(newNodeDesc);
     node.nextValueIndex = 1;
 
     this.onCreatedNode?.(newNodeDesc);
 
     return { pos, newNodeDesc };
-  }
-
-  updateTimestamp(otherTimestamp: number): number {
-    this.timestamp = Math.max(otherTimestamp, this.timestamp);
-    return this.timestamp;
   }
 
   // ----------
@@ -330,9 +364,9 @@ export class Order {
   }
 
   /**
-   * Validates pos except for checking that Node exists (rootPos okay).
+   * Also validates pos (rootPos okay).
    */
-  private maybeGetNodeFor(pos: Position): Node | undefined {
+  getNodeFor(pos: Position): Node {
     if (!Number.isInteger(pos.valueIndex) || pos.valueIndex < 0) {
       throw new Error(
         `Position.valueIndex is not a nonnegative integer: ${JSON.stringify(
@@ -348,14 +382,6 @@ export class Order {
         )}`
       );
     }
-    return node;
-  }
-
-  /**
-   * Also validates pos (rootPos okay).
-   */
-  getNodeFor(pos: Position): Node {
-    const node = this.maybeGetNodeFor(pos);
     if (node === undefined) {
       throw new Error(
         `Position references missing Node: ${JSON.stringify(
@@ -367,50 +393,45 @@ export class Order {
   }
 
   compare(a: Position, b: Position): number {
-    // TODO
-    throw new Error("Not implemented");
-    // const aInfo = this.getNodeFor(a);
-    // const bInfo = this.getNodeFor(b);
+    const aNode = this.getNodeFor(a);
+    const bNode = this.getNodeFor(b);
 
-    // if (aInfo === bInfo) return a.valueIndex - b.valueIndex;
-    // if (aInfo.depth === 0) return -1;
-    // if (bInfo.depth === 0) return 1;
+    // Shortcut for equal nodes, for which we can use reference equality.
+    if (aNode === bNode) return a.valueIndex - b.valueIndex;
 
-    // // Walk up the tree until a & b are the same depth.
-    // let aAnc = a;
-    // let bAnc = b;
-    // let aAncInfo = aInfo;
-    // let bAncInfo = bInfo;
+    // Walk up the tree until aAnc & bAnc are the same depth.
+    let aAnc = aNode;
+    let bAnc = bNode;
+    for (let i = aNode.depth; i > bNode.depth; i--) {
+      if (aAnc.parentNode === bNode) {
+        if (aAnc.parentValueIndex === b.valueIndex) {
+          // Descendant is greater than its ancestors.
+          return 1;
+        } else return aAnc.parentValueIndex - b.valueIndex;
+      }
+      // parentNode is non-null because we are not at b's depth yet,
+      // hence aAnc is not the root.
+      aAnc = aAnc.parentNode!;
+    }
+    for (let i = bNode.depth; i > aNode.depth; i--) {
+      if (bAnc.parentNode === aNode) {
+        if (bAnc.parentValueIndex === a.valueIndex) return -1;
+        else return a.valueIndex - bAnc.parentValueIndex;
+      }
+      bAnc = bAnc.parentNode!;
+    }
 
-    // if (aInfo.depth > bInfo.depth) {
-    //   for (let i = aInfo.depth; i > bInfo.depth; i--) {
-    //     aAnc = aAncInfo.parent!;
-    //     aAncInfo = this.tree.get(aAnc)!;
-    //   }
-    //   if (aAncInfo === bInfo) {
-    //     // Descendant is greater than its ancestors.
-    //     if (aAnc.valueIndex === b.valueIndex) return 1;
-    //     else return aAnc.valueIndex - b.valueIndex;
-    //   }
-    // }
-    // if (bInfo.depth > aInfo.depth) {
-    //   for (let i = bInfo.depth; i > aInfo.depth; i--) {
-    //     bAnc = bAncInfo.parent!;
-    //     bAncInfo = this.tree.get(bAnc)!;
-    //   }
-    //   if (bAncInfo === aInfo) {
-    //     // Descendant is greater than its ancestors.
-    //     if (bAnc.valueIndex === a.valueIndex) return -1;
-    //     else return bAnc.valueIndex - a.valueIndex;
-    //   }
-    // }
+    // Now aAnc and bAnc are distinct nodes at the same depth.
+    // Walk up the tree in lockstep until we find a common Node parent.
+    while (aAnc.parentNode !== bAnc.parentNode) {
+      // parentNode is non-null because we would reach a common parent
+      // (rootNode) before reaching aAnc = bAnc = rootNode.
+      aAnc = aAnc.parentNode!;
+      bAnc = bAnc.parentNode!;
+    }
 
-    // // Now aAnc and bAnc are distinct nodes at the same depth.
-    // // Walk up the tree in lockstep until we find a common Node parent.
-    // while (true) {
-    //   const aAncParentInfo = this.tree.get(aAnc)!;
-    //   const bAncParentInfo = this.tree.get(bAnc)!;
-    // }
+    // Now aAnc and bAnc are distinct siblings. Use sibling order.
+    return compareSiblingNodes(aAnc, bAnc);
   }
 
   // ----------
@@ -418,24 +439,16 @@ export class Order {
   // ----------
 
   /**
-   * No particular order - usually not causal or tree-order.
-   * (TODO: separate method to loop over in list order (DFS), like items()?)
+   * No particular order, but are grouped by sender.
+   *
+   * TODO: separate method to loop over senders explicitly, like you would need to
+   * implement save() yourself?
    *
    * Includes root.
    */
   nodes(): IterableIterator<Node> {
     return this.tree.values();
   }
-
-  pendingNodes(): IterableIterator<NodeDesc> {
-    return this.pendingDescs.values();
-  }
-
-  /**
-   * TODO: want top-level missing nodes only, not intermediate (which still show
-   * up in pendingChildren keys).)
-   */
-  *missingNodes(): IterableIterator<MissingNode> {}
 
   // TODO: slice args (startPos, endPos). For when you only view part of a doc.
   // Opt to avoid depth scan when they're in the same subtree?
@@ -496,11 +509,10 @@ export class Order {
     // Touch all creatorIDs in lexicographic order, to ensure consistent JSON
     // serialization order for identical states. (JSON field order is: non-negative
     // integers in numeric order, then string keys in creation order.)
-    const creatorIDs = new Set<string>();
-    for (const creatorID of this.tree.state.keys()) creatorIDs.add(creatorID);
-    for (const creatorID of this.pendingDescs.state.keys())
-      creatorIDs.add(creatorID);
-    creatorIDs.delete(IDs.ROOT);
+    const creatorIDs: string[] = [];
+    for (const creatorID of this.tree.state.keys()) {
+      if (creatorID !== IDs.ROOT) creatorIDs.push(creatorID);
+    }
 
     const sortedCreatorIDs = [...creatorIDs];
     sortedCreatorIDs.sort();
@@ -513,18 +525,16 @@ export class Order {
         savedState[creatorID][timestamp] = node.parent!;
       }
     }
-    // Pending nodes
-    for (const [creatorID, byCreator] of this.pendingDescs.state) {
-      if (creatorID === IDs.ROOT) continue;
-      for (const [timestamp, node] of byCreator) {
-        savedState[creatorID][timestamp] = node.parent!;
-      }
-    }
 
     return savedState;
   }
 
-  load(savedState: OrderSavedState): MissingNode[] {
+  /**
+   * Receives all of the nodes described by savedState - merge op (not overwrite).
+   */
+  receiveSavedState(savedState: OrderSavedState): void {
+    // Opt: Pass custom iterator instead of array, to avoid 2x memory when
+    // merging nearly-identical states.
     const nodeDescs: NodeDesc[] = [];
     for (const [creatorID, byCreator] of Object.entries(savedState)) {
       for (const [timestampStr, parent] of Object.entries(byCreator)) {
@@ -535,6 +545,6 @@ export class Order {
         });
       }
     }
-    return this.receiveNodeDescs(nodeDescs);
+    this.receive(nodeDescs);
   }
 }
