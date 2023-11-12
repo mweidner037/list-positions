@@ -435,89 +435,46 @@ export class List<T> {
     return this.values();
   }
 
-  /** Returns an iterator for values in the list, in list order. */
-  *values(): IterableIterator<T> {
-    if (this.length === 0) return;
-
-    let node: Node | null = this.order.rootNode;
-    // Manage our own stack instead of recursing, to avoid stack overflow
-    // in deep trees.
-    const stack: IterableIterator<SliceOrChild<T>>[] = [
-      // root will indeed have total != 0 since we checked length != 0.
-      this.slicesAndChildren(this.order.rootNode),
-    ];
-    while (node !== null) {
-      const iter = stack[stack.length - 1];
-      const next = iter.next();
-      if (next.done) {
-        stack.pop();
-        node = node.parentNode;
-      } else {
-        const valuesOrChild = next.value;
-        if (valuesOrChild.type === "slice") {
-          for (let i = 0; i < valuesOrChild.end - valuesOrChild.start; i++) {
-            yield valuesOrChild.values[valuesOrChild.start + i];
-          }
-        } else {
-          // Recurse into child.
-          node = valuesOrChild.child;
-          stack.push(this.slicesAndChildren(node));
-        }
-      }
-    }
+  /**
+   * Returns an iterator for values in the list, in list order.
+   *
+   * Args as in Array.slice.
+   */
+  *values(start?: number, end?: number): IterableIterator<T> {
+    for (const [, value] of this.entries(start, end)) yield value;
   }
 
   /**
    * Returns a copy of a section of this list, as an array.
-   * For both start and end, a negative index can be used to indicate an offset from the end of the list.
-   * For example, -2 refers to the second to last element of the list.
-   * @param start The beginning index of the specified portion of the list.
-   * If start is undefined, then the slice begins at index 0.
-   * @param end The end index of the specified portion of the list. This is exclusive of the element at the index 'end'.
-   * If end is undefined, then the slice extends to the end of the list.
+   *
+   * Args as in Array.slice.
    */
   slice(start?: number, end?: number): T[] {
-    const len = this.length;
-    if (start === undefined || start < -len) {
-      start = 0;
-    } else if (start < 0) {
-      start += len;
-    } else if (start >= len) {
-      return [];
-    }
-    if (end === undefined || end >= len) {
-      end = len;
-    } else if (end < -len) {
-      end = 0;
-    } else if (end < 0) {
-      end += len;
-    }
-    if (end <= start) return [];
-
-    // Optimize common case (slice())
-    if (start === 0 && end === len) {
-      return [...this.values()];
-    } else {
-      // TODO: opt with Order.items(...)
-      const ans = new Array<T>(end - start);
-      for (let i = 0; i < end - start; i++) {
-        ans[i] = this.getAt(start + i);
-      }
-      return ans;
-    }
+    return [...this.values(start, end)];
   }
 
-  /** Returns an iterator for present positions, in list order. */
-  *positions(): IterableIterator<Position> {
-    for (const [pos] of this.entries()) yield pos;
+  /**
+   * Returns an iterator for present positions, in list order.
+   *
+   * Args as in Array.slice.
+   */
+  *positions(start?: number, end?: number): IterableIterator<Position> {
+    for (const [pos] of this.entries(start, end)) yield pos;
   }
 
   /**
    * Returns an iterator of [pos, value, index] tuples for every
    * value in the list, in list order.
+   *
+   * Args as in Array.slice.
    */
-  *entries(): IterableIterator<[pos: Position, value: T, index: number]> {
-    if (this.length === 0) return;
+  *entries(
+    start?: number,
+    end?: number
+  ): IterableIterator<[pos: Position, value: T, index: number]> {
+    const range = this.normalizeSliceRange(start, end);
+    if (range === null) return [];
+    [start, end] = range;
 
     let index = 0;
     let node: Node | null = this.order.rootNode;
@@ -536,25 +493,61 @@ export class List<T> {
       } else {
         const valuesOrChild = next.value;
         if (valuesOrChild.type === "slice") {
-          for (let i = 0; i < valuesOrChild.end - valuesOrChild.start; i++) {
-            yield [
-              {
-                creatorID: node.creatorID,
-                timestamp: node.timestamp,
-                valueIndex: valuesOrChild.valueIndex + i,
-              },
-              valuesOrChild.values[valuesOrChild.start + i],
-              index,
-            ];
-            index++;
+          // Emit slice's values.
+          const sliceLength = valuesOrChild.end - valuesOrChild.start;
+          if (index + sliceLength <= start) {
+            // Shortcut: We won't start by the end of the slice, so skip its loop.
+            index += sliceLength;
+          } else {
+            for (let i = 0; i < sliceLength; i++) {
+              if (index >= start) {
+                yield [
+                  {
+                    creatorID: node.creatorID,
+                    timestamp: node.timestamp,
+                    valueIndex: valuesOrChild.valueIndex + i,
+                  },
+                  valuesOrChild.values[valuesOrChild.start + i],
+                  index,
+                ];
+              }
+              index++;
+              if (index >= end) return;
+            }
           }
         } else {
           // Recurse into child.
-          node = valuesOrChild.child;
-          stack.push(this.slicesAndChildren(node));
+          if (index + valuesOrChild.total <= start) {
+            // Shortcut: We won't start within this child, so skip its recursion.
+            index += valuesOrChild.total;
+          } else {
+            node = valuesOrChild.child;
+            stack.push(this.slicesAndChildren(node));
+          }
         }
       }
     }
+  }
+
+  /**
+   * Normalizes the range so that start < end and they are both in bounds
+   * (possibly end=length). If the range is empty, returns null.
+   */
+  private normalizeSliceRange(
+    start?: number,
+    end?: number
+  ): [start: number, end: number] | null {
+    const len = this.length;
+    if (start === undefined || start < -len) start = 0;
+    else if (start < 0) start += len;
+    else if (start >= len) return null;
+
+    if (end === undefined || end >= len) end = len;
+    else if (end < -len) end = 0;
+    else if (end < 0) end += len;
+
+    if (end <= start) return null;
+    return [start, end];
   }
 
   /**

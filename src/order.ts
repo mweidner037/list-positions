@@ -433,8 +433,7 @@ export class Order {
     }
   }
 
-  // TODO: slice args (startPos, endPos). For when you only view part of a doc.
-  // Opt to avoid depth scan when they're in the same subtree?
+  // TODO: option to loop over only a slice [start, end)?
   /**
    * Includes startPosition & endPosition.
    */
