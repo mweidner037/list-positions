@@ -400,6 +400,9 @@ export class Order {
     return siblingNodeCompare(aAnc, bAnc);
   }
 
+  // TODO: methods to go forward/backward in the list? Tho confusing for last
+  // item in a Node.
+
   // ----------
   // Iterators
   // ----------

@@ -3,9 +3,9 @@ import { Order } from "./order";
 import { Position } from "./position";
 
 /**
- * Info about a node's values within a LocalList.
+ * List data associated to a Node.
  */
-type NodeInfo<T> = {
+type NodeData<T> = {
   /**
    * The total number of present values at this
    * node and its descendants.
@@ -19,6 +19,9 @@ type NodeInfo<T> = {
    *
    * The items always alternate types. If the last
    * item would be a number (deleted), it is omitted.
+   *
+   * TODO: blocks? runs? To distinguish from Order's "ItemRanges",
+   * which we could rename to just Items.
    */
   items: (T[] | number)[];
 };
@@ -71,7 +74,7 @@ export class List<T> {
   /**
    * TODO: delete empty ones (total = 0).
    */
-  private state = new Map<Node, NodeInfo<T>>();
+  private state = new Map<Node, NodeData<T>>();
 
   /**
    * Constructs a LocalList whose allowed [[Position]]s are given by
@@ -82,8 +85,6 @@ export class List<T> {
    *
    * @param order The source for positions that may be used with this
    * LocalList.
-   *
-   * TODO: take either replicaID or Order as an option?
    */
   constructor(readonly order: Order) {}
 
@@ -94,8 +95,8 @@ export class List<T> {
    */
   set(pos: Position, value: T): boolean {
     const node = this.order.getNodeFor(pos);
-    const info = this.state.get(node);
-    if (info === undefined) {
+    const data = this.state.get(node);
+    if (data === undefined) {
       // Node has no values currently; set them to
       // [valueIndex, [value]].
       // Except, omit 0s.
@@ -109,7 +110,7 @@ export class List<T> {
       return true;
     }
 
-    const items = info.items;
+    const items = data.items;
     let remaining = pos.valueIndex;
     for (let i = 0; i < items.length; i++) {
       const curItem = items[i];
@@ -179,7 +180,7 @@ export class List<T> {
    * @throws If index is not in `[0, this.length)`.
    */
   setAt(index: number, value: T): void {
-    this.set(this.position(index), value);
+    this.set(this.positionAt(index), value);
   }
 
   /**
@@ -191,12 +192,12 @@ export class List<T> {
    */
   delete(pos: Position): boolean {
     const node = this.order.getNodeFor(pos);
-    const info = this.state.get(node);
-    if (info === undefined) {
+    const data = this.state.get(node);
+    if (data === undefined) {
       // Already not present.
       return false;
     }
-    const items = info.items;
+    const items = data.items;
     let remaining = pos.valueIndex;
     for (let i = 0; i < items.length; i++) {
       const curItem = items[i];
@@ -252,7 +253,7 @@ export class List<T> {
    * @throws If index is not in `[0, this.length)`.
    */
   deleteAt(index: number): void {
-    this.delete(this.position(index));
+    this.delete(this.positionAt(index));
   }
 
   /**
@@ -267,8 +268,8 @@ export class List<T> {
       current !== null;
       current = current.parentNode
     ) {
-      const info = this.state.get(current);
-      if (info === undefined) {
+      const data = this.state.get(current);
+      if (data === undefined) {
         // Create NodeValues.
         this.state.set(current, {
           // Nonzero by assumption.
@@ -277,7 +278,7 @@ export class List<T> {
           items: [],
         });
       } else {
-        info.total += delta;
+        data.total += delta;
       }
     }
   }
@@ -305,7 +306,7 @@ export class List<T> {
     value: T
   ): { pos: Position; newNodeDesc: NodeDesc | null } {
     const prevPos =
-      index === 0 ? this.order.startPosition : this.position(index - 1);
+      index === 0 ? this.order.startPosition : this.positionAt(index - 1);
     return this.insert(prevPos, value);
   }
 
@@ -325,7 +326,7 @@ export class List<T> {
    * which would instead return undefined.
    */
   getAt(index: number): T {
-    return this.get(this.position(index))!;
+    return this.get(this.positionAt(index))!;
   }
 
   /**
@@ -356,14 +357,14 @@ export class List<T> {
     node: Node,
     valueIndex: number
   ): [value: T | undefined, isPresent: boolean, nodeValuesBefore: number] {
-    const info = this.state.get(node);
-    if (info === undefined) {
+    const data = this.state.get(node);
+    if (data === undefined) {
       // No values within node.
       return [undefined, false, 0];
     }
     let remaining = valueIndex;
     let nodeValuesBefore = 0;
-    for (const item of info.items) {
+    for (const item of data.items) {
       if (typeof item === "number") {
         if (remaining < item) {
           return [undefined, false, nodeValuesBefore];
@@ -385,13 +386,13 @@ export class List<T> {
    * The nubmer of present values within node (not descendants).
    */
   private valueCount(node: Node): number {
-    const info = this.state.get(node);
-    if (info === undefined) {
+    const data = this.state.get(node);
+    if (data === undefined) {
       // No values within node.
       return 0;
     }
     let nodeValues = 0;
-    for (const item of info.items) {
+    for (const item of data.items) {
       if (typeof item !== "number") {
         nodeValues += item.length;
       }
@@ -415,7 +416,10 @@ export class List<T> {
    * To find the index where a position would be if
    * present, use `searchDir = "right"`.
    */
-  index(pos: Position, searchDir: "none" | "left" | "right" = "none"): number {
+  indexOfPosition(
+    pos: Position,
+    searchDir: "none" | "left" | "right" = "none"
+  ): number {
     const node = this.order.getNodeFor(pos);
     const [, isPresent, nodeValuesBefore] = this.locate2(node, pos.valueIndex);
     // Will be the total number of values prior to position.
@@ -464,7 +468,7 @@ export class List<T> {
   /**
    * Returns the position currently at index.
    */
-  position(index: number): Position {
+  positionAt(index: number): Position {
     if (index < 0 || index >= this.length) {
       throw new Error(`Index out of bounds: ${index} (length: ${this.length})`);
     }
@@ -495,60 +499,6 @@ export class List<T> {
         // We should always end by the break statement (recursion), not by
         // the for loop's finishing.
         throw new Error("Internal error: failed to find index among children");
-      }
-    }
-  }
-
-  // TODO: test, then recomment. Or: redundant b/c of items()?
-  /**
-   * For debugging: print entries() walk through the tree to console.log.
-   */
-  printTreeWalk(): void {
-    if (this.length === 0) return;
-
-    let index = 0;
-    let node: Node | null = this.order.rootNode;
-    console.log(
-      `"${node.creatorID}",${node.timestamp}: ${this.total(node)} [${index}, ${
-        index + this.total(node)
-      })`
-    );
-    // Manage our own stack instead of recursing, to avoid stack overflow
-    // in deep trees.
-    const stack: IterableIterator<ValuesOrChild<T>>[] = [
-      // root will indeed have total != 0 since we checked length != 0.
-      this.valuesAndChildren(this.order.rootNode),
-    ];
-    while (node !== null) {
-      const iter = stack[stack.length - 1];
-      const next = iter.next();
-      if (next.done) {
-        stack.pop();
-        node = node.parentNode;
-      } else {
-        const prefix = new Array(stack.length).fill(" ").join(" ");
-        const valuesOrChild = next.value;
-        if (valuesOrChild.isValues) {
-          console.log(
-            prefix,
-            `${valuesOrChild.valueIndex}:`,
-            JSON.stringify(
-              valuesOrChild.item.slice(valuesOrChild.start, valuesOrChild.end)
-            ),
-            `@ [${index}, ${index + valuesOrChild.end - valuesOrChild.start})`
-          );
-          index += valuesOrChild.end - valuesOrChild.start;
-        } else {
-          // Recurse into child.
-          node = valuesOrChild.child;
-          console.log(
-            prefix,
-            `"${node.creatorID},${node.timestamp} (${
-              node.parentValueIndex
-            }): ${this.total(node)} @ [${index}, ${index + this.total(node)})`
-          );
-          stack.push(this.valuesAndChildren(node));
-        }
       }
     }
   }
@@ -743,6 +693,11 @@ export class List<T> {
     }
   }
 
+  // TODO: separate function providing access to a node's "items".
+  // So that you could implement save() yourself. Likewise,
+  // functions to quickly load a Node, exploiting its internal rep?
+  // Additionally, functions to read/write all of a Node's values in the
+  // obvious format (valueIndex map) instead of a list of "items".
   /**
    * Returns saved state describing the current state of this LocalList,
    * including its values.
@@ -751,12 +706,12 @@ export class List<T> {
    * on a new instance of LocalList, to reconstruct the
    * same list state.
    *
-   * TODO: only saves values, not Order
+   * TODO: only saves values, not Order.
    */
   save(): ListSavedState<T> {
     const savedStatePre: ListSavedState<T> = {};
-    for (const [node, info] of this.state) {
-      if (info.items.length === 0) continue;
+    for (const [node, data] of this.state) {
+      if (data.items.length === 0) continue;
 
       let byCreator = savedStatePre[node.creatorID];
       if (byCreator === undefined) {
@@ -764,10 +719,10 @@ export class List<T> {
         savedStatePre[node.creatorID] = byCreator;
       }
 
-      // Deep copy info.items.
-      const itemsCopy = new Array<T[] | number>(info.items.length);
-      for (let i = 0; i < info.items.length; i++) {
-        const item = info.items[i];
+      // Deep copy data.items.
+      const itemsCopy = new Array<T[] | number>(data.items.length);
+      for (let i = 0; i < data.items.length; i++) {
+        const item = data.items[i];
         if (typeof item === "number") itemsCopy[i] = item;
         else itemsCopy[i] = item.slice();
       }
@@ -810,11 +765,9 @@ export class List<T> {
   }
 }
 
-// TODO: should this be itemized instead? For compactness, and in
-// case you want to store it that way.
-// Indeed, the point of save() is to provide a lazy, non-mergable default instead
-// of inventing your own format. (But should provide separate iterator to let you assemble the
-// simpler, obvious format.)
+// TODO: change back to "obvious" rep? To make it easier to
+// interpret yourself. Main reason for optimized rep is iterating
+// through values in order, which is not necessary at rest.
 export type ListSavedState<T> = {
   [creatorID: string]: {
     [timestamp: number]: (T[] | number)[];

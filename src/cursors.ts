@@ -36,7 +36,7 @@ export class Cursors {
    * @param list The target list.
    */
   static fromIndex(index: number, list: List<any>): Position {
-    return index === 0 ? list.order.startPosition : list.position(index - 1);
+    return index === 0 ? list.order.startPosition : list.positionAt(index - 1);
   }
 
   /**
@@ -50,6 +50,6 @@ export class Cursors {
   static toIndex(cursor: Position, list: List<any>): number {
     return positionEquals(cursor, list.order.startPosition)
       ? 0
-      : list.index(cursor, "left") + 1;
+      : list.indexOfPosition(cursor, "left") + 1;
   }
 }
