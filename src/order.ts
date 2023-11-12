@@ -3,6 +3,13 @@ import { NodeMap } from "./node_map";
 import { Position, positionEquals } from "./position";
 import { ReplicaIDs } from "./replica_ids";
 
+// TODO: allow using startPos/endPos as values (e.g. for Format),
+// but error if you try to createPosition(endPos),
+// including special error in List.insert.
+// In List methods, error if you try to set rootNode
+// outside of startPos/endPos.
+// Finally, in items() below, do visit startPos and endPos (as own items).
+
 export type Item = {
   readonly node: Node;
   readonly startValueIndex: number;

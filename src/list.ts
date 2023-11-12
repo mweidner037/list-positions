@@ -52,6 +52,17 @@ type SliceOrChild<T> =
     };
 
 /**
+ * TODO: explain format (obvious triple-map rep). JSON ordering guarantees.
+ */
+export type ListSavedState<T> = {
+  [creatorID: string]: {
+    [timestamp: number]: {
+      [valueIndex: number]: T;
+    };
+  };
+};
+
+/**
  * A local (non-collaborative) data structure mapping [[Position]]s to
  * values, in list order.
  *
@@ -91,10 +102,17 @@ export class List<T> {
   /**
    * Sets the value at position.
    *
-   * @returns Whether their was an existing value at position.
+   * If multiple values are given, they are set starting at startPos
+   * in the same Node. Note these might not be contiguous anymore
+   * (tho forward non-interleaving gives guarantees TODO).
    */
-  set(pos: Position, value: T): boolean {
-    const node = this.order.getNodeFor(pos);
+  set(pos: Position, value: T): void;
+  set(startPos: Position, ...values: T[]): void;
+  set(startPos: Position, ...values: T[]): void {
+    // Validate startPos even if values.length = 0.
+    const node = this.order.getNodeFor(startPos);
+    if (values.length === 0) return;
+
     let data = this.state.get(node);
     if (data === undefined) {
       data = { total: 0, runs: [] };
@@ -103,14 +121,13 @@ export class List<T> {
 
     const [before, existing, after] = splitRuns(
       data.runs,
-      pos.valueIndex,
-      pos.valueIndex + 1
+      startPos.valueIndex,
+      startPos.valueIndex + values.length
     );
-    data.runs = mergeRuns(before, [[value]], after);
+    data.runs = mergeRuns(before, [values], after);
 
-    const existingCount = countPresent(existing);
-    if (existingCount === 0) this.updateTotals(node, 1);
-    return existingCount !== 0;
+    const delta = values.length - countPresent(existing);
+    if (delta !== 0) this.updateTotals(node, delta);
   }
 
   /**
@@ -140,8 +157,7 @@ export class List<T> {
     const valuesRuns = toRuns(values);
     data.runs = mergeRuns(before, valuesRuns, after);
 
-    const existingCount = countPresent(existing);
-    const delta = countPresent(valuesRuns) - existingCount;
+    const delta = countPresent(valuesRuns) - countPresent(existing);
     if (delta !== 0) this.updateTotals(node, delta);
   }
 
@@ -220,22 +236,32 @@ export class List<T> {
     this.state.clear();
   }
 
+  /**
+   *
+   * @param prevPos
+   * @param values
+   * @returns { first value's new position, newNodeDesc if created by Order }.
+   * If values.length > 1, their positions start at pos using the same Node
+   * with increasing valueIndex.
+   * If values.length = 0, a new position is created but the List state is not
+   * changed - can use this instead of calling Order.createPosition directly.
+   */
   insert(
     prevPos: Position,
-    value: T
+    ...values: T[]
   ): { pos: Position; newNodeDesc: NodeDesc | null } {
     const ret = this.order.createPosition(prevPos);
-    this.set(ret.pos, value);
+    this.setBulk(ret.pos, values);
     return ret;
   }
 
   insertAt(
     index: number,
-    value: T
+    ...values: T[]
   ): { pos: Position; newNodeDesc: NodeDesc | null } {
     const prevPos =
       index === 0 ? this.order.startPosition : this.positionAt(index - 1);
-    return this.insert(prevPos, value);
+    return this.insert(prevPos, ...values);
   }
 
   /**
@@ -614,7 +640,19 @@ export class List<T> {
         savedStatePre[node.creatorID] = byCreator;
       }
 
-      // TODO
+      const byTimestamp: { [valueIndex: number]: T } = {};
+      byCreator[node.timestamp] = byTimestamp;
+
+      let valueIndex = 0;
+      for (const run of data.runs) {
+        if (typeof run === "number") valueIndex += run;
+        else {
+          for (const value of run) {
+            byTimestamp[valueIndex] = value;
+            valueIndex++;
+          }
+        }
+      }
     }
 
     // Make a (shallow) copy of savedStatePre that touches all
@@ -651,16 +689,5 @@ export class List<T> {
     // TODO: updateTotals
   }
 }
-
-// TODO: change back to "obvious" rep? To make it easier to
-// interpret yourself. Main reason for optimized rep is iterating
-// through values in order, which is not necessary at rest.
-export type ListSavedState<T> = {
-  [creatorID: string]: {
-    [timestamp: number]: {
-      [valueIndex: number]: T;
-    };
-  };
-};
 
 // TODO: check "OPT" comments
