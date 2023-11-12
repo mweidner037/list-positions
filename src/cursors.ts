@@ -31,6 +31,8 @@ export class Cursors {
    *
    * That is, the cursor is between the list elements at `index - 1` and `index`.
    *
+   * TODO: rename "cursor()", "index()" to match List?
+   *
    * @param list The target list.
    */
   static fromIndex(index: number, list: List<any>): Position {

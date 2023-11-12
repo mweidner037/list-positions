@@ -108,7 +108,6 @@ export class Order {
    */
   private readonly tree = new NodeMap<NodeInternal>();
 
-  // TODO: TimestampSource option.
   constructor(options?: { replicaID?: string }) {
     if (options?.replicaID !== undefined) {
       ReplicaIDs.validate(options.replicaID);
