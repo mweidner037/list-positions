@@ -68,6 +68,38 @@ function toRuns<T>(values: (T | undefined)[]): (T[] | number)[] {
 }
 
 /**
+ * Returns info about the value at valueIndex in runs:
+ * [value - undefined if not present, whether it's present,
+ * count of present values before it]
+ * @returns [value at position, whether position is present,
+ * number of present values within node
+ * (not descendants) strictly prior to position]
+ */
+function getInRuns<T>(
+  runs: (T[] | number)[],
+  valueIndex: number
+): [value: T | undefined, isPresent: boolean, beforeCount: number] {
+  let remaining = valueIndex;
+  let beforeCount = 0;
+  for (const run of runs) {
+    if (typeof run === "number") {
+      if (remaining < run) {
+        return [undefined, false, beforeCount];
+      } else remaining -= run;
+    } else {
+      if (remaining < run.length) {
+        return [run[remaining], true, beforeCount + remaining];
+      } else {
+        remaining -= run.length;
+        beforeCount += run.length;
+      }
+    }
+  }
+  // If we get here, then the valueIndex is after all present values.
+  return [undefined, false, beforeCount];
+}
+
+/**
  * Note: may copy array runs by-reference, which might then be changed later.
  * So stop using the input after calling.
  */
@@ -397,7 +429,7 @@ export class List<T> {
    * ([[hasPosition]] returns false).
    */
   get(pos: Position): T | undefined {
-    return this.locate(pos)[0];
+    return this.getInNode(this.order.getNodeFor(pos), pos.valueIndex)[0];
   }
 
   getBulk(startPos: Position, count: number): (T | undefined)[] {
@@ -431,52 +463,24 @@ export class List<T> {
    * i.e., its value is present.
    */
   has(pos: Position): boolean {
-    return this.locate(pos)[1];
+    return this.getInNode(this.order.getNodeFor(pos), pos.valueIndex)[1];
   }
 
   /**
-   * @returns [value at position, whether position is present,
-   * number of present values within node
-   * (not descendants) strictly prior to position]
+   * Returns info about the value at valueIndex in node:
+   * [value - undefined if not present, whether it's present,
+   * count of node's present values before it]
    */
-  private locate(
-    pos: Position
-  ): [value: T | undefined, isPresent: boolean, nodeValuesBefore: number] {
-    return this.locate2(this.order.getNodeFor(pos), pos.valueIndex);
-  }
-
-  /**
-   * @returns [value at position, whether position is present,
-   * number of present values within node
-   * (not descendants) strictly prior to position]
-   */
-  private locate2(
+  private getInNode(
     node: Node,
     valueIndex: number
   ): [value: T | undefined, isPresent: boolean, nodeValuesBefore: number] {
-    const data = this.state.get(node);
-    if (data === undefined) {
+    const runs = this.state.get(node)?.runs;
+    if (runs === undefined) {
       // No values within node.
       return [undefined, false, 0];
     }
-    let remaining = valueIndex;
-    let nodeValuesBefore = 0;
-    for (const run of data.runs) {
-      if (typeof run === "number") {
-        if (remaining < run) {
-          return [undefined, false, nodeValuesBefore];
-        } else remaining -= run;
-      } else {
-        if (remaining < run.length) {
-          return [run[remaining], true, nodeValuesBefore + remaining];
-        } else {
-          remaining -= run.length;
-          nodeValuesBefore += run.length;
-        }
-      }
-    }
-    // If we get here, then the valueIndex is after all present values.
-    return [undefined, false, nodeValuesBefore];
+    return getInRuns(runs, valueIndex);
   }
 
   /**
@@ -500,7 +504,10 @@ export class List<T> {
     searchDir: "none" | "left" | "right" = "none"
   ): number {
     const node = this.order.getNodeFor(pos);
-    const [, isPresent, nodeValuesBefore] = this.locate2(node, pos.valueIndex);
+    const [, isPresent, nodeValuesBefore] = this.getInNode(
+      node,
+      pos.valueIndex
+    );
     // Will be the total number of values prior to position.
     let valuesBefore = nodeValuesBefore;
 
@@ -520,7 +527,7 @@ export class List<T> {
       current = current.parentNode
     ) {
       // Sibling values that come before current.
-      valuesBefore += this.locate2(
+      valuesBefore += this.getInNode(
         current.parentNode,
         current.parentValueIndex
       )[2];
