@@ -435,6 +435,83 @@ export class List<T> {
     return this.values();
   }
 
+  /** Returns an iterator for values in the list, in list order. */
+  *values(): IterableIterator<T> {
+    if (this.length === 0) return;
+
+    let node: Node | null = this.order.rootNode;
+    // Manage our own stack instead of recursing, to avoid stack overflow
+    // in deep trees.
+    const stack: IterableIterator<SliceOrChild<T>>[] = [
+      // root will indeed have total != 0 since we checked length != 0.
+      this.slicesAndChildren(this.order.rootNode),
+    ];
+    while (node !== null) {
+      const iter = stack[stack.length - 1];
+      const next = iter.next();
+      if (next.done) {
+        stack.pop();
+        node = node.parentNode;
+      } else {
+        const valuesOrChild = next.value;
+        if (valuesOrChild.type === "slice") {
+          for (let i = 0; i < valuesOrChild.end - valuesOrChild.start; i++) {
+            yield valuesOrChild.values[valuesOrChild.start + i];
+          }
+        } else {
+          // Recurse into child.
+          node = valuesOrChild.child;
+          stack.push(this.slicesAndChildren(node));
+        }
+      }
+    }
+  }
+
+  /**
+   * Returns a copy of a section of this list, as an array.
+   * For both start and end, a negative index can be used to indicate an offset from the end of the list.
+   * For example, -2 refers to the second to last element of the list.
+   * @param start The beginning index of the specified portion of the list.
+   * If start is undefined, then the slice begins at index 0.
+   * @param end The end index of the specified portion of the list. This is exclusive of the element at the index 'end'.
+   * If end is undefined, then the slice extends to the end of the list.
+   */
+  slice(start?: number, end?: number): T[] {
+    const len = this.length;
+    if (start === undefined || start < -len) {
+      start = 0;
+    } else if (start < 0) {
+      start += len;
+    } else if (start >= len) {
+      return [];
+    }
+    if (end === undefined || end >= len) {
+      end = len;
+    } else if (end < -len) {
+      end = 0;
+    } else if (end < 0) {
+      end += len;
+    }
+    if (end <= start) return [];
+
+    // Optimize common case (slice())
+    if (start === 0 && end === len) {
+      return [...this.values()];
+    } else {
+      // TODO: opt with Order.items(...)
+      const ans = new Array<T>(end - start);
+      for (let i = 0; i < end - start; i++) {
+        ans[i] = this.getAt(start + i);
+      }
+      return ans;
+    }
+  }
+
+  /** Returns an iterator for present positions, in list order. */
+  *positions(): IterableIterator<Position> {
+    for (const [pos] of this.entries()) yield pos;
+  }
+
   /**
    * Returns an iterator of [pos, value, index] tuples for every
    * value in the list, in list order.
@@ -550,58 +627,6 @@ export class List<T> {
       if (this.total(child) !== 0) {
         yield { type: "child", child, total };
       }
-    }
-  }
-
-  /** Returns an iterator for values in the list, in list order. */
-  *values(): IterableIterator<T> {
-    // TODO: do own walk and yield* value runs, w/o encoding positions?
-    // E.g. if slice() is rewritten to call items(), call that.
-    for (const [, value] of this.entries()) yield value;
-  }
-
-  /** Returns an iterator for present positions, in list order. */
-  *positions(): IterableIterator<Position> {
-    for (const [pos] of this.entries()) yield pos;
-  }
-
-  /**
-   * Returns a copy of a section of this list, as an array.
-   * For both start and end, a negative index can be used to indicate an offset from the end of the list.
-   * For example, -2 refers to the second to last element of the list.
-   * @param start The beginning index of the specified portion of the list.
-   * If start is undefined, then the slice begins at index 0.
-   * @param end The end index of the specified portion of the list. This is exclusive of the element at the index 'end'.
-   * If end is undefined, then the slice extends to the end of the list.
-   */
-  slice(start?: number, end?: number): T[] {
-    const len = this.length;
-    if (start === undefined || start < -len) {
-      start = 0;
-    } else if (start < 0) {
-      start += len;
-    } else if (start >= len) {
-      return [];
-    }
-    if (end === undefined || end >= len) {
-      end = len;
-    } else if (end < -len) {
-      end = 0;
-    } else if (end < 0) {
-      end += len;
-    }
-    if (end <= start) return [];
-
-    // Optimize common case (slice())
-    if (start === 0 && end === len) {
-      return [...this.values()];
-    } else {
-      // TODO: opt with Order.items(...)
-      const ans = new Array<T>(end - start);
-      for (let i = 0; i < end - start; i++) {
-        ans[i] = this.getAt(start + i);
-      }
-      return ans;
     }
   }
 
