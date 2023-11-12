@@ -31,11 +31,9 @@ export class Cursors {
    *
    * That is, the cursor is between the list elements at `index - 1` and `index`.
    *
-   * TODO: rename "cursor()", "index()" to match List?
-   *
    * @param list The target list.
    */
-  static fromIndex(index: number, list: List<any>): Position {
+  static cursorAt<T>(index: number, list: List<T>): Position {
     return index === 0 ? list.order.startPosition : list.positionAt(index - 1);
   }
 
@@ -47,7 +45,7 @@ export class Cursors {
    * @param cursor The [[Cursor]].
    * @param list The target list.
    */
-  static toIndex(cursor: Position, list: List<any>): number {
+  static indexOf<T>(cursor: Position, list: List<T>): number {
     return positionEquals(cursor, list.order.startPosition)
       ? 0
       : list.indexOfPosition(cursor, "left") + 1;

@@ -52,7 +52,7 @@ type SliceOrChild<T> =
     };
 
 /**
- * TODO: explain format (obvious triple-map rep). JSON ordering guarantees.
+ * Explain format (obvious triple-map rep). JSON ordering guarantees.
  */
 export type ListSavedState<T> = {
   [creatorID: string]: {
@@ -83,7 +83,7 @@ export type ListSavedState<T> = {
  */
 export class List<T> {
   /**
-   * TODO: delete empty ones (total = 0).
+   * Always omits entries with total = 0.
    */
   private state = new Map<Node, NodeData<T>>();
 
@@ -99,12 +99,16 @@ export class List<T> {
    */
   constructor(readonly order: Order) {}
 
+  // ----------
+  // Mutators
+  // ----------
+
   /**
    * Sets the value at position.
    *
    * If multiple values are given, they are set starting at startPos
-   * in the same Node. Note these might not be contiguous anymore
-   * (tho forward non-interleaving gives guarantees TODO).
+   * in the same Node. Note these might not be contiguous anymore,
+   * unless they are new (no causally-future Positions set yet).
    */
   set(pos: Position, value: T): void;
   set(startPos: Position, ...values: T[]): void;
@@ -112,6 +116,17 @@ export class List<T> {
     // Validate startPos even if values.length = 0.
     const node = this.order.getNodeFor(startPos);
     if (values.length === 0) return;
+
+    if (
+      node === this.order.rootNode &&
+      startPos.valueIndex + values.length - 1 > 1
+    ) {
+      throw new Error(
+        `Last value's Position uses rootNode but is not startPosition or endPosition (valueIndex 0 or 1): startPos=${JSON.stringify(
+          startPos
+        )}, values.length=${values.length}`
+      );
+    }
 
     let data = this.state.get(node);
     if (data === undefined) {
@@ -191,6 +206,7 @@ export class List<T> {
         this.state.set(current, data);
       }
       data.total += delta;
+      if (data.total === 0) this.state.delete(current);
     }
   }
 
@@ -212,6 +228,7 @@ export class List<T> {
    * with increasing valueIndex.
    * If values.length = 0, a new position is created but the List state is not
    * changed - can use this instead of calling Order.createPosition directly.
+   * @throws If prevPos is order.endPosition.
    */
   insert(
     prevPos: Position,
@@ -222,6 +239,13 @@ export class List<T> {
     return ret;
   }
 
+  /**
+   *
+   * @param index
+   * @param values
+   * @returns
+   * @throws If index is this.length and our last value is at order.endPosition.
+   */
   insertAt(
     index: number,
     ...values: T[]
@@ -230,6 +254,10 @@ export class List<T> {
       index === 0 ? this.order.startPosition : this.positionAt(index - 1);
     return this.insert(prevPos, ...values);
   }
+
+  // ----------
+  // Accessors
+  // ----------
 
   /**
    * Returns the value at position, or undefined if it is not currently present
@@ -345,6 +373,8 @@ export class List<T> {
 
   /**
    * Returns the position currently at index.
+   *
+   * Won't return startPosition or endPosition.
    */
   positionAt(index: number): Position {
     if (index < 0 || index >= this.length) {
@@ -387,6 +417,18 @@ export class List<T> {
   get length() {
     return this.total(this.order.rootNode);
   }
+
+  /**
+   * Returns the total number of present values at this
+   * node and its descendants.
+   */
+  private total(node: Node): number {
+    return this.state.get(node)?.total ?? 0;
+  }
+
+  // ----------
+  // Iterators
+  // ----------
 
   /** Returns an iterator for values in the list, in list order. */
   [Symbol.iterator](): IterableIterator<T> {
@@ -511,17 +553,10 @@ export class List<T> {
     }
   }
 
-  /**
-   * Returns the total number of present values at this
-   * node and its descendants.
-   */
-  private total(node: Node): number {
-    return this.state.get(node)?.total ?? 0;
-  }
-
   /** Returns an iterator for values in the list, in list order. */
   *values(): IterableIterator<T> {
-    // OPT: do own walk and yield* value runs, w/o encoding positions.
+    // TODO: do own walk and yield* value runs, w/o encoding positions?
+    // E.g. if slice() is rewritten to call items(), call that.
     for (const [, value] of this.entries()) yield value;
   }
 
@@ -558,11 +593,10 @@ export class List<T> {
     if (end <= start) return [];
 
     // Optimize common case (slice())
-    // TODO: opt with Order.items(...)
     if (start === 0 && end === len) {
       return [...this.values()];
     } else {
-      // OPT: optimize.
+      // TODO: opt with Order.items(...)
       const ans = new Array<T>(end - start);
       for (let i = 0; i < end - start; i++) {
         ans[i] = this.getAt(start + i);
@@ -571,7 +605,9 @@ export class List<T> {
     }
   }
 
+  // ----------
   // Save & Load
+  // ----------
 
   saveOneNode(node: Node): {
     [valueIndex: number]: T;
@@ -582,7 +618,7 @@ export class List<T> {
   }
 
   /**
-   * TODO. Overwrites all of Nodes existing values - so non-present keys become
+   * Overwrites all of node's existing values - so non-present keys become
    * deleted, even if they come after the last present key.
    *
    * Note that values might not be contiguous in the list.
@@ -612,7 +648,7 @@ export class List<T> {
    * on a new instance of LocalList, to reconstruct the
    * same list state.
    *
-   * TODO: only saves values, not Order. "Natural" format; order
+   * Only saves values, not Order. "Natural" format; order
    * guarantees.
    */
   save(): ListSavedState<T> {
@@ -650,7 +686,7 @@ export class List<T> {
    * `source`, so that we can understand the
    * saved state's Positions.
    *
-   * TODO: overwrites whole state
+   * Overwrites whole state - not state-based merge.
    *
    * @param savedState Saved state from a List's
    * [[save]] call.
@@ -680,5 +716,3 @@ export class List<T> {
     }
   }
 }
-
-// TODO: check "OPT" comments

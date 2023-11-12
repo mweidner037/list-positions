@@ -3,13 +3,6 @@ import { NodeMap } from "./node_map";
 import { Position, positionEquals } from "./position";
 import { ReplicaIDs } from "./replica_ids";
 
-// TODO: allow using startPos/endPos as values (e.g. for Format),
-// but error if you try to createPosition(endPos),
-// including special error in List.insert.
-// In List methods, error if you try to set rootNode
-// outside of startPos/endPos.
-// Finally, in items() below, do visit startPos and endPos (as own items).
-
 export type Item = {
   readonly node: Node;
   readonly startValueIndex: number;
@@ -107,6 +100,7 @@ export class Order {
 
   readonly rootNode: Node;
   // Can't be set etc., but can be createPosition'd or appear in a Cursor.
+  // TODO: test these: hit by all iterators; can set/delete/get; error cases
   readonly startPosition: Position;
   readonly endPosition: Position;
 
@@ -131,8 +125,90 @@ export class Order {
     this.endPosition = {
       creatorID: this.rootNode.creatorID,
       timestamp: this.rootNode.timestamp,
-      valueIndex: 0,
+      valueIndex: 1,
     };
+  }
+
+  // ----------
+  // Accessors
+  // ----------
+
+  getNode(creatorID: string, timestamp: number): Node | undefined {
+    return this.tree.get2(creatorID, timestamp);
+  }
+
+  /**
+   * Also validates pos (startPosition/endPosition okay).
+   */
+  getNodeFor(pos: Position): Node {
+    if (!Number.isInteger(pos.valueIndex) || pos.valueIndex < 0) {
+      throw new Error(
+        `Position.valueIndex is not a nonnegative integer: ${JSON.stringify(
+          pos
+        )}`
+      );
+    }
+    const node = this.tree.get(pos);
+    if (
+      node === this.rootNode &&
+      !(pos.valueIndex === 0 || pos.valueIndex === 1)
+    ) {
+      throw new Error(
+        `Position uses rootNode but is not startPosition or endPosition (valueIndex 0 or 1): ${JSON.stringify(
+          pos
+        )}`
+      );
+    }
+    if (node === undefined) {
+      throw new Error(
+        `Position references missing Node: ${JSON.stringify(
+          pos
+        )}. You must call Order.addNodeDescs before referencing a Node.`
+      );
+    }
+    return node;
+  }
+
+  compare(a: Position, b: Position): number {
+    const aNode = this.getNodeFor(a);
+    const bNode = this.getNodeFor(b);
+
+    // Shortcut for equal nodes, for which we can use reference equality.
+    if (aNode === bNode) return a.valueIndex - b.valueIndex;
+
+    // Walk up the tree until aAnc & bAnc are the same depth.
+    let aAnc = aNode;
+    let bAnc = bNode;
+    for (let i = aNode.depth; i > bNode.depth; i--) {
+      if (aAnc.parentNode === bNode) {
+        if (aAnc.parentValueIndex === b.valueIndex) {
+          // Descendant is greater than its ancestors.
+          return 1;
+        } else return aAnc.parentValueIndex - b.valueIndex;
+      }
+      // parentNode is non-null because we are not at b's depth yet,
+      // hence aAnc is not the root.
+      aAnc = aAnc.parentNode!;
+    }
+    for (let i = bNode.depth; i > aNode.depth; i--) {
+      if (bAnc.parentNode === aNode) {
+        if (bAnc.parentValueIndex === a.valueIndex) return -1;
+        else return a.valueIndex - bAnc.parentValueIndex;
+      }
+      bAnc = bAnc.parentNode!;
+    }
+
+    // Now aAnc and bAnc are distinct nodes at the same depth.
+    // Walk up the tree in lockstep until we find a common Node parent.
+    while (aAnc.parentNode !== bAnc.parentNode) {
+      // parentNode is non-null because we would reach a common parent
+      // (rootNode) before reaching aAnc = bAnc = rootNode.
+      aAnc = aAnc.parentNode!;
+      bAnc = bAnc.parentNode!;
+    }
+
+    // Now aAnc and bAnc are distinct siblings. Use sibling order.
+    return siblingNodeCompare(aAnc, bAnc);
   }
 
   // ----------
@@ -285,12 +361,21 @@ export class Order {
     return node;
   }
 
+  /**
+   *
+   * @param prevPos
+   * @returns
+   * @throws If prevPos is endPosition.
+   */
   createPosition(prevPos: Position): {
     pos: Position;
     newNodeDesc: NodeDesc | null;
   } {
     // Also validates pos.
     const prevNode = this.getNodeFor(prevPos) as NodeInternal;
+    if (prevNode === this.rootNode && prevPos.valueIndex === 1) {
+      throw new Error("Cannot create a position after endPosition");
+    }
 
     // First try to extend prevPos's Node.
     if (prevPos.creatorID === this.replicaID) {
@@ -326,91 +411,6 @@ export class Order {
   }
 
   // ----------
-  // Accessors
-  // ----------
-
-  getNode(creatorID: string, timestamp: number): Node | undefined {
-    return this.tree.get2(creatorID, timestamp);
-  }
-
-  /**
-   * Also validates pos (startPosition/endPosition okay).
-   */
-  getNodeFor(pos: Position): Node {
-    if (!Number.isInteger(pos.valueIndex) || pos.valueIndex < 0) {
-      throw new Error(
-        `Position.valueIndex is not a nonnegative integer: ${JSON.stringify(
-          pos
-        )}`
-      );
-    }
-    const node = this.tree.get(pos);
-    if (
-      node === this.rootNode &&
-      !(pos.valueIndex === 0 || pos.valueIndex === 1)
-    ) {
-      throw new Error(
-        `Position uses rootNote but is not startPosition or endPosition (valueIndex 0 or 1): ${JSON.stringify(
-          pos
-        )}`
-      );
-    }
-    if (node === undefined) {
-      throw new Error(
-        `Position references missing Node: ${JSON.stringify(
-          pos
-        )}. You must call Order.addNodeDescs before referencing a Node.`
-      );
-    }
-    return node;
-  }
-
-  compare(a: Position, b: Position): number {
-    const aNode = this.getNodeFor(a);
-    const bNode = this.getNodeFor(b);
-
-    // Shortcut for equal nodes, for which we can use reference equality.
-    if (aNode === bNode) return a.valueIndex - b.valueIndex;
-
-    // Walk up the tree until aAnc & bAnc are the same depth.
-    let aAnc = aNode;
-    let bAnc = bNode;
-    for (let i = aNode.depth; i > bNode.depth; i--) {
-      if (aAnc.parentNode === bNode) {
-        if (aAnc.parentValueIndex === b.valueIndex) {
-          // Descendant is greater than its ancestors.
-          return 1;
-        } else return aAnc.parentValueIndex - b.valueIndex;
-      }
-      // parentNode is non-null because we are not at b's depth yet,
-      // hence aAnc is not the root.
-      aAnc = aAnc.parentNode!;
-    }
-    for (let i = bNode.depth; i > aNode.depth; i--) {
-      if (bAnc.parentNode === aNode) {
-        if (bAnc.parentValueIndex === a.valueIndex) return -1;
-        else return a.valueIndex - bAnc.parentValueIndex;
-      }
-      bAnc = bAnc.parentNode!;
-    }
-
-    // Now aAnc and bAnc are distinct nodes at the same depth.
-    // Walk up the tree in lockstep until we find a common Node parent.
-    while (aAnc.parentNode !== bAnc.parentNode) {
-      // parentNode is non-null because we would reach a common parent
-      // (rootNode) before reaching aAnc = bAnc = rootNode.
-      aAnc = aAnc.parentNode!;
-      bAnc = bAnc.parentNode!;
-    }
-
-    // Now aAnc and bAnc are distinct siblings. Use sibling order.
-    return siblingNodeCompare(aAnc, bAnc);
-  }
-
-  // TODO: methods to go forward/backward in the list? Tho confusing for last
-  // item in a Node.
-
-  // ----------
   // Iterators
   // ----------
 
@@ -435,6 +435,9 @@ export class Order {
 
   // TODO: slice args (startPos, endPos). For when you only view part of a doc.
   // Opt to avoid depth scan when they're in the same subtree?
+  /**
+   * Includes startPosition & endPosition.
+   */
   *items(): IterableIterator<Item> {
     // Use a manual stack instead of recursion, to prevent stack overflows
     // in deep trees.
@@ -449,13 +452,11 @@ export class Order {
       const top = stack[stack.length - 1];
       if (top.nextChildIndex === (top.node.children?.length ?? 0)) {
         // Out of children. Finish the values and then go up.
-        if (top.node !== this.rootNode) {
-          yield {
-            node: top.node,
-            startValueIndex: top.nextValueIndex,
-            endValueIndex: undefined,
-          };
-        }
+        yield {
+          node: top.node,
+          startValueIndex: top.nextValueIndex,
+          endValueIndex: undefined,
+        };
         stack.pop();
       } else {
         const nextChild = top.node._children![top.nextChildIndex];
@@ -464,13 +465,11 @@ export class Order {
         const startValueIndex = top.nextValueIndex;
         const endValueIndex = nextChild.parentValueIndex + 1;
         if (endValueIndex !== startValueIndex) {
-          if (top.node !== this.rootNode) {
-            yield {
-              node: top.node,
-              startValueIndex,
-              endValueIndex,
-            };
-          }
+          yield {
+            node: top.node,
+            startValueIndex,
+            endValueIndex,
+          };
           top.nextValueIndex = endValueIndex;
         }
         // Visit the child.
