@@ -2,12 +2,6 @@ import { IDs } from "./ids";
 import { NodeMap } from "./node_map";
 import { Position, positionEquals } from "./position";
 
-// TODO: OrderManager class, which wraps an Order to handle pending/missing
-// nodes and also supports VV-based p2p sync?
-// (Is that possible w/o extra causal dot / last-timestamp indicator
-// on each NodeDesc? I guess the OrderManager could add it,
-// or it could assume causal/PRAM consistency.)
-
 /**
  * Serializable form of a Node, used for collaboration.
  */
@@ -75,8 +69,6 @@ class NodeInternal implements Node {
 
   /**
    * Returns a JSON-serializable description of this Node.
-   *
-   * TODO: Order method to get NodeDesc for node with missing parent?
    */
   desc(): NodeDesc {
     if (this.parentNode === null) {
@@ -110,8 +102,7 @@ export function compareSiblingNodes(a: Node, b: Node): number {
   return 0;
 }
 
-// TODO: Item instead? Unless used by List.
-export type ItemDesc = {
+export type ItemRange = {
   readonly node: Node;
   readonly startValueIndex: number;
   /**
@@ -140,9 +131,9 @@ export class Order {
   private timestamp = 0;
 
   readonly rootNode: Node;
-  // Can't be set etc., but can be createPositionAfter'd or appear in a Cursor.
-  // TODO: instead, start & end positions? (Latter is root, 1).
-  readonly rootPosition: Position;
+  // Can't be set etc., but can be createPosition'd or appear in a Cursor.
+  readonly startPosition: Position;
+  readonly endPosition: Position;
 
   /**
    * Maps from a Node's desc to that Node.
@@ -157,12 +148,17 @@ export class Order {
     this.ID = options?.ID ?? IDs.random();
 
     this.rootNode = new NodeInternal(IDs.ROOT, 0, null, 0);
-    this.rootPosition = {
+    this.tree.set(this.rootNode, this.rootNode);
+    this.startPosition = {
       creatorID: this.rootNode.creatorID,
       timestamp: this.rootNode.timestamp,
       valueIndex: 0,
     };
-    this.tree.set(this.rootNode, this.rootNode);
+    this.endPosition = {
+      creatorID: this.rootNode.creatorID,
+      timestamp: this.rootNode.timestamp,
+      valueIndex: 0,
+    };
   }
 
   // ----------
@@ -364,7 +360,7 @@ export class Order {
   }
 
   /**
-   * Also validates pos (rootPos okay).
+   * Also validates pos (startPosition/endPosition okay).
    */
   getNodeFor(pos: Position): Node {
     if (!Number.isInteger(pos.valueIndex) || pos.valueIndex < 0) {
@@ -375,9 +371,12 @@ export class Order {
       );
     }
     const node = this.tree.get(pos);
-    if (node === this.rootNode && pos.valueIndex !== 0) {
+    if (
+      node === this.rootNode &&
+      !(pos.valueIndex === 0 || pos.valueIndex === 1)
+    ) {
       throw new Error(
-        `Position uses the root Node but does not have valueIndex 0: ${JSON.stringify(
+        `Position uses rootNote but is not startPosition or endPosition (valueIndex 0 or 1): ${JSON.stringify(
           pos
         )}`
       );
@@ -439,20 +438,27 @@ export class Order {
   // ----------
 
   /**
-   * No particular order, but are grouped by sender.
-   *
-   * TODO: separate method to loop over senders explicitly, like you would need to
-   * implement save() yourself?
-   *
-   * Includes root.
+   * Order guarantees: rootNode, then others grouped by creatorID.
+   * No particular order on creatorID or timestamps (in part., timestamps
+   * may be out of order).
    */
   nodes(): IterableIterator<Node> {
     return this.tree.values();
   }
 
+  /**
+   * Unlike nodes(), excludes rootNode. Otherwise same order.
+   */
+  *nodeDescs(): IterableIterator<NodeDesc> {
+    for (const node of this.tree.values()) {
+      if (node === this.rootNode) continue;
+      yield node.desc();
+    }
+  }
+
   // TODO: slice args (startPos, endPos). For when you only view part of a doc.
   // Opt to avoid depth scan when they're in the same subtree?
-  *items(): IterableIterator<ItemDesc> {
+  *itemRanges(): IterableIterator<ItemRange> {
     // Use a manual stack instead of recursion, to prevent stack overflows
     // in deep trees.
     const stack = [

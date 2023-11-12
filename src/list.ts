@@ -304,7 +304,7 @@ export class List<T> {
     value: T
   ): { pos: Position; newNodeDesc: NodeDesc | null } {
     const prevPos =
-      index === 0 ? this.order.rootPosition : this.position(index - 1);
+      index === 0 ? this.order.startPosition : this.position(index - 1);
     return this.insert(prevPos, value);
   }
 
@@ -423,7 +423,7 @@ export class List<T> {
     // Add totals for child nodes that come before valueIndex.
     // These are precisely the left children with
     // parentValueIndex <= valueIndex.
-    for (const child of node.children) {
+    for (const child of node.children()) {
       if (child.parentValueIndex > pos.valueIndex) break;
       valuesBefore += this.total(child);
     }
@@ -441,7 +441,7 @@ export class List<T> {
         current.parentValueIndex
       )[2];
       // Sibling nodes that come before current.
-      for (const child of current.parentNode.children) {
+      for (const child of current.parentNode.children()) {
         if (child === current) break;
         valuesBefore += this.total(child);
       }
@@ -565,10 +565,10 @@ export class List<T> {
   }
 
   /**
-   * Returns an iterator of [index, value, pos] tuples for every
+   * Returns an iterator of [pos, value, index] tuples for every
    * value in the list, in list order.
    */
-  *entries(): IterableIterator<[index: number, value: T, pos: Position]> {
+  *entries(): IterableIterator<[pos: Position, value: T, index: number]> {
     if (this.length === 0) return;
 
     let index = 0;
@@ -590,13 +590,13 @@ export class List<T> {
         if (valuesOrChild.isValues) {
           for (let i = 0; i < valuesOrChild.end - valuesOrChild.start; i++) {
             yield [
-              index,
-              valuesOrChild.item[valuesOrChild.start + i],
               {
                 creatorID: node.creatorID,
                 timestamp: node.timestamp,
                 valueIndex: valuesOrChild.valueIndex + i,
               },
+              valuesOrChild.item[valuesOrChild.start + i],
+              index,
             ];
             index++;
           }
@@ -624,7 +624,7 @@ export class List<T> {
    */
   private *valuesAndChildren(node: Node): IterableIterator<ValuesOrChild<T>> {
     const items = this.state.get(node)!.items;
-    const children = node.children;
+    const children = [...node.children()];
     let childIndex = 0;
     let startValueIndex = 0;
     for (const item of items) {
@@ -698,7 +698,7 @@ export class List<T> {
 
   /** Returns an iterator for present positions, in list order. */
   *positions(): IterableIterator<Position> {
-    for (const [, , pos] of this.entries()) yield pos;
+    for (const [pos] of this.entries()) yield pos;
   }
 
   /**

@@ -34,7 +34,7 @@ export class Cursors {
    * @param list The target list.
    */
   static fromIndex(index: number, list: List<any>): Position {
-    return index === 0 ? list.order.rootPosition : list.position(index - 1);
+    return index === 0 ? list.order.startPosition : list.position(index - 1);
   }
 
   /**
@@ -46,7 +46,7 @@ export class Cursors {
    * @param list The target list.
    */
   static toIndex(cursor: Position, list: List<any>): number {
-    return positionEquals(cursor, list.order.rootPosition)
+    return positionEquals(cursor, list.order.startPosition)
       ? 0
       : list.index(cursor, "left") + 1;
   }
