@@ -20,17 +20,20 @@ type NodeData<T> = {
    * The items always alternate types. If the last
    * item would be a number (deleted), it is omitted.
    *
-   * TODO: undefined if unused (total only), for tombstone efficiency.
+   * TODO: undefined initially (total only), for tombstone efficiency.
    */
   runs: (T[] | number)[];
 };
 
 /**
- * Type used in LocalList.valuesAndChildren.
+ * Type used in LocalList.slicesAndChildren.
+ *
+ * Either a slice of values in a Node that are also contiguous in the list order,
+ * or a Node child.
  */
-type ValuesOrChild<T> =
+type SliceOrChild<T> =
   | {
-      type: "values";
+      type: "slice";
       /** Use item.slice(start, end) */
       values: T[];
       start: number;
@@ -451,8 +454,8 @@ export class List<T> {
     // eslint-disable-next-line no-constant-condition
     while (true) {
       nodeLoop: {
-        for (const next of this.valuesAndChildren(node)) {
-          if (next.type === "values") {
+        for (const next of this.slicesAndChildren(node)) {
+          if (next.type === "slice") {
             const length = next.end - next.start;
             if (remaining < length) {
               // Answer is values[remaining].
@@ -500,9 +503,9 @@ export class List<T> {
     let node: Node | null = this.order.rootNode;
     // Manage our own stack instead of recursing, to avoid stack overflow
     // in deep trees.
-    const stack: IterableIterator<ValuesOrChild<T>>[] = [
+    const stack: IterableIterator<SliceOrChild<T>>[] = [
       // root will indeed have total != 0 since we checked length != 0.
-      this.valuesAndChildren(this.order.rootNode),
+      this.slicesAndChildren(this.order.rootNode),
     ];
     while (node !== null) {
       const iter = stack[stack.length - 1];
@@ -512,7 +515,7 @@ export class List<T> {
         node = node.parentNode;
       } else {
         const valuesOrChild = next.value;
-        if (valuesOrChild.type === "values") {
+        if (valuesOrChild.type === "slice") {
           for (let i = 0; i < valuesOrChild.end - valuesOrChild.start; i++) {
             yield [
               {
@@ -528,7 +531,7 @@ export class List<T> {
         } else {
           // Recurse into child.
           node = valuesOrChild.child;
-          stack.push(this.valuesAndChildren(node));
+          stack.push(this.slicesAndChildren(node));
         }
       }
     }
@@ -540,14 +543,14 @@ export class List<T> {
    * iterating over the list.
    *
    * Specifically, it yields:
-   * - "Sub-items" consisting of contiguous present values within an item.
+   * - Slices of a Node's values that are present and contiguous in the list order.
    * - Node children with non-zero total.
    *
    * together with enough info to infer their starting valueIndex's.
    *
    * @throws If valuesByNode does not have an entry for node.
    */
-  private *valuesAndChildren(node: Node): IterableIterator<ValuesOrChild<T>> {
+  private *slicesAndChildren(node: Node): IterableIterator<SliceOrChild<T>> {
     const runs = this.state.get(node)!.runs;
     const children = [...node.children()];
     let childIndex = 0;
@@ -571,7 +574,7 @@ export class List<T> {
           if (valueIndex < child.parentValueIndex) {
             if (typeof run !== "number") {
               yield {
-                type: "values",
+                type: "slice",
                 values: run,
                 start: valueIndex - startValueIndex,
                 end: child.parentValueIndex - startValueIndex,
@@ -587,7 +590,7 @@ export class List<T> {
       // Emit remaining values in run.
       if (typeof run !== "number" && valueIndex < endValueIndex) {
         yield {
-          type: "values",
+          type: "slice",
           values: run,
           start: valueIndex - startValueIndex,
           end: runSize,
