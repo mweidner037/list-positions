@@ -24,6 +24,50 @@ type NodeData<T> = {
 };
 
 /**
+ * Inverse of toRuns.
+ */
+function toValues<T>(runs: (T[] | number)[]): (T | undefined)[] {
+  const values: (T | undefined)[] = [];
+  for (const run of runs) {
+    if (typeof run === "number") {
+      for (let i = 0; i < run; i++) values.push(undefined);
+    } else values.push(...run);
+  }
+  return values;
+}
+
+/**
+ * Converts an array of values into runs. Undefined entries in
+ * the array are interpreted as deleted values; note that this is
+ * unsafe if T includes undefined.
+ */
+function toRuns<T>(values: (T | undefined)[]): (T[] | number)[] {
+  if (values.length === 0) return [];
+
+  const runs: (T[] | number)[] = [];
+  let currentRun = values[0] === undefined ? 1 : [values[0] as T];
+  for (let i = 1; i < values.length; i++) {
+    const value = values[i];
+    if (value === undefined) {
+      if (typeof currentRun === "number") currentRun++;
+      else {
+        runs.push(currentRun);
+        currentRun = 1;
+      }
+    } else {
+      if (typeof currentRun !== "number") currentRun.push(value);
+      else {
+        runs.push(currentRun);
+        currentRun = [value];
+      }
+    }
+  }
+  runs.push(currentRun);
+
+  return runs;
+}
+
+/**
  * Note: may copy array runs by-reference, which might then be changed later.
  * So stop using the input after calling.
  */
@@ -223,8 +267,37 @@ export class List<T> {
     return existingCount !== 0;
   }
 
-  // TODO: setBulk opt for loading a whole node?
-  // At least amortize the updateTotals call.
+  /**
+   * Sets values in startPos's Node starting at startPos.valueIndex.
+   * Use this for bulk loading (e.g., load all of a Node's values if
+   * you store values by Node).
+   *
+   * Undefined entries in
+   * the array are interpreted as deleted values; note that this is
+   * unsafe if T includes undefined.
+   *
+   * Note that values might not be contiguous in the list.
+   */
+  setBulk(startPos: Position, values: (T | undefined)[]): void {
+    const node = this.order.getNodeFor(startPos);
+    let data = this.state.get(node);
+    if (data === undefined) {
+      data = { total: 0, runs: [] };
+      this.state.set(node, data);
+    }
+
+    const [before, existing, after] = splitRuns(
+      data.runs,
+      startPos.valueIndex,
+      startPos.valueIndex + values.length
+    );
+    const valuesRuns = toRuns(values);
+    data.runs = mergeRuns(before, valuesRuns, after);
+
+    const existingCount = countPresent(existing);
+    const delta = countPresent(valuesRuns) - existingCount;
+    if (delta !== 0) this.updateTotals(node, delta);
+  }
 
   /**
    * Sets the value at index.
@@ -325,6 +398,21 @@ export class List<T> {
    */
   get(pos: Position): T | undefined {
     return this.locate(pos)[0];
+  }
+
+  getBulk(startPos: Position, count: number): (T | undefined)[] {
+    const node = this.order.getNodeFor(startPos);
+    const data = this.state.get(node);
+    if (data === undefined) {
+      return new Array<T | undefined>(count).fill(undefined);
+    }
+
+    const [, existing] = splitRuns(
+      data.runs,
+      startPos.valueIndex,
+      startPos.valueIndex + count
+    );
+    return toValues(existing);
   }
 
   /**
