@@ -24,7 +24,10 @@ type NodeData<T> = {
 };
 
 /**
- * Inverse of toRuns.
+ * Converts runs into an array of values, using undefined in place of
+ * deleted values. Note that this is ambiguous if T includes undefined.
+ *
+ * Inverse: toRuns.
  */
 function toValues<T>(runs: (T[] | number)[]): (T | undefined)[] {
   const values: (T | undefined)[] = [];
@@ -37,9 +40,10 @@ function toValues<T>(runs: (T[] | number)[]): (T | undefined)[] {
 }
 
 /**
- * Converts an array of values into runs. Undefined entries in
- * the array are interpreted as deleted values; note that this is
- * unsafe if T includes undefined.
+ * Converts values into runs, treating undefined as a delete value.
+ * Note that this is ambiguous if T includes undefined.
+ *
+ * Inverse: toValues.
  */
 function toRuns<T>(values: (T | undefined)[]): (T[] | number)[] {
   if (values.length === 0) return [];
@@ -65,6 +69,17 @@ function toRuns<T>(values: (T | undefined)[]): (T[] | number)[] {
   runs.push(currentRun);
 
   return runs;
+}
+
+/**
+ * @returns Number of *present* values in runs.
+ */
+function countPresent<T>(runs: (T[] | number)[]): number {
+  let count = 0;
+  for (const run of runs) {
+    if (typeof run !== "number") count += run.length;
+  }
+  return count;
 }
 
 /**
@@ -97,6 +112,38 @@ function getInRuns<T>(
   }
   // If we get here, then the valueIndex is after all present values.
   return [undefined, false, beforeCount];
+}
+
+/**
+ * Note: may modify array runs in-place.
+ * So stop using the inputs after calling.
+ */
+function mergeRuns<T>(...allRuns: (T[] | number)[][]): (T[] | number)[] {
+  const merged: (T[] | number)[] = [];
+  for (let i = 0; i < allRuns.length; i++) {
+    const currentRuns = allRuns[i];
+    // currentRuns[0]
+    if (currentRuns.length === 0) continue;
+    const nextRun = currentRuns[0];
+    const prevRun = merged.at(-1);
+    if (prevRun !== undefined && typeof prevRun === typeof nextRun) {
+      // We need to merge nextRun into prevRun.
+      if (typeof nextRun === "number") {
+        (merged[merged.length - 1] as number) += nextRun;
+      } else (prevRun as T[]).push(...nextRun);
+    } else merged.push(nextRun);
+    // currentRuns[1+]
+    for (let j = 1; j < currentRuns.length; j++) {
+      merged.push(currentRuns[j]);
+    }
+  }
+
+  // If the last run is a number (deleted), omit it.
+  if (merged.length !== 0 && typeof merged[merged.length - 1] === "number") {
+    merged.pop();
+  }
+
+  return merged;
 }
 
 /**
@@ -169,49 +216,6 @@ function splitRuns<T>(
   finalSlice.push(...runs.slice(r));
 
   return ans;
-}
-
-/**
- * Note: may modify array runs in-place.
- * So stop using the inputs after calling.
- */
-function mergeRuns<T>(...allRuns: (T[] | number)[][]): (T[] | number)[] {
-  const merged: (T[] | number)[] = [];
-  for (let i = 0; i < allRuns.length; i++) {
-    const currentRuns = allRuns[i];
-    // currentRuns[0]
-    if (currentRuns.length === 0) continue;
-    const nextRun = currentRuns[0];
-    const prevRun = merged.at(-1);
-    if (prevRun !== undefined && typeof prevRun === typeof nextRun) {
-      // We need to merge nextRun into prevRun.
-      if (typeof nextRun === "number") {
-        (merged[merged.length - 1] as number) += nextRun;
-      } else (prevRun as T[]).push(...nextRun);
-    } else merged.push(nextRun);
-    // currentRuns[1+]
-    for (let j = 1; j < currentRuns.length; j++) {
-      merged.push(currentRuns[j]);
-    }
-  }
-
-  // If the last run is a number (deleted), omit it.
-  if (merged.length !== 0 && typeof merged[merged.length - 1] === "number") {
-    merged.pop();
-  }
-
-  return merged;
-}
-
-/**
- * @returns Number of *present* values in runs.
- */
-function countPresent<T>(runs: (T[] | number)[]): number {
-  let count = 0;
-  for (const run of runs) {
-    if (typeof run !== "number") count += run.length;
-  }
-  return count;
 }
 
 /**
