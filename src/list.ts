@@ -13,39 +13,33 @@ type NodeData<T> = {
   total: number;
   /**
    * The values (or not) at the node's positions,
-   * in order from left to right, represented as
-   * an array of "items": T[] for present values,
-   * positive count for deleted values.
+   * in order from left to right. Represented as
+   * an array of "runs" of present values (T[]) or
+   * not present values (number).
    *
    * The items always alternate types. If the last
    * item would be a number (deleted), it is omitted.
    *
-   * TODO: blocks? runs? To distinguish from Order's "ItemRanges",
-   * which we could rename to just Items.
+   * TODO: undefined if unused (total only), for tombstone efficiency.
    */
-  items: (T[] | number)[];
+  runs: (T[] | number)[];
 };
 
 /**
  * Type used in LocalList.valuesAndChildren.
- *
- * TODO: rename ItemsOrChild/itemsAndChildren. Unless it doesn't line up
- * with Order.items() due to split blocks?
  */
 type ValuesOrChild<T> =
   | {
-      /** True if value, false if child. */
-      isValues: true;
+      type: "values";
       /** Use item.slice(start, end) */
-      item: T[];
+      values: T[];
       start: number;
       end: number;
       /** valueIndex of first value */
       valueIndex: number;
     }
   | {
-      /** True if value, false if child. */
-      isValues: false;
+      type: "child";
       child: Node;
       /** Always non-zero (zero total children are skipped). */
       total: number;
@@ -100,71 +94,69 @@ export class List<T> {
       // Node has no values currently; set them to
       // [valueIndex, [value]].
       // Except, omit 0s.
-      const newItems =
+      const newRuns =
         pos.valueIndex === 0 ? [[value]] : [pos.valueIndex, [value]];
       this.state.set(node, {
         total: 0,
-        items: newItems,
+        runs: newRuns,
       });
       this.updateTotals(node, 1);
       return true;
     }
 
-    const items = data.items;
+    const runs = data.runs;
     let remaining = pos.valueIndex;
-    for (let i = 0; i < items.length; i++) {
-      const curItem = items[i];
-      if (typeof curItem !== "number") {
-        if (remaining < curItem.length) {
+    for (let i = 0; i < runs.length; i++) {
+      const curRun = runs[i];
+      if (typeof curRun !== "number") {
+        if (remaining < curRun.length) {
           // Already present. Replace the current value.
-          curItem[remaining] = value;
+          curRun[remaining] = value;
           return false;
-        } else remaining -= curItem.length;
+        } else remaining -= curRun.length;
       } else {
-        if (remaining < curItem) {
-          // Replace curItem with
-          // [remaining, [value], curItem - 1 - remaining].
+        if (remaining < curRun) {
+          // Replace curRun with
+          // [remaining, [value], curRun - 1 - remaining].
           // Except, omit 0s and combine [value] with
           // neighboring arrays if needed.
           let startIndex = i;
           let deleteCount = 1;
-          const newItems: (T[] | number)[] = [[value]];
+          const newRuns: (T[] | number)[] = [[value]];
 
           if (remaining !== 0) {
-            newItems.unshift(remaining);
+            newRuns.unshift(remaining);
           } else if (i !== 0) {
             // Combine [value] with left neighbor.
             startIndex--;
             deleteCount++;
-            (newItems[0] as T[]).unshift(...(items[i - 1] as T[]));
+            (newRuns[0] as T[]).unshift(...(runs[i - 1] as T[]));
           }
-          if (remaining !== curItem - 1) {
-            newItems.push(curItem - 1 - remaining);
-          } else if (i !== items.length - 1) {
+          if (remaining !== curRun - 1) {
+            newRuns.push(curRun - 1 - remaining);
+          } else if (i !== runs.length - 1) {
             // Combine [value] with right neighbor.
             deleteCount++;
-            (newItems[newItems.length - 1] as T[]).push(
-              ...(items[i + 1] as T[])
-            );
+            (newRuns[newRuns.length - 1] as T[]).push(...(runs[i + 1] as T[]));
           }
 
-          items.splice(startIndex, deleteCount, ...newItems);
+          runs.splice(startIndex, deleteCount, ...newRuns);
           this.updateTotals(node, 1);
           return true;
-        } else remaining -= curItem;
+        } else remaining -= curRun;
       }
     }
 
-    // If we get here, the position is in the implied last item,
+    // If we get here, the position is in the implied last run,
     // which is deleted.
-    // Note that the actual last element of items is necessarily present.
+    // Note that the actual last element of runs is necessarily present.
     if (remaining !== 0) {
-      items.push(remaining, [value]);
+      runs.push(remaining, [value]);
     } else {
-      if (items.length === 0) items.push([value]);
+      if (runs.length === 0) runs.push([value]);
       else {
-        // Merge value with the preceding present item.
-        (items[items.length - 1] as T[]).push(value);
+        // Merge value with the preceding present run.
+        (runs[runs.length - 1] as T[]).push(value);
       }
     }
     this.updateTotals(node, 1);
@@ -197,52 +189,52 @@ export class List<T> {
       // Already not present.
       return false;
     }
-    const items = data.items;
+    const runs = data.runs;
     let remaining = pos.valueIndex;
-    for (let i = 0; i < items.length; i++) {
-      const curItem = items[i];
-      if (typeof curItem === "number") {
-        if (remaining < curItem) {
+    for (let i = 0; i < runs.length; i++) {
+      const curRun = runs[i];
+      if (typeof curRun === "number") {
+        if (remaining < curRun) {
           // Already not present.
           return false;
-        } else remaining -= curItem;
+        } else remaining -= curRun;
       } else {
-        if (remaining < curItem.length) {
-          // Replace curItem[remaining] with
-          // [curItem[:remaining], 1, curItem[remaining+1:]].
+        if (remaining < curRun.length) {
+          // Replace curRun[remaining] with
+          // [curRun[:remaining], 1, curRun[remaining+1:]].
           // Except, omit empty slices and combine the 1 with
           // neighboring numbers if needed.
           let startIndex = i;
           let deleteCount = 1;
-          const newItems: (T[] | number)[] = [1];
+          const curRuns: (T[] | number)[] = [1];
 
           if (remaining !== 0) {
-            newItems.unshift(curItem.slice(0, remaining));
+            curRuns.unshift(curRun.slice(0, remaining));
           } else if (i !== 0) {
             // Combine 1 with left neighbor.
             startIndex--;
             deleteCount++;
-            (newItems[0] as number) += items[i - 1] as number;
+            (curRuns[0] as number) += runs[i - 1] as number;
           }
-          if (remaining !== curItem.length - 1) {
-            newItems.push(curItem.slice(remaining + 1));
-          } else if (i !== items.length - 1) {
+          if (remaining !== curRun.length - 1) {
+            curRuns.push(curRun.slice(remaining + 1));
+          } else if (i !== runs.length - 1) {
             // Combine 1 with right neighbor.
             deleteCount++;
-            (newItems[newItems.length - 1] as number) += items[i + 1] as number;
+            (curRuns[curRuns.length - 1] as number) += runs[i + 1] as number;
           }
 
-          items.splice(startIndex, deleteCount, ...newItems);
+          runs.splice(startIndex, deleteCount, ...curRuns);
 
-          // If the last item is a number (deleted), omit it.
-          if (typeof items[items.length - 1] === "number") items.pop();
+          // If the last run is a number (deleted), omit it.
+          if (typeof runs[runs.length - 1] === "number") runs.pop();
 
           this.updateTotals(node, -1);
           return true;
-        } else remaining -= curItem.length;
+        } else remaining -= curRun.length;
       }
     }
-    // If we get here, the position is in the implied last item,
+    // If we get here, the position is in the implied last run,
     // hence is already deleted.
     return false;
   }
@@ -274,8 +266,8 @@ export class List<T> {
         this.state.set(current, {
           // Nonzero by assumption.
           total: delta,
-          // Omit last deleted item (= only item).
-          items: [],
+          // Omit last deleted run (= only run).
+          runs: [],
         });
       } else {
         data.total += delta;
@@ -364,40 +356,22 @@ export class List<T> {
     }
     let remaining = valueIndex;
     let nodeValuesBefore = 0;
-    for (const item of data.items) {
-      if (typeof item === "number") {
-        if (remaining < item) {
+    for (const run of data.runs) {
+      if (typeof run === "number") {
+        if (remaining < run) {
           return [undefined, false, nodeValuesBefore];
-        } else remaining -= item;
+        } else remaining -= run;
       } else {
-        if (remaining < item.length) {
-          return [item[remaining], true, nodeValuesBefore + remaining];
+        if (remaining < run.length) {
+          return [run[remaining], true, nodeValuesBefore + remaining];
         } else {
-          remaining -= item.length;
-          nodeValuesBefore += item.length;
+          remaining -= run.length;
+          nodeValuesBefore += run.length;
         }
       }
     }
     // If we get here, then the valueIndex is after all present values.
     return [undefined, false, nodeValuesBefore];
-  }
-
-  /**
-   * The nubmer of present values within node (not descendants).
-   */
-  private valueCount(node: Node): number {
-    const data = this.state.get(node);
-    if (data === undefined) {
-      // No values within node.
-      return 0;
-    }
-    let nodeValues = 0;
-    for (const item of data.items) {
-      if (typeof item !== "number") {
-        nodeValues += item.length;
-      }
-    }
-    return nodeValues;
   }
 
   /**
@@ -478,7 +452,7 @@ export class List<T> {
     while (true) {
       nodeLoop: {
         for (const next of this.valuesAndChildren(node)) {
-          if (next.isValues) {
+          if (next.type === "values") {
             const length = next.end - next.start;
             if (remaining < length) {
               // Answer is values[remaining].
@@ -538,7 +512,7 @@ export class List<T> {
         node = node.parentNode;
       } else {
         const valuesOrChild = next.value;
-        if (valuesOrChild.isValues) {
+        if (valuesOrChild.type === "values") {
           for (let i = 0; i < valuesOrChild.end - valuesOrChild.start; i++) {
             yield [
               {
@@ -546,7 +520,7 @@ export class List<T> {
                 timestamp: node.timestamp,
                 valueIndex: valuesOrChild.valueIndex + i,
               },
-              valuesOrChild.item[valuesOrChild.start + i],
+              valuesOrChild.values[valuesOrChild.start + i],
               index,
             ];
             index++;
@@ -566,7 +540,7 @@ export class List<T> {
    * iterating over the list.
    *
    * Specifically, it yields:
-   * - "Sub-items" consisting of a slice of a present item.
+   * - "Sub-items" consisting of contiguous present values within an item.
    * - Node children with non-zero total.
    *
    * together with enough info to infer their starting valueIndex's.
@@ -574,31 +548,31 @@ export class List<T> {
    * @throws If valuesByNode does not have an entry for node.
    */
   private *valuesAndChildren(node: Node): IterableIterator<ValuesOrChild<T>> {
-    const items = this.state.get(node)!.items;
+    const runs = this.state.get(node)!.runs;
     const children = [...node.children()];
     let childIndex = 0;
     let startValueIndex = 0;
-    for (const item of items) {
-      const itemSize = typeof item === "number" ? item : item.length;
+    for (const run of runs) {
+      const runSize = typeof run === "number" ? run : run.length;
       // After (next startValueIndex)
-      const endValueIndex = startValueIndex + itemSize;
+      const endValueIndex = startValueIndex + runSize;
       // Next value to yield
       let valueIndex = startValueIndex;
       for (; childIndex < children.length; childIndex++) {
         const child = children[childIndex];
         if (child.parentValueIndex >= endValueIndex) {
-          // child comes after item. End the loop and visit child
-          // during the next item.
+          // child comes after run. End the loop and visit child
+          // during the next run.
           break;
         }
         const total = this.total(child);
         if (total !== 0) {
           // Emit child. If needed, first emit values that come before it.
           if (valueIndex < child.parentValueIndex) {
-            if (typeof item !== "number") {
+            if (typeof run !== "number") {
               yield {
-                isValues: true,
-                item,
+                type: "values",
+                values: run,
                 start: valueIndex - startValueIndex,
                 end: child.parentValueIndex - startValueIndex,
                 valueIndex,
@@ -606,29 +580,29 @@ export class List<T> {
             }
             valueIndex = child.parentValueIndex;
           }
-          yield { isValues: false, child, total };
+          yield { type: "child", child, total };
         }
       }
 
-      // Emit remaining values in item.
-      if (typeof item !== "number" && valueIndex < endValueIndex) {
+      // Emit remaining values in run.
+      if (typeof run !== "number" && valueIndex < endValueIndex) {
         yield {
-          isValues: true,
-          item,
+          type: "values",
+          values: run,
           start: valueIndex - startValueIndex,
-          end: itemSize,
+          end: runSize,
           valueIndex,
         };
       }
       startValueIndex = endValueIndex;
     }
     // Visit remaining children (left children among a possible deleted
-    // final item (which items omits) and right children).
+    // final run (which runs omits) and right children).
     for (; childIndex < children.length; childIndex++) {
       const child = children[childIndex];
       const total = this.total(child);
       if (this.total(child) !== 0) {
-        yield { isValues: false, child, total };
+        yield { type: "child", child, total };
       }
     }
   }
@@ -643,7 +617,7 @@ export class List<T> {
 
   /** Returns an iterator for values in the list, in list order. */
   *values(): IterableIterator<T> {
-    // OPT: do own walk and yield* value items, w/o encoding positions.
+    // OPT: do own walk and yield* value runs, w/o encoding positions.
     for (const [, value] of this.entries()) yield value;
   }
 
@@ -692,12 +666,6 @@ export class List<T> {
       return ans;
     }
   }
-
-  // TODO: separate function providing access to a node's "items".
-  // So that you could implement save() yourself. Likewise,
-  // functions to quickly load a Node, exploiting its internal rep?
-  // Additionally, functions to read/write all of a Node's values in the
-  // obvious format (valueIndex map) instead of a list of "items".
   /**
    * Returns saved state describing the current state of this LocalList,
    * including its values.
@@ -706,12 +674,13 @@ export class List<T> {
    * on a new instance of LocalList, to reconstruct the
    * same list state.
    *
-   * TODO: only saves values, not Order.
+   * TODO: only saves values, not Order. "Natural" format; order
+   * guarantees.
    */
   save(): ListSavedState<T> {
     const savedStatePre: ListSavedState<T> = {};
     for (const [node, data] of this.state) {
-      if (data.items.length === 0) continue;
+      if (data.runs.length === 0) continue;
 
       let byCreator = savedStatePre[node.creatorID];
       if (byCreator === undefined) {
@@ -719,15 +688,7 @@ export class List<T> {
         savedStatePre[node.creatorID] = byCreator;
       }
 
-      // Deep copy data.items.
-      const itemsCopy = new Array<T[] | number>(data.items.length);
-      for (let i = 0; i < data.items.length; i++) {
-        const item = data.items[i];
-        if (typeof item === "number") itemsCopy[i] = item;
-        else itemsCopy[i] = item.slice();
-      }
-
-      byCreator[node.timestamp] = itemsCopy;
+      // TODO
     }
 
     // Make a (shallow) copy of savedStatePre that touches all
@@ -770,6 +731,10 @@ export class List<T> {
 // through values in order, which is not necessary at rest.
 export type ListSavedState<T> = {
   [creatorID: string]: {
-    [timestamp: number]: (T[] | number)[];
+    [timestamp: number]: {
+      [valueIndex: number]: T;
+    };
   };
 };
+
+// TODO: check "OPT" comments

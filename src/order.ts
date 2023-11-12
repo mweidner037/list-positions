@@ -3,7 +3,7 @@ import { NodeMap } from "./node_map";
 import { Position, positionEquals } from "./position";
 import { ReplicaIDs } from "./replica_ids";
 
-export type ItemRange = {
+export type Item = {
   readonly node: Node;
   readonly startValueIndex: number;
   /**
@@ -428,7 +428,7 @@ export class Order {
 
   // TODO: slice args (startPos, endPos). For when you only view part of a doc.
   // Opt to avoid depth scan when they're in the same subtree?
-  *itemRanges(): IterableIterator<ItemRange> {
+  *items(): IterableIterator<Item> {
     // Use a manual stack instead of recursion, to prevent stack overflows
     // in deep trees.
     const stack = [
