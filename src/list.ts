@@ -19,11 +19,124 @@ type NodeData<T> = {
    *
    * The items always alternate types. If the last
    * item would be a number (deleted), it is omitted.
-   *
-   * TODO: undefined initially (total only), for tombstone efficiency.
    */
   runs: (T[] | number)[];
 };
+
+/**
+ * Note: may copy array runs by-reference, which might then be changed later.
+ * So stop using the input after calling.
+ */
+function splitRuns<T>(
+  runs: (T[] | number)[],
+  ...valueIndexes: number[]
+): (T[] | number)[][] {
+  const ans = new Array<(T[] | number)[]>(valueIndexes.length + 1);
+  let r = 0;
+  let leftoverRun: T[] | number | undefined = undefined;
+  for (let i = 0; i < valueIndexes.length; i++) {
+    const slice: (T[] | number)[] = [];
+    ans[i] = slice;
+
+    let remaining =
+      i === 0 ? valueIndexes[i] : valueIndexes[i] - valueIndexes[i - 1];
+    while (r < runs.length) {
+      const run: T[] | number = leftoverRun ?? runs[r];
+      leftoverRun = undefined;
+
+      if (typeof run === "number") {
+        if (run <= remaining) {
+          slice.push(run);
+          remaining -= run;
+          r++;
+          if (remaining === 0) break;
+        } else {
+          // run > remaining
+          slice.push(remaining);
+          leftoverRun = run - remaining;
+          remaining = 0;
+          break;
+        }
+      } else {
+        // run has type T[]
+        if (run.length <= remaining) {
+          slice.push(run);
+          remaining -= run.length;
+          r++;
+          if (remaining === 0) break;
+        } else {
+          // run.length > remaining
+          slice.push(run.slice(0, remaining));
+          leftoverRun = run.slice(remaining);
+          remaining = 0;
+          break;
+        }
+      }
+    }
+
+    if (remaining > 0) {
+      // We reached the end of runs before filling slice.
+      // Finish with a deleted run.
+      if (slice.length !== 0 && typeof slice[slice.length - 1] === "number") {
+        (slice[slice.length - 1] as number) += remaining;
+      } else slice.push(remaining);
+    }
+  }
+
+  // Final slice: everything left in runs.
+  const finalSlice: (T[] | number)[] = [];
+  ans[valueIndexes.length] = finalSlice;
+  if (leftoverRun !== undefined) {
+    finalSlice.push(leftoverRun);
+    r++;
+  }
+  finalSlice.push(...runs.slice(r));
+
+  return ans;
+}
+
+/**
+ * Note: may modify array runs in-place.
+ * So stop using the inputs after calling.
+ */
+function mergeRuns<T>(...allRuns: (T[] | number)[][]): (T[] | number)[] {
+  const merged: (T[] | number)[] = [];
+  for (let i = 0; i < allRuns.length; i++) {
+    const currentRuns = allRuns[i];
+    // currentRuns[0]
+    if (currentRuns.length === 0) continue;
+    const nextRun = currentRuns[0];
+    const prevRun = merged.at(-1);
+    if (prevRun !== undefined && typeof prevRun === typeof nextRun) {
+      // We need to merge nextRun into prevRun.
+      if (typeof nextRun === "number") {
+        (merged[merged.length - 1] as number) += nextRun;
+      } else (prevRun as T[]).push(...nextRun);
+    } else merged.push(nextRun);
+    // currentRuns[1+]
+    for (let j = 1; j < currentRuns.length; j++) {
+      merged.push(currentRuns[j]);
+    }
+  }
+
+  // If the last run is a number (deleted), omit it.
+  if (merged.length !== 0 && typeof merged[merged.length - 1] === "number") {
+    merged.pop();
+  }
+
+  return merged;
+}
+
+/**
+ * @returns Number of *present* values in runs.
+ */
+function countPresent<T>(runs: (T[] | number)[]): number {
+  let count = 0;
+  for (const run of runs) {
+    if (typeof run !== "number") count += run.length;
+  }
+  return count;
+}
 
 /**
  * Type used in LocalList.slicesAndChildren.
@@ -92,78 +205,22 @@ export class List<T> {
    */
   set(pos: Position, value: T): boolean {
     const node = this.order.getNodeFor(pos);
-    const data = this.state.get(node);
+    let data = this.state.get(node);
     if (data === undefined) {
-      // Node has no values currently; set them to
-      // [valueIndex, [value]].
-      // Except, omit 0s.
-      const newRuns =
-        pos.valueIndex === 0 ? [[value]] : [pos.valueIndex, [value]];
-      this.state.set(node, {
-        total: 0,
-        runs: newRuns,
-      });
-      this.updateTotals(node, 1);
-      return true;
+      data = { total: 0, runs: [] };
+      this.state.set(node, data);
     }
 
-    const runs = data.runs;
-    let remaining = pos.valueIndex;
-    for (let i = 0; i < runs.length; i++) {
-      const curRun = runs[i];
-      if (typeof curRun !== "number") {
-        if (remaining < curRun.length) {
-          // Already present. Replace the current value.
-          curRun[remaining] = value;
-          return false;
-        } else remaining -= curRun.length;
-      } else {
-        if (remaining < curRun) {
-          // Replace curRun with
-          // [remaining, [value], curRun - 1 - remaining].
-          // Except, omit 0s and combine [value] with
-          // neighboring arrays if needed.
-          let startIndex = i;
-          let deleteCount = 1;
-          const newRuns: (T[] | number)[] = [[value]];
+    const [before, existing, after] = splitRuns(
+      data.runs,
+      pos.valueIndex,
+      pos.valueIndex + 1
+    );
+    data.runs = mergeRuns(before, [[value]], after);
 
-          if (remaining !== 0) {
-            newRuns.unshift(remaining);
-          } else if (i !== 0) {
-            // Combine [value] with left neighbor.
-            startIndex--;
-            deleteCount++;
-            (newRuns[0] as T[]).unshift(...(runs[i - 1] as T[]));
-          }
-          if (remaining !== curRun - 1) {
-            newRuns.push(curRun - 1 - remaining);
-          } else if (i !== runs.length - 1) {
-            // Combine [value] with right neighbor.
-            deleteCount++;
-            (newRuns[newRuns.length - 1] as T[]).push(...(runs[i + 1] as T[]));
-          }
-
-          runs.splice(startIndex, deleteCount, ...newRuns);
-          this.updateTotals(node, 1);
-          return true;
-        } else remaining -= curRun;
-      }
-    }
-
-    // If we get here, the position is in the implied last run,
-    // which is deleted.
-    // Note that the actual last element of runs is necessarily present.
-    if (remaining !== 0) {
-      runs.push(remaining, [value]);
-    } else {
-      if (runs.length === 0) runs.push([value]);
-      else {
-        // Merge value with the preceding present run.
-        (runs[runs.length - 1] as T[]).push(value);
-      }
-    }
-    this.updateTotals(node, 1);
-    return true;
+    const existingCount = countPresent(existing);
+    if (existingCount === 0) this.updateTotals(node, 1);
+    return existingCount !== 0;
   }
 
   // TODO: setBulk opt for loading a whole node?
@@ -192,54 +249,17 @@ export class List<T> {
       // Already not present.
       return false;
     }
-    const runs = data.runs;
-    let remaining = pos.valueIndex;
-    for (let i = 0; i < runs.length; i++) {
-      const curRun = runs[i];
-      if (typeof curRun === "number") {
-        if (remaining < curRun) {
-          // Already not present.
-          return false;
-        } else remaining -= curRun;
-      } else {
-        if (remaining < curRun.length) {
-          // Replace curRun[remaining] with
-          // [curRun[:remaining], 1, curRun[remaining+1:]].
-          // Except, omit empty slices and combine the 1 with
-          // neighboring numbers if needed.
-          let startIndex = i;
-          let deleteCount = 1;
-          const curRuns: (T[] | number)[] = [1];
 
-          if (remaining !== 0) {
-            curRuns.unshift(curRun.slice(0, remaining));
-          } else if (i !== 0) {
-            // Combine 1 with left neighbor.
-            startIndex--;
-            deleteCount++;
-            (curRuns[0] as number) += runs[i - 1] as number;
-          }
-          if (remaining !== curRun.length - 1) {
-            curRuns.push(curRun.slice(remaining + 1));
-          } else if (i !== runs.length - 1) {
-            // Combine 1 with right neighbor.
-            deleteCount++;
-            (curRuns[curRuns.length - 1] as number) += runs[i + 1] as number;
-          }
+    const [before, existing, after] = splitRuns(
+      data.runs,
+      pos.valueIndex,
+      pos.valueIndex + 1
+    );
+    data.runs = mergeRuns(before, [1], after);
 
-          runs.splice(startIndex, deleteCount, ...curRuns);
-
-          // If the last run is a number (deleted), omit it.
-          if (typeof runs[runs.length - 1] === "number") runs.pop();
-
-          this.updateTotals(node, -1);
-          return true;
-        } else remaining -= curRun.length;
-      }
-    }
-    // If we get here, the position is in the implied last run,
-    // hence is already deleted.
-    return false;
+    const existingCount = countPresent(existing);
+    if (existingCount === 1) this.updateTotals(node, -1);
+    return existingCount !== 0;
   }
 
   /**
@@ -263,18 +283,12 @@ export class List<T> {
       current !== null;
       current = current.parentNode
     ) {
-      const data = this.state.get(current);
+      let data = this.state.get(current);
       if (data === undefined) {
-        // Create NodeValues.
-        this.state.set(current, {
-          // Nonzero by assumption.
-          total: delta,
-          // Omit last deleted run (= only run).
-          runs: [],
-        });
-      } else {
-        data.total += delta;
+        data = { total: 0, runs: [] };
+        this.state.set(current, data);
       }
+      data.total += delta;
     }
   }
 
