@@ -6,9 +6,9 @@ import {
   countPresent,
   getInRuns,
   mergeRuns,
+  objectToRuns,
+  runsToObject,
   splitRuns,
-  toRuns,
-  toValues,
 } from "./runs";
 
 /**
@@ -125,40 +125,7 @@ export class List<T> {
       startPos.valueIndex + values.length
     );
     data.runs = mergeRuns(before, [values], after);
-
-    const delta = values.length - countPresent(existing);
-    if (delta !== 0) this.updateTotals(node, delta);
-  }
-
-  /**
-   * Sets values in startPos's Node starting at startPos.valueIndex.
-   * Use this for bulk loading (e.g., load all of a Node's values if
-   * you store values by Node).
-   *
-   * Undefined entries in
-   * the array are interpreted as deleted values; note that this is
-   * unsafe if T includes undefined.
-   *
-   * Note that values might not be contiguous in the list.
-   */
-  setBulk(startPos: Position, values: (T | undefined)[]): void {
-    const node = this.order.getNodeFor(startPos);
-    let data = this.state.get(node);
-    if (data === undefined) {
-      data = { total: 0, runs: [] };
-      this.state.set(node, data);
-    }
-
-    const [before, existing, after] = splitRuns(
-      data.runs,
-      startPos.valueIndex,
-      startPos.valueIndex + values.length
-    );
-    const valuesRuns = toRuns(values);
-    data.runs = mergeRuns(before, valuesRuns, after);
-
-    const delta = countPresent(valuesRuns) - countPresent(existing);
-    if (delta !== 0) this.updateTotals(node, delta);
+    this.updateTotals(node, values.length - countPresent(existing));
   }
 
   /**
@@ -193,7 +160,7 @@ export class List<T> {
     data.runs = mergeRuns(before, [1], after);
 
     const existingCount = countPresent(existing);
-    if (existingCount === 1) this.updateTotals(node, -1);
+    this.updateTotals(node, -existingCount);
     return existingCount !== 0;
   }
 
@@ -209,10 +176,10 @@ export class List<T> {
   /**
    * Changes total by delta for node and all of its ancestors.
    * Creates NodeValues as needed.
-   *
-   * delta must not be 0.
    */
   private updateTotals(node: Node, delta: number): void {
+    if (delta === 0) return;
+
     for (
       let current: Node | null = node;
       current !== null;
@@ -251,7 +218,7 @@ export class List<T> {
     ...values: T[]
   ): { pos: Position; newNodeDesc: NodeDesc | null } {
     const ret = this.order.createPosition(prevPos);
-    this.setBulk(ret.pos, values);
+    this.set(ret.pos, ...values);
     return ret;
   }
 
@@ -270,21 +237,6 @@ export class List<T> {
    */
   get(pos: Position): T | undefined {
     return this.getInNode(this.order.getNodeFor(pos), pos.valueIndex)[0];
-  }
-
-  getBulk(startPos: Position, count: number): (T | undefined)[] {
-    const node = this.order.getNodeFor(startPos);
-    const data = this.state.get(node);
-    if (data === undefined) {
-      return new Array<T | undefined>(count).fill(undefined);
-    }
-
-    const [, existing] = splitRuns(
-      data.runs,
-      startPos.valueIndex,
-      startPos.valueIndex + count
-    );
-    return toValues(existing);
   }
 
   /**
@@ -618,6 +570,40 @@ export class List<T> {
       return ans;
     }
   }
+
+  // Save & Load
+
+  saveOneNode(node: Node): {
+    [valueIndex: number]: T;
+  } {
+    const data = this.state.get(node);
+    if (data === undefined) return {};
+    return runsToObject(data.runs);
+  }
+
+  /**
+   * TODO. Overwrites all of Nodes existing values - so non-present keys become
+   * deleted, even if they come after the last present key.
+   *
+   * Note that values might not be contiguous in the list.
+   */
+  loadOneNode(
+    node: Node,
+    valuesObj: {
+      [valueIndex: number]: T;
+    }
+  ): void {
+    let data = this.state.get(node);
+    if (data === undefined) {
+      data = { total: 0, runs: [] };
+      this.state.set(node, data);
+    }
+
+    const existingCount = countPresent(data.runs);
+    data.runs = objectToRuns(valuesObj);
+    this.updateTotals(node, countPresent(data.runs) - existingCount);
+  }
+
   /**
    * Returns saved state describing the current state of this LocalList,
    * including its values.
@@ -640,19 +626,7 @@ export class List<T> {
         savedStatePre[node.creatorID] = byCreator;
       }
 
-      const byTimestamp: { [valueIndex: number]: T } = {};
-      byCreator[node.timestamp] = byTimestamp;
-
-      let valueIndex = 0;
-      for (const run of data.runs) {
-        if (typeof run === "number") valueIndex += run;
-        else {
-          for (const value of run) {
-            byTimestamp[valueIndex] = value;
-            valueIndex++;
-          }
-        }
-      }
+      byCreator[node.timestamp] = runsToObject(data.runs);
     }
 
     // Make a (shallow) copy of savedStatePre that touches all
@@ -684,9 +658,26 @@ export class List<T> {
   load(savedState: ListSavedState<T>): void {
     this.clear();
 
-    // TODO
-
-    // TODO: updateTotals
+    for (const [creatorID, byCreator] of Object.entries(savedState)) {
+      for (const [timestampStr, valuesObj] of Object.entries(byCreator)) {
+        const timestamp = Number.parseInt(timestampStr);
+        if (isNaN(timestamp)) {
+          throw new Error(
+            `Non-integer timestamp in ListSavedState: ${timestampStr}`
+          );
+        }
+        const node = this.order.getNode(creatorID, timestamp);
+        if (node === undefined) {
+          throw new Error(
+            `List.load savedState references missing Node: ${JSON.stringify({
+              creatorID,
+              timestamp,
+            })}. You must call Order.addNodeDescs before referencing a Node.`
+          );
+        }
+        this.loadOneNode(node, valuesObj);
+      }
+    }
   }
 }
 

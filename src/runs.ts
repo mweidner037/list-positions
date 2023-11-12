@@ -14,49 +14,59 @@
 export type ValuesAsRuns<T> = (T[] | number)[];
 
 /**
- * Converts runs into an array of values, using undefined in place of
- * deleted values. Note that this is ambiguous if T includes undefined.
+ * Converts runs into an object mapping valueIndex to value.
  *
- * Inverse: toRuns.
+ * Inverse: objectToRuns.
  */
-export function toValues<T>(runs: ValuesAsRuns<T>): (T | undefined)[] {
-  const values: (T | undefined)[] = [];
+export function runsToObject<T>(runs: ValuesAsRuns<T>): {
+  [valueIndex: number]: T;
+} {
+  const obj: { [valueIndex: number]: T } = {};
+  let valueIndex = 0;
   for (const run of runs) {
-    if (typeof run === "number") {
-      for (let i = 0; i < run; i++) values.push(undefined);
-    } else values.push(...run);
-  }
-  return values;
-}
-
-/**
- * Converts values into runs, treating undefined as a delete value.
- * Note that this is ambiguous if T includes undefined.
- *
- * Inverse: toValues.
- */
-export function toRuns<T>(values: (T | undefined)[]): ValuesAsRuns<T> {
-  if (values.length === 0) return [];
-
-  const runs: ValuesAsRuns<T> = [];
-  let currentRun = values[0] === undefined ? 1 : [values[0] as T];
-  for (let i = 1; i < values.length; i++) {
-    const value = values[i];
-    if (value === undefined) {
-      if (typeof currentRun === "number") currentRun++;
-      else {
-        runs.push(currentRun);
-        currentRun = 1;
-      }
-    } else {
-      if (typeof currentRun !== "number") currentRun.push(value);
-      else {
-        runs.push(currentRun);
-        currentRun = [value];
+    if (typeof run === "number") valueIndex += run;
+    else {
+      for (const value of run) {
+        obj[valueIndex] = value;
+        valueIndex++;
       }
     }
   }
-  runs.push(currentRun);
+  return obj;
+}
+
+/**
+ * Converts an object mapping valueIndex to value into runs.
+ *
+ * Inverse: runsToObject.
+ *
+ * TODO: will this work with a sparse array input as well? If so, document
+ * in type signature & in calling methods.
+ */
+export function objectToRuns<T>(obj: {
+  [valueIndex: number]: T;
+}): ValuesAsRuns<T> {
+  // We maintain the invariant that the last run is T[],
+  // except when runs is empty.
+  const runs: ValuesAsRuns<T> = [];
+
+  let lastValueIndex = -1;
+  // Here we use the guarantee that an object's nonnegative integer keys
+  // are visited first, in numeric order.
+  for (const [key, value] of Object.entries(obj)) {
+    const valueIndex = Number.parseInt(key);
+    if (isNaN(valueIndex)) {
+      // We're done visiting integer keys.
+      break;
+    }
+    const gap = valueIndex - lastValueIndex - 1;
+    if (gap !== 0) runs.push(gap, [value]);
+    else {
+      if (runs.length === 0) runs.push([value]);
+      else (runs[runs.length - 1] as T[]).push(value);
+    }
+    lastValueIndex = valueIndex;
+  }
 
   return runs;
 }
