@@ -1,4 +1,5 @@
-import { Node, NodeDesc, Order } from "./order";
+import { Node, NodeDesc } from "./node";
+import { Order } from "./order";
 import { Position } from "./position";
 
 /**

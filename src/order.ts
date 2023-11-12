@@ -1,36 +1,31 @@
+import { Node, NodeDesc, siblingNodeCompare } from "./node";
 import { NodeMap } from "./node_map";
 import { Position, positionEquals } from "./position";
 import { ReplicaIDs } from "./replica_ids";
 
-/**
- * Serializable form of a Node, used for collaboration.
- */
-export type NodeDesc = {
-  readonly creatorID: string;
-  readonly timestamp: number;
-  readonly parent: Position;
+export type ItemRange = {
+  readonly node: Node;
+  readonly startValueIndex: number;
+  /**
+   * The exclusive end of the item's valueIndex range.
+   *
+   * undefined to include all further Positions at this Node (unbounded valueIndex).
+   *
+   * Either way, (startValueIndex, endValueIndex) form slice() args.
+   */
+  readonly endValueIndex: number | undefined;
 };
 
 /**
- * By-reference = by-value (within same Order).
+ * JSON saved state for an Order, representing all of its Nodes.
  *
- * Will be a class with extra properties - not JSON serialiable.
+ * Maps (creatorID, timestamp) -> parent Position. Excludes rootNode.
  */
-export interface Node {
-  readonly creatorID: string;
-  readonly timestamp: number;
-  /** null for the root. */
-  readonly parentNode: Node | null;
-  /** Unspecified for the root. */
-  readonly parentValueIndex: number;
-  /** null for the root. */
-  readonly parent: Position | null;
-  /** 0 for the root. */
-  readonly depth: number;
-
-  desc(): NodeDesc;
-  children(): IterableIterator<Node>;
-}
+export type OrderSavedState = {
+  [creatorID: string]: {
+    [timestamp: number]: Position;
+  };
+};
 
 class NodeInternal implements Node {
   readonly depth: number;
@@ -67,9 +62,6 @@ class NodeInternal implements Node {
     return (this._children ?? [])[Symbol.iterator]();
   }
 
-  /**
-   * Returns a JSON-serializable description of this Node.
-   */
   desc(): NodeDesc {
     if (this.parentNode === null) {
       throw new Error("Cannot call desc() on the root Node");
@@ -84,47 +76,23 @@ class NodeInternal implements Node {
       },
     };
   }
+
+  toString() {
+    // Similar to NodeDesc, but valid for rootNode as well.
+    return JSON.stringify({
+      creatorID: this.creatorID,
+      timestamp: this.timestamp,
+      parent:
+        this.parentNode === null
+          ? null
+          : {
+              creatorID: this.parentNode.creatorID,
+              timestamp: this.parentNode.timestamp,
+              valueIndex: this.parentValueIndex,
+            },
+    });
+  }
 }
-
-export function compareSiblingNodes(a: Node, b: Node): number {
-  // Sibling sort order: first by parentValueIndex, then by *reverse* timestamp,
-  // then by creatorID.
-  if (a.parentValueIndex !== b.parentValueIndex) {
-    return a.parentValueIndex - b.parentValueIndex;
-  }
-  if (a.timestamp !== b.timestamp) {
-    // Reverse order.
-    return b.timestamp - a.timestamp;
-  }
-  if (a.creatorID !== b.creatorID) {
-    return a.creatorID > b.creatorID ? 1 : -1;
-  }
-  return 0;
-}
-
-export type ItemRange = {
-  readonly node: Node;
-  readonly startValueIndex: number;
-  /**
-   * The exclusive end of the item's valueIndex range.
-   *
-   * undefined to include all further Positions at this Node (unbounded valueIndex).
-   *
-   * Either way, (startValueIndex, endValueIndex) form slice() args.
-   */
-  readonly endValueIndex: number | undefined;
-};
-
-/**
- * JSON saved state for an Order, representing all of its Nodes.
- *
- * Maps (creatorID, timestamp) -> parent Position. Excludes rootNode.
- */
-export type OrderSavedState = {
-  [creatorID: string]: {
-    [timestamp: number]: Position;
-  };
-};
 
 export class Order {
   readonly replicaID: string;
@@ -170,7 +138,7 @@ export class Order {
    * newNodeDesc (which is also returned by createPosition & List.insert) must be broadcast to
    * other replicas before they can use the new Position.
    */
-  onCreatedNode: ((newNodeDesc: NodeDesc) => void) | undefined = undefined;
+  onCreateNode: ((newNodeDesc: NodeDesc) => void) | undefined = undefined;
 
   receive(nodeDescs: Iterable<NodeDesc>): void {
     // 1. Pick out the new (non-redundant) nodes in nodeDescs.
@@ -302,7 +270,7 @@ export class Order {
       let i = 0;
       for (; i < parentNode._children.length; i++) {
         // Break if sibling > node.
-        if (compareSiblingNodes(parentNode._children[i], node) > 0) break;
+        if (siblingNodeCompare(parentNode._children[i], node) > 0) break;
       }
       // Insert node just before that sibling.
       parentNode._children.splice(i, 0, node);
@@ -346,7 +314,7 @@ export class Order {
     const node = this.newNode(newNodeDesc);
     node.nextValueIndex = 1;
 
-    this.onCreatedNode?.(newNodeDesc);
+    this.onCreateNode?.(newNodeDesc);
 
     return { pos, newNodeDesc };
   }
@@ -430,7 +398,7 @@ export class Order {
     }
 
     // Now aAnc and bAnc are distinct siblings. Use sibling order.
-    return compareSiblingNodes(aAnc, bAnc);
+    return siblingNodeCompare(aAnc, bAnc);
   }
 
   // ----------
