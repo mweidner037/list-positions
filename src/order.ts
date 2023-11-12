@@ -1,6 +1,6 @@
-import { IDs } from "./ids";
 import { NodeMap } from "./node_map";
 import { Position, positionEquals } from "./position";
+import { ReplicaIDs } from "./replica_ids";
 
 /**
  * Serializable form of a Node, used for collaboration.
@@ -127,7 +127,7 @@ export type OrderSavedState = {
 };
 
 export class Order {
-  readonly ID: string;
+  readonly replicaID: string;
   private timestamp = 0;
 
   readonly rootNode: Node;
@@ -141,13 +141,13 @@ export class Order {
   private readonly tree = new NodeMap<NodeInternal>();
 
   // TODO: TimestampSource option.
-  constructor(options?: { ID?: string }) {
-    if (options?.ID !== undefined) {
-      IDs.validate(options.ID);
+  constructor(options?: { replicaID?: string }) {
+    if (options?.replicaID !== undefined) {
+      ReplicaIDs.validate(options.replicaID);
     }
-    this.ID = options?.ID ?? IDs.random();
+    this.replicaID = options?.replicaID ?? ReplicaIDs.random();
 
-    this.rootNode = new NodeInternal(IDs.ROOT, 0, null, 0);
+    this.rootNode = new NodeInternal(ReplicaIDs.ROOT, 0, null, 0);
     this.tree.set(this.rootNode, this.rootNode);
     this.startPosition = {
       creatorID: this.rootNode.creatorID,
@@ -181,7 +181,7 @@ export class Order {
     const newNodeDescs = new NodeMap<NodeDesc>();
 
     for (const nodeDesc of nodeDescs) {
-      if (nodeDesc.creatorID === IDs.ROOT) {
+      if (nodeDesc.creatorID === ReplicaIDs.ROOT) {
         throw new Error(
           `Received NodeDesc describing the root node: ${JSON.stringify(
             nodeDesc
@@ -319,7 +319,7 @@ export class Order {
     const prevNode = this.getNodeFor(prevPos) as NodeInternal;
 
     // First try to extend prevPos's Node.
-    if (prevPos.creatorID === this.ID) {
+    if (prevPos.creatorID === this.replicaID) {
       if (prevNode.nextValueIndex === prevPos.valueIndex + 1) {
         // Success.
         const pos: Position = {
@@ -334,7 +334,7 @@ export class Order {
 
     // Else create a new Node.
     const newNodeDesc: NodeDesc = {
-      creatorID: this.ID,
+      creatorID: this.replicaID,
       timestamp: ++this.timestamp,
       parent: prevPos,
     };
@@ -517,7 +517,7 @@ export class Order {
     // integers in numeric order, then string keys in creation order.)
     const creatorIDs: string[] = [];
     for (const creatorID of this.tree.state.keys()) {
-      if (creatorID !== IDs.ROOT) creatorIDs.push(creatorID);
+      if (creatorID !== ReplicaIDs.ROOT) creatorIDs.push(creatorID);
     }
 
     const sortedCreatorIDs = [...creatorIDs];
@@ -526,7 +526,7 @@ export class Order {
 
     // Nodes
     for (const [creatorID, byCreator] of this.tree.state) {
-      if (creatorID === IDs.ROOT) continue;
+      if (creatorID === ReplicaIDs.ROOT) continue;
       for (const [timestamp, node] of byCreator) {
         savedState[creatorID][timestamp] = node.parent!;
       }

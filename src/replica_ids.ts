@@ -5,7 +5,7 @@ import type seedrandom from "seedrandom";
  * Utitilies for generating `PositionSource` IDs
  * (the `options.ID` constructor argument).
  */
-export class IDs {
+export class ReplicaIDs {
   private constructor() {
     // Not instantiable.
   }
@@ -107,12 +107,11 @@ export class IDs {
     return arr.join("");
   }
 
-  static validate(ID: string): void {
-    if (ID === this.ROOT) {
-      throw new Error(`Invalid ID: "${this.ROOT}" (IDs.ROOT) is reserved.`);
-    }
-    if (ID === "") {
-      throw new Error(`Invalid ID: "" is reserved.`);
+  static validate(replicaID: string): void {
+    if (replicaID === this.ROOT) {
+      throw new Error(
+        `Invalid replicaID: "${this.ROOT}" (ReplicaIDs.ROOT) is reserved.`
+      );
     }
   }
 }

@@ -1,6 +1,6 @@
 export * from "./cursors";
-export * from "./ids";
 export * from "./list";
 export * from "./order";
 export * from "./position";
+export * from "./replica_ids";
 // node_map is internal use only

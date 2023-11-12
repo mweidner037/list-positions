@@ -82,7 +82,7 @@ export class List<T> {
    * @param order The source for positions that may be used with this
    * LocalList.
    *
-   * TODO: take either ID or Order as an option?
+   * TODO: take either replicaID or Order as an option?
    */
   constructor(readonly order: Order) {}
 
