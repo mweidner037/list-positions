@@ -20,10 +20,10 @@ to "positions" within that list that:
 4. Are unique, even if different users concurrently create positions
    at the same place.
 
-This package gives you such positions, in the form of a JSON-serializable struct (flat object) called [Position](#struct-position). Specifically:
+This package gives you such positions, as a JSON-serializable struct (flat object) called [Position](#struct-position). Specifically:
 
-- Class [Order](#class-order) manages a [total order](https://en.wikipedia.org/wiki/Total_order) on Positions, letting you create and compare them. It requires some metadata to get started, described in [Usage](#usage) below.
-- Class [List](#class-list) represents a map from Positions to values in list form, allowing indexed access with low memory overhead.
+- Class [Order](#class-order) manages a [total order](https://en.wikipedia.org/wiki/Total_order) on Positions, letting you create and compare them. It requires some shared metadata, described below.
+- Class [List](#class-list) represents a map `Position -> value` in list form, allowing indexed access with low memory overhead.
 
 These Positions have the bonus properties:
 
@@ -92,7 +92,7 @@ list.set(newPos, 'Z');
 list.delete(newPos);
 ```
 
-You can create and compare Positions directly on the Order, without affecting its Lists:
+You can create and compare Positions directly in the Order, without affecting its Lists:
 
 ```ts
 const { pos: otherPos } = order.createPosition(order.minPosition);
@@ -124,7 +124,7 @@ console.log([...bodyText.values()].join("")); // Prints "Animal: cat"
 
 ### Shared Metadata: NodeDescs
 
-Multiple instances of Order can use the same Positions, including instances on different devices (collaboration) or at different times (saved and loaded). However, you need to share some metadata first.
+Multiple instances of Order can use the same Positions, including instances on different devices (collaboration) or at different times (loaded from storage). However, you need to share some metadata first.
 
 Specifically, each Position has the form
 
@@ -136,9 +136,9 @@ type Position = {
 };
 ```
 
-The pair `{ creatorID, timestamp }` identifies a **node** in a shared tree. Your Order must receive a **[NodeDesc](#types-nodedesc)** ("node description") for this node before you can use the Position in `List.set`, `Order.compare`, etc. Otherwise, you will get an error `"Position references missing Node: <...>. You must call Order.receive/receiveSavedState before referencing a Node."`.
+The pair `{ creatorID, timestamp }` identifies a **node** in a shared tree. Your Order must receive a **[NodeDesc](#types-nodedesc) ("node description")** for this node before you can use the Position in `List.set`, `Order.compare`, etc. Otherwise, you will get an error `"Position references missing Node: <...>. You must call Order.receive/receiveSavedState before referencing a Node."`.
 
-> Exception: The root node `{ creatorID: "ROOT", timestamp: 0 }` is always valid.
+> Exception: The root node `{ creatorID: "ROOT", timestamp: 0 }` is always valid. Its only Positions are `Order.minPosition` and `Order.maxPosition`.
 
 Use `Order.save` and `Order.receiveSavedState` to share all of an Order's NodeDescs:
 
@@ -151,10 +151,10 @@ localStorage.setItem("orderSavedState", JSON.stringify(savedState));
 order.receiveSavedState(JSON.parse(localStorage.getItem("orderSavedState")));
 ```
 
-Use `Order.onCreateNode` and `Order.receive` to share a new node when it is created:
+Use `Order.onCreateNode` and `Order.receive` to share a new node's description when it is created:
 
 ```ts
-// Just after creating Order:
+// Just after creating order:
 order.onCreateNode = (createdNodeDesc: NodeDesc) => {
   const msg = JSON.stringify(createdNodeDesc);
   // Broadcast msg to all collaborators...
@@ -165,8 +165,8 @@ function onBroadcastReceive(msg: string) {
 }
 
 // Alternative to order.onCreatedNode:
-// Methods that might create a node (`List.insertAt`, `List.insert`,
-// `Order.createPosition`) also return its `createdNodeDesc` or null.
+// Methods that might create a node (List.insertAt, List.insert,
+// Order.createPosition) also return its `createdNodeDesc` (or null).
 ```
 
 Internally, a [NodeDesc](#struct-nodedesc) indicates a node's **parent Position**:
@@ -181,9 +181,9 @@ type NodeDesc = {
 };
 ```
 
-It is okay if an Order receives the same NodeDesc multiple times, or if different instances receive NodeDescs in different orders. However, before receiving a NodeDesc, its parent Position must itself be valid: the Order must have already received the parent's NodeDesc (or it is received in the same `receive`/`receiveSavedState` call). Otherwise, you will get an error `"Received NodeDesc <...>, but we have not yet received a NodeDesc for its parent node <...>."`.
+It is okay if an Order receives the same NodeDesc multiple times, or if different instances receive NodeDescs in different orders. However, before receiving a NodeDesc, its parent Position must itself be valid: the Order must have already received the parent's NodeDesc (or the parent is part of the same `Order.receive`/`Order.receiveSavedState` call). Otherwise, you will get an error `"Received NodeDesc <...>, but we have not yet received a NodeDesc for its parent node <...>."`.
 
-> You can treat the Order's state as a Grow-Only Set of NodeDescs. `Order.save` and `Order.receiveSavedState` form a [state-based CRDT](https://en.wikipedia.org/wiki/Conflict-free_replicated_data_type#State-based_CRDTs), while `Order.onCreateNode` and `Order.receive` form an [op-based CRDT](https://en.wikipedia.org/wiki/Conflict-free_replicated_data_type#Operation-based_CRDTs). You can also implement your own sync strategies - e.g., two peers compare their largest `timestamp`s for each `creatorID` and exchange the ones they're missing.
+> You can think of an Order's state as a Grow-Only Set of NodeDescs. `Order.save` and `Order.receiveSavedState` form a [state-based CRDT](https://en.wikipedia.org/wiki/Conflict-free_replicated_data_type#State-based_CRDTs), while `Order.onCreateNode` and `Order.receive` form an [op-based CRDT](https://en.wikipedia.org/wiki/Conflict-free_replicated_data_type#Operation-based_CRDTs). You can also implement your own sync strategies - e.g., two peers compare their largest timestamps for each creatorID and only exchange the ones they're missing.
 
 ### Storage and Collaboration
 
@@ -191,18 +191,18 @@ The List class does not handle storage or collaboration - it is just a local dat
 
 Fundamentally, a List's state is a map `Position -> value`. Some ways to store this state outside of a List:
 
-- A database table with columns `creatorID: string; timestamp: number; valueIndex: number; value: T`.
-- More efficiently, a database table with columns `creatorID: string; timestamp: number; values: (T | null)[]`. That is, you represent all of a node's values in a single array, indexed by `valueIndex`.
-- A triple-layered map `creatorID -> (timestamp -> (valueIndex -> value))`. The methods `List.save()` and `List.load()` use this representation.
+- A database table with columns `creatorID: string; timestamp: uint; valueIndex: uint; value: T`.
+- More efficiently, a database table with columns `creatorID: string; timestamp: uint; values: (T | null)[]`. Here you represent all of a node's values in a single array, indexed by `valueIndex`.
+- A triple-layered map `creatorID -> (timestamp -> (valueIndex -> value))`. The methods `List.save()` and `List.load()` use this representation. <!-- TODO: link, at least to ListSavedState type? -->
 
-Likewise, an Order's state is fundamentally an array of NodeDescs. Some ways to represent this state:
+Likewise, an Order's state is fundamentally an array of NodeDescs. Some ways to store this state:
 
-- A database table with columns `creatorID: string; timestamp: number; parentCreatorID: string, parentTimestamp: number, parentValueIndex: number`.
+- A database table with columns `creatorID: string; timestamp: uint; parentCreatorID: string, parentTimestamp: uint, parentValueIndex: uint`.
 - A double-layered map `creatorID -> (timestamp -> Position)`. The methods `Order.save()` and `Order.receiveSavedState` use this representation.
 
 Tips:
 
-- `valueIndex` is an array index assigned consecutively (0, 1, 2, ...). This lets you store all of a node's values in a single array, although note that it may have holes (from deleted values).
+- `valueIndex` is an array index assigned consecutively (0, 1, 2, ...). This lets you store all of a node's values in a single array, although note that the array may have holes (from deleted values).
 - `timestamp` is a non-negative integer that increases over time, but it is **not** assigned consecutively - there may be gaps.
 - Each `creatorID` corresponds to a specific instance of Order: that instance's [replicaID](#TODO). So you can expect to see the same `creatorID`s repeated many times. In particular, a NodeDesc's `creatorID` is usually the same as its `parent.creatorID`.
 - You can improve over Position and NodeDesc's JSON encodings using [protobufs](https://www.npmjs.com/package/protobufjs) or similar.
@@ -219,8 +219,8 @@ See the [Advanced Guide](./advanced.md). TODO
 
 ## API
 
-TODO: update from position-strings
-
+TODO
+<!-- 
 - [Class `PositionSource`](#class-positionsource)
 - [Function `findPosition`](#function-findposition)
 - [Class `Cursors`](#class-cursors)
@@ -499,4 +499,4 @@ More stats for these four scenarios are in [stats.md](https://github.com/mweidne
 
 - In realistic scenarios with multiple `PositionSource`s, most of the positions' length comes from referencing [IDs](#properties). By default, IDs are 8 random alphanumeric characters to give a low probability of collisions, but you can pass your own shorter IDs to [`PositionSource`'s constructor](#constructor). For example, you could assign IDs sequentially from a server.
 - A set of positions from the same list compress reasonably well together, since they represent different paths in the same tree. In particular, a list's worth of positions should compress well under gzip or prefix compression. However, compressing individual positions is not recommended.
-- [`PositionSource.createBetween`](#createbetween) is optimized for left-to-right insertions. If you primarily insert right-to-left or at random, you will see worse performance.
+- [`PositionSource.createBetween`](#createbetween) is optimized for left-to-right insertions. If you primarily insert right-to-left or at random, you will see worse performance. -->
