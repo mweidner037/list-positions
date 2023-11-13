@@ -101,8 +101,8 @@ export class Order {
   readonly rootNode: Node;
   // Can't be set etc., but can be createPosition'd or appear in a Cursor.
   // TODO: test these: hit by all iterators; can set/delete/get; error cases
-  readonly startPosition: Position;
-  readonly endPosition: Position;
+  readonly minPosition: Position;
+  readonly maxPosition: Position;
 
   /**
    * Maps from a Node's desc to that Node.
@@ -117,12 +117,12 @@ export class Order {
 
     this.rootNode = new NodeInternal(ReplicaIDs.ROOT, 0, null, 0);
     this.tree.set(this.rootNode, this.rootNode);
-    this.startPosition = {
+    this.minPosition = {
       creatorID: this.rootNode.creatorID,
       timestamp: this.rootNode.timestamp,
       valueIndex: 0,
     };
-    this.endPosition = {
+    this.maxPosition = {
       creatorID: this.rootNode.creatorID,
       timestamp: this.rootNode.timestamp,
       valueIndex: 1,
@@ -138,7 +138,7 @@ export class Order {
   }
 
   /**
-   * Also validates pos (startPosition/endPosition okay).
+   * Also validates pos (minPosition/maxPosition okay).
    */
   getNodeFor(pos: Position): Node {
     if (!Number.isInteger(pos.valueIndex) || pos.valueIndex < 0) {
@@ -154,7 +154,7 @@ export class Order {
       !(pos.valueIndex === 0 || pos.valueIndex === 1)
     ) {
       throw new Error(
-        `Position uses rootNode but is not startPosition or endPosition (valueIndex 0 or 1): ${JSON.stringify(
+        `Position uses rootNode but is not minPosition or maxPosition (valueIndex 0 or 1): ${JSON.stringify(
           pos
         )}`
       );
@@ -365,7 +365,7 @@ export class Order {
    *
    * @param prevPos
    * @returns
-   * @throws If prevPos is endPosition.
+   * @throws If prevPos is maxPosition.
    */
   createPosition(prevPos: Position): {
     pos: Position;
@@ -374,7 +374,7 @@ export class Order {
     // Also validates pos.
     const prevNode = this.getNodeFor(prevPos) as NodeInternal;
     if (prevNode === this.rootNode && prevPos.valueIndex === 1) {
-      throw new Error("Cannot create a position after endPosition");
+      throw new Error("Cannot create a position after maxPosition");
     }
 
     // First try to extend prevPos's Node.
@@ -435,7 +435,7 @@ export class Order {
 
   // TODO: option to loop over only a slice [start, end)?
   /**
-   * Includes startPosition & endPosition.
+   * Includes minPosition & maxPosition.
    */
   *items(): IterableIterator<Item> {
     // Use a manual stack instead of recursion, to prevent stack overflows

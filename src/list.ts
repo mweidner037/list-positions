@@ -156,7 +156,7 @@ export class List<T> {
   // which were actually changed.
   // Maybe better to use internal cursors like planned for Collabs,
   // so that normal ops are fast.
-  
+
   /**
    * Deletes the given position, making it no longer
    * present in this list.
@@ -245,7 +245,7 @@ export class List<T> {
    * with increasing valueIndex.
    * If values.length = 0, a new position is created but the List state is not
    * changed - can use this instead of calling Order.createPosition directly.
-   * @throws If prevPos is order.endPosition.
+   * @throws If prevPos is order.maxPosition.
    */
   insert(
     prevPos: Position,
@@ -261,14 +261,14 @@ export class List<T> {
    * @param index
    * @param values
    * @returns
-   * @throws If index is this.length and our last value is at order.endPosition.
+   * @throws If index is this.length and our last value is at order.maxPosition.
    */
   insertAt(
     index: number,
     ...values: T[]
   ): { pos: Position; newNodeDesc: NodeDesc | null } {
     const prevPos =
-      index === 0 ? this.order.startPosition : this.positionAt(index - 1);
+      index === 0 ? this.order.minPosition : this.positionAt(index - 1);
     return this.insert(prevPos, ...values);
   }
 
@@ -391,7 +391,7 @@ export class List<T> {
   /**
    * Returns the position currently at index.
    *
-   * Won't return startPosition or endPosition.
+   * Won't return minPosition or maxPosition.
    */
   positionAt(index: number): Position {
     if (index < 0 || index >= this.length) {

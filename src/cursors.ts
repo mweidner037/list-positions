@@ -34,7 +34,7 @@ export class Cursors {
    * @param list The target list.
    */
   static cursorAt<T>(index: number, list: List<T>): Position {
-    return index === 0 ? list.order.startPosition : list.positionAt(index - 1);
+    return index === 0 ? list.order.minPosition : list.positionAt(index - 1);
   }
 
   /**
@@ -46,7 +46,7 @@ export class Cursors {
    * @param list The target list.
    */
   static indexOf<T>(cursor: Position, list: List<T>): number {
-    return positionEquals(cursor, list.order.startPosition)
+    return positionEquals(cursor, list.order.minPosition)
       ? 0
       : list.indexOfPosition(cursor, "left") + 1;
   }
