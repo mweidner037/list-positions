@@ -21,7 +21,7 @@ type NodeData<T> = {
    */
   total: number;
   /**
-   * The values (or not) at the node's positions,
+   * The values at the node's positions,
    * in order from left to right. Represented as an array of "runs" -
    * see ./runs.ts.
    */
@@ -32,7 +32,7 @@ type NodeData<T> = {
  * Type used in LocalList.slicesAndChildren.
  *
  * Either a slice of values in a Node that are also contiguous in the list order,
- * or a Node child.
+ * or a non-empty Node child.
  */
 type SliceOrChild<T> =
   | {
@@ -52,7 +52,7 @@ type SliceOrChild<T> =
     };
 
 /**
- * Explain format (obvious triple-map rep). JSON ordering guarantees.
+ * TODO: Explain format (obvious triple-map rep). JSON ordering guarantees.
  */
 export type ListSavedState<T> = {
   [creatorID: string]: {
@@ -83,6 +83,8 @@ export type ListSavedState<T> = {
  */
 export class List<T> {
   /**
+   * Map from Node to its data (total & values).
+   *
    * Always omits entries with total = 0.
    */
   private state = new Map<Node, NodeData<T>>();
@@ -104,15 +106,17 @@ export class List<T> {
   // ----------
 
   /**
-   * Sets the value at position.
+   * Sets the value at `pos`.
+   *
+   * @throws TODO pos invalid
+   */
+  set(pos: Position, value: T): void;
+  /**
+   * TODO
    *
    * If multiple values are given, they are set starting at startPos
    * in the same Node. Note these might not be contiguous anymore,
    * unless they are new (no causally-future Positions set yet).
-   */
-  set(pos: Position, value: T): void;
-  /**
-   * Test
    * @param startPos
    * @param sameNodeValues
    */
@@ -247,7 +251,7 @@ export class List<T> {
    *
    * @param prevPos
    * @param values
-   * @returns { first value's new position, newNodeDesc if created by Order }.
+   * @returns { first value's new position, createdNodeDesc if created by Order }.
    * If values.length > 1, their positions start at pos using the same Node
    * with increasing valueIndex.
    * If values.length = 0, a new position is created but the List state is not
@@ -257,7 +261,7 @@ export class List<T> {
   insert(
     prevPos: Position,
     ...values: T[]
-  ): { pos: Position; newNodeDesc: NodeDesc | null } {
+  ): { pos: Position; createdNodeDesc: NodeDesc | null } {
     const ret = this.order.createPosition(prevPos);
     this.set(ret.pos, ...values);
     return ret;
@@ -273,7 +277,7 @@ export class List<T> {
   insertAt(
     index: number,
     ...values: T[]
-  ): { pos: Position; newNodeDesc: NodeDesc | null } {
+  ): { pos: Position; createdNodeDesc: NodeDesc | null } {
     const prevPos =
       index === 0 ? this.order.minPosition : this.positionAt(index - 1);
     return this.insert(prevPos, ...values);

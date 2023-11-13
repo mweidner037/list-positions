@@ -1,6 +1,8 @@
 import * as crypto from "crypto";
 import type seedrandom from "seedrandom";
 
+// TODO: back to "IDs"? Since readme doesn't mention concept of "replicas" - just "instances" of Order.
+
 /**
  * Utitilies for generating `Order.replicaID`s.
  */

@@ -1,6 +1,6 @@
 # position-structs
 
-A source of memory-efficient "position structs" for collaborative lists and text
+A source of memory-efficient "position structs" for collaborative lists and text.
 
 - [About](#about)
 - [Usage](#usage)
@@ -20,39 +20,32 @@ to "positions" within that list that:
 4. Are unique, even if different users concurrently create positions
    at the same place.
 
-This package gives you such positions, in the form
-of lexicographically-ordered strings. Specifically, `PositionSource.createBetween`
-returns a new "position string" in between two existing position strings.
+This package gives you such positions, in the form of a JSON-serializable struct (flat object) called [Position](#struct-position). Specifically:
 
-These strings have the bonus properties:
+- Class [Order](#class-order) manages a [total order](https://en.wikipedia.org/wiki/Total_order) on Positions, letting you create and compare them. It requires some metadata to get started, described in [Usage](#usage) below.
+- Class [List](#class-list) represents a map from Positions to values in list form, allowing indexed access with low memory overhead.
 
-5. (Non-Interleaving) If two `PositionSource`s concurrently create a (forward or backward)
+These Positions have the bonus properties:
+
+5. It is easy to store and edit a map from Positions to values in your own code, including in a database or non-JS backend. You only need the code in this package to compare Positions in the total order or do indexed access. (See [Advanced](TODO) for how to create new Positions on a non-JS backend.)
+
+6. (Forward Non-Interleaving) If two users concurrently create a forward (left-to-right)
    sequence of positions at the same place,
    their sequences will not be interleaved.
 
    For example, if
    Alice types "Hello" while Bob types "World" at the same place,
-   and they each use a `PositionSource` to create a position for each
+   and they each use an Order to create a Position for each
    character, then
    the resulting order will be "HelloWorld" or "WorldHello", not
    "HWeolrllod".
 
-6. If a `PositionSource` creates positions in a forward (increasing)
-   sequence, their lengths as strings will only grow logarithmically,
-   not linearly.
-
-Position strings are printable ASCII. Specifically, they
-contain alphanumeric characters, `','`, and `'.'`.
-Also, the special string `PositionSource.LAST` is `'~'`.
-
 ### Further reading
 
-- [Fractional indexing](https://www.figma.com/blog/realtime-editing-of-ordered-sequences/#fractional-indexing),
-  a related scheme that satisfies 1-3 but not 4-6.
+- [position-strings](https://www.npmjs.com/package/position-strings),
+  a package that provides positions in the form of lexicographically-ordered strings instead of structs. position-structs is less flexible than position-strings, but it has noticably lower memory/storage overhead, especially for collaborative text.
 - [List CRDTs](https://mattweidner.com/2022/10/21/basic-list-crdt.html)
-  and how they map to position strings. `PositionSource` uses an optimized
-  variant of that link's [string implementation](https://mattweidner.com/2022/10/21/basic-list-crdt.html#intro-string-implementation), described in
-  [algorithm.md](https://github.com/mweidner037/position-strings/blob/master/algorithm.md).
+  and how they relate to unique immutable Positions. `Order` is similar to that post's [tree implementation](https://mattweidner.com/2022/10/21/basic-list-crdt.html#tree-implementation), but it uses an optimized variant of [RGA](https://doi.org/10.1016/j.jpdc.2010.12.006) instead of Fugue.
 - [Paper about interleaving](https://www.repository.cam.ac.uk/handle/1810/290391)
   in collaborative text editors.
 
@@ -61,61 +54,172 @@ Also, the special string `PositionSource.LAST` is `'~'`.
 Install with npm:
 
 ```bash
-npm i --save position-strings
+npm i --save position-structs
 ```
 
-Creating position strings:
+Create an empty Order and an empty List on top of it:
 
 ```ts
-import { PositionSource } from "position-strings";
+import { List, Order, Position } from "position-structs";
 
-// At the start of your app:
-const source = new PositionSource();
-
-// When the user types `char` at `index`:
-const position = source.createBetween(
-  myListPositions[index - 1],
-  myListPositions[index]
-  // If index is 0 or myListPositions.length, the above behaves reasonably,
-  // since undefined defaults to PositionSource.FIRST or LAST.
-);
-myListPositions.splice(index, 0, position);
-myList.splice(index, 0, char);
-// Or insert { position, char } into a database table, ordered map, etc.
+const order = new Order();
+const list = new List<string>(order);
 ```
 
-If your list is collaborative:
+Now you can create Positions and manipulate the List state:
 
 ```ts
-import { findPosition } from "position-strings";
-
-// After creating { char, position }, also broadcast it to other users.
-// When you receive `remote = { char, position }` from another user:
-const index = findPosition(remote.position, myListPositions).index;
-myListPositions.splice(index, 0, remote.position);
-myList.splice(index, 0, remote.char);
-// Or insert `remote` into a database table and query
-// "SELECT char FROM table ORDER BY position".
-// Or insert `remote` into an ordered map, etc.
+// Insert some values into the list:
+list.insertAt(0, "x");
+list.insertAt(1, "a", "b", "c");
+list.insertAt(3, "y");
+console.log([...list.values()]); // Prints ['x', 'a', 'b', 'y', 'c']
 ```
 
-To use cursors:
+Other ways to manipulate a List:
 
 ```ts
-import { Cursors, PositionSource } from "position-strings";
+list.setAt(1, 'A');
+list.deleteAt(0);
+console.log([...list.values()]); // Prints ['A', 'b', 'y', 'c']
 
-let cursor: string = PositionSource.FIRST;
+// 2nd way to insert values: insert after an existing Position,
+// e.g., the current cursor.
+const prevPos: Position = ...;
+const { pos: newPos } = list.insert(prevPos, 'z');
 
-// When the user deliberately moves their cursor to `cursorIndex`:
-cursor = Cursors.fromIndex(cursorIndex, myListPositions);
-// Or run the algorithm in the `Cursors.fromIndex` docs.
-
-// When the text changes, update the displayed cursor:
-cursorIndex = Cursors.toIndex(cursor, myListPositions);
-// Or run the query in the `Cursors.toIndex` docs.
+list.set(newPos, 'Z');
+list.delete(newPos);
 ```
+
+You can create and compare Positions directly on the Order, without affecting its Lists:
+
+```ts
+const { pos: otherPos } = order.createPosition(order.minPosition);
+console.log(order.compare(order.minPosition, otherPos) < 0); // Prints true
+
+// Optionally, set the value at otherPos sometime later.
+// This "inserts" the value at the appropriate index for otherPos.
+list.set(otherPos, "w");
+```
+
+You can have multiple Lists on top of the same Order:
+
+```ts
+const bodyText = new List<string>(order);
+const suggestedText = new List<string>(order);
+
+bodyText.insertAt(0, ..."Animal: ");
+
+// User makes a suggestion at index 8 in bodyText:
+const cursorPos = bodyText.positionAt(8);
+suggestedText.insert(cursorPos, ..."cat");
+
+// When the suggestion is accepted:
+for (const [pos, value] of suggestedText.entries()) {
+  bodyText.set(pos, value);
+}
+console.log([...bodyText.values()].join("")); // Prints "Animal: cat"
+```
+
+### Shared Metadata: NodeDescs
+
+Multiple instances of Order can use the same Positions, including instances on different devices (collaboration) or at different times (saved and loaded). However, you need to share some metadata first.
+
+Specifically, each Position has the form
+
+```ts
+type Position = {
+  creatorID: string;
+  timestamp: number;
+  valueIndex: number;
+};
+```
+
+The pair `{ creatorID, timestamp }` identifies a **node** in a shared tree. Your Order must receive a **[NodeDesc](#types-nodedesc)** ("node description") for this node before you can use the Position in `List.set`, `Order.compare`, etc. Otherwise, you will get an error `"Position references missing Node: <...>. You must call Order.receive/receiveSavedState before referencing a Node."`.
+
+> Exception: The root node `{ creatorID: "ROOT", timestamp: 0 }` is always valid.
+
+Use `Order.save` and `Order.receiveSavedState` to share all of an Order's NodeDescs:
+
+```ts
+// Before exiting:
+const savedState: OrderSavedState = order.save();
+localStorage.setItem("orderSavedState", JSON.stringify(savedState));
+
+// Next time you start the app:
+order.receiveSavedState(JSON.parse(localStorage.getItem("orderSavedState")));
+```
+
+Use `Order.onCreateNode` and `Order.receive` to share a new node when it is created:
+
+```ts
+// Just after creating Order:
+order.onCreateNode = (createdNodeDesc: NodeDesc) => {
+  const msg = JSON.stringify(createdNodeDesc);
+  // Broadcast msg to all collaborators...
+};
+
+function onBroadcastReceive(msg: string) {
+  order.receive([JSON.parse(msg)]);
+}
+
+// Alternative to order.onCreatedNode:
+// Methods that might create a node (`List.insertAt`, `List.insert`,
+// `Order.createPosition`) also return its `createdNodeDesc` or null.
+```
+
+Internally, a [NodeDesc](#struct-nodedesc) indicates a node's **parent Position**:
+
+```ts
+type NodeDesc = {
+  // Node ID, matching the node's Positions.
+  readonly creatorID: string;
+  readonly timestamp: number;
+  // The node's parent Position.
+  readonly parent: Position;
+};
+```
+
+It is okay if an Order receives the same NodeDesc multiple times, or if different instances receive NodeDescs in different orders. However, before receiving a NodeDesc, its parent Position must itself be valid: the Order must have already received the parent's NodeDesc (or it is received in the same `receive`/`receiveSavedState` call). Otherwise, you will get an error `"Received NodeDesc <...>, but we have not yet received a NodeDesc for its parent node <...>."`.
+
+> You can treat the Order's state as a Grow-Only Set of NodeDescs. `Order.save` and `Order.receiveSavedState` form a [state-based CRDT](https://en.wikipedia.org/wiki/Conflict-free_replicated_data_type#State-based_CRDTs), while `Order.onCreateNode` and `Order.receive` form an [op-based CRDT](https://en.wikipedia.org/wiki/Conflict-free_replicated_data_type#Operation-based_CRDTs). You can also implement your own sync strategies - e.g., two peers compare their largest `timestamp`s for each `creatorID` and exchange the ones they're missing.
+
+### Storage and Collaboration
+
+The List class does not handle storage or collaboration - it is just a local data structure. (This contrasts with most collaborative text-editing libraries.) You are free to manage its state however you like. For example, in a collaborative text editor, each client's List could be an optimistic cache of a server-side database, allowing the server to enforce consistency, fine-grained permissions (per-paragraph access controls?), etc.
+
+Fundamentally, a List's state is a map `Position -> value`. Some ways to store this state outside of a List:
+
+- A database table with columns `creatorID: string; timestamp: number; valueIndex: number; value: T`.
+- More efficiently, a database table with columns `creatorID: string; timestamp: number; values: (T | null)[]`. That is, you represent all of a node's values in a single array, indexed by `valueIndex`.
+- A triple-layered map `creatorID -> (timestamp -> (valueIndex -> value))`. The methods `List.save()` and `List.load()` use this representation.
+
+Likewise, an Order's state is fundamentally an array of NodeDescs. Some ways to represent this state:
+
+- A database table with columns `creatorID: string; timestamp: number; parentCreatorID: string, parentTimestamp: number, parentValueIndex: number`.
+- A double-layered map `creatorID -> (timestamp -> Position)`. The methods `Order.save()` and `Order.receiveSavedState` use this representation.
+
+Tips:
+
+- `valueIndex` is an array index assigned consecutively (0, 1, 2, ...). This lets you store all of a node's values in a single array, although note that it may have holes (from deleted values).
+- `timestamp` is a non-negative integer that increases over time, but it is **not** assigned consecutively - there may be gaps.
+- Each `creatorID` corresponds to a specific instance of Order: that instance's [replicaID](#TODO). So you can expect to see the same `creatorID`s repeated many times. In particular, a NodeDesc's `creatorID` is usually the same as its `parent.creatorID`.
+- You can improve over Position and NodeDesc's JSON encodings using [protobufs](https://www.npmjs.com/package/protobufjs) or similar.
+
+### Advanced
+
+By understanding Order's underlying tree structure, you can:
+
+- Create Positions on a non-JS backend, without importing this library, or without loading the entire list.
+- Lazy-load only the NodeDescs that you need, e.g., when viewing part of a large text document.
+- Stitch together total orders that were created separately but should be displayed in sequence, e.g., after merging independent blocks of text.
+
+See the [Advanced Guide](./advanced.md). TODO
 
 ## API
+
+TODO: update from position-strings
 
 - [Class `PositionSource`](#class-positionsource)
 - [Function `findPosition`](#function-findposition)
@@ -365,6 +469,8 @@ Default characters used in IDs: alphanumeric chars.
 
 ## Example App
 
+TODO (update from position-strings)
+
 [Firebase text-editor](https://firebase-text-editor.herokuapp.com/) uses position-strings to implement collaborative (plain) text editing on top of [Firebase RTDB](https://firebase.google.com/docs/database). Each character is stored together with its position, and a Firebase query is used to list the characters in order.
 
 The app also demonstrates using `Cursors` to track the local user's selection start and end.
@@ -372,6 +478,8 @@ The app also demonstrates using `Cursors` to track the local user's selection st
 [Source code](https://github.com/mweidner037/firebase-text-editor/blob/master/src/site/main.ts)
 
 ## Performance
+
+TODO (update from position-strings)
 
 _Position string length_ is our main performance metric. This determines the memory, storage, and network overhead due to a collaborative list's positions.
 

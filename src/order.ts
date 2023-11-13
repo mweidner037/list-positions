@@ -163,7 +163,7 @@ export class Order {
       throw new Error(
         `Position references missing Node: ${JSON.stringify(
           pos
-        )}. You must call Order.addNodeDescs before referencing a Node.`
+        )}. You must call Order.receive/receiveSavedState before referencing a Node.`
       );
     }
     return node;
@@ -217,10 +217,10 @@ export class Order {
 
   /**
    * Set this to be notified when we locally create a new Node in createPosition.
-   * newNodeDesc (which is also returned by createPosition & List.insert) must be broadcast to
+   * createdNodeDesc (which is also returned by createPosition & List.insert) must be broadcast to
    * other replicas before they can use the new Position.
    */
-  onCreateNode: ((newNodeDesc: NodeDesc) => void) | undefined = undefined;
+  onCreateNode: ((createdNodeDesc: NodeDesc) => void) | undefined = undefined;
 
   receive(nodeDescs: Iterable<NodeDesc>): void {
     // 1. Pick out the new (non-redundant) nodes in nodeDescs.
@@ -228,7 +228,7 @@ export class Order {
     // Redundancy also applies to duplicates within nodeDescs.
 
     // New NodeDescs, stored as the identity map.
-    const newNodeDescs = new NodeMap<NodeDesc>();
+    const createdNodeDescs = new NodeMap<NodeDesc>();
 
     for (const nodeDesc of nodeDescs) {
       if (nodeDesc.creatorID === ReplicaIDs.ROOT) {
@@ -248,7 +248,7 @@ export class Order {
           );
         }
       } else {
-        const otherNew = newNodeDescs.get(nodeDesc);
+        const otherNew = createdNodeDescs.get(nodeDesc);
         if (otherNew !== undefined) {
           if (!positionEquals(nodeDesc.parent, otherNew.parent)) {
             throw new Error(
@@ -257,23 +257,23 @@ export class Order {
               )}, second=${JSON.stringify(nodeDesc)}`
             );
           }
-        } else newNodeDescs.set(nodeDesc, nodeDesc);
+        } else createdNodeDescs.set(nodeDesc, nodeDesc);
       }
     }
 
-    // 2. Sort newNodeDescs into a valid processing order, in which each node
+    // 2. Sort createdNodeDescs into a valid processing order, in which each node
     // follows its parent (or its parent already exists).
     const toProcess: NodeDesc[] = [];
-    // New NodeDescs that are waiting on a parent in newNodeDescs, keyed by
+    // New NodeDescs that are waiting on a parent in createdNodeDescs, keyed by
     // that parent.
     const pendingChildren = new NodeMap<NodeDesc[]>();
 
-    for (const nodeDesc of newNodeDescs.values()) {
+    for (const nodeDesc of createdNodeDescs.values()) {
       if (this.tree.get(nodeDesc.parent) !== undefined) {
         // Parent already exists - ready to process.
         toProcess.push(nodeDesc);
       } else {
-        // Parent should be in newNodeDescs. Store in pendingChildren for now.
+        // Parent should be in createdNodeDescs. Store in pendingChildren for now.
         let siblings = pendingChildren.get(nodeDesc.parent);
         if (siblings === undefined) {
           siblings = [];
@@ -299,7 +299,7 @@ export class Order {
       const someParent = pendingChildren.someKey();
       const somePendingChild = pendingChildren.get(someParent)![0];
       // someParent was never added to toProcess.
-      if (newNodeDescs.get(someParent) === undefined) {
+      if (createdNodeDescs.get(someParent) === undefined) {
         // someParent is not already known and not in nodeDescs.
         throw new Error(
           `Received NodeDesc ${JSON.stringify(
@@ -369,7 +369,7 @@ export class Order {
    */
   createPosition(prevPos: Position): {
     pos: Position;
-    newNodeDesc: NodeDesc | null;
+    createdNodeDesc: NodeDesc | null;
   } {
     // Also validates pos.
     const prevNode = this.getNodeFor(prevPos) as NodeInternal;
@@ -387,27 +387,27 @@ export class Order {
           valueIndex: prevNode.nextValueIndex,
         };
         prevNode.nextValueIndex++;
-        return { pos, newNodeDesc: null };
+        return { pos, createdNodeDesc: null };
       }
     }
 
     // Else create a new Node.
-    const newNodeDesc: NodeDesc = {
+    const createdNodeDesc: NodeDesc = {
       creatorID: this.replicaID,
       timestamp: ++this.timestamp,
       parent: prevPos,
     };
     const pos: Position = {
-      creatorID: newNodeDesc.creatorID,
-      timestamp: newNodeDesc.timestamp,
+      creatorID: createdNodeDesc.creatorID,
+      timestamp: createdNodeDesc.timestamp,
       valueIndex: 0,
     };
-    const node = this.newNode(newNodeDesc);
+    const node = this.newNode(createdNodeDesc);
     node.nextValueIndex = 1;
 
-    this.onCreateNode?.(newNodeDesc);
+    this.onCreateNode?.(createdNodeDesc);
 
-    return { pos, newNodeDesc };
+    return { pos, createdNodeDesc };
   }
 
   // ----------

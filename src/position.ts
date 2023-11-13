@@ -23,7 +23,7 @@ export type Position = {
    * The Position's Node's timestamp,
    * which is a nonnegative integer.
    * 
-   * Note that for a given creatorID, timestamps are **not** assigned sequentially
+   * Note that for a given creatorID, timestamps are **not** assigned consecutively
    * (there may be gaps), though they are assigned in increasing order.
    */
   readonly timestamp: number;
