@@ -433,7 +433,6 @@ export class Order {
     }
   }
 
-  // TODO: option to loop over only a slice [start, end)?
   /**
    * Includes minPosition & maxPosition.
    */

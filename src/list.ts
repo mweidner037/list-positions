@@ -111,6 +111,11 @@ export class List<T> {
    * unless they are new (no causally-future Positions set yet).
    */
   set(pos: Position, value: T): void;
+  /**
+   * Test
+   * @param startPos
+   * @param sameNodeValues
+   */
   set(startPos: Position, ...sameNodeValues: T[]): void;
   set(startPos: Position, ...values: T[]): void {
     // Validate startPos even if values.length = 0.
@@ -139,7 +144,7 @@ export class List<T> {
       startPos.valueIndex + values.length
     );
     data.runs = mergeRuns(before, [values], after);
-    this.updateTotals(node, values.length - countPresent(existing));
+    this.onUpdate(node, values.length - countPresent(existing));
   }
 
   /**
@@ -150,12 +155,6 @@ export class List<T> {
   setAt(index: number, value: T): void {
     this.set(this.positionAt(index), value);
   }
-
-  // TODO: function to get index-offsets within a Node, so that you can get
-  // indices for all values in a bulk set/delete? Would also need to know
-  // which were actually changed.
-  // Maybe better to use internal cursors like planned for Collabs,
-  // so that normal ops are fast.
 
   /**
    * Deletes the given position, making it no longer
@@ -193,7 +192,7 @@ export class List<T> {
       startPos.valueIndex + count
     );
     data.runs = mergeRuns(before, [count], after);
-    this.updateTotals(node, -countPresent(existing));
+    this.onUpdate(node, -countPresent(existing));
   }
 
   /**
@@ -206,24 +205,29 @@ export class List<T> {
   }
 
   /**
-   * Changes total by delta for node and all of its ancestors.
-   * Creates NodeValues as needed.
+   * Call this after updating node's values.
+   *
+   * @param delta The change in the number of present values at node.
    */
-  private updateTotals(node: Node, delta: number): void {
-    if (delta === 0) return;
+  private onUpdate(node: Node, delta: number): void {
+    // Invalidate caches.
+    if (this.cachedIndexNode !== node) this.cachedIndexNode = null;
 
-    for (
-      let current: Node | null = node;
-      current !== null;
-      current = current.parentNode
-    ) {
-      let data = this.state.get(current);
-      if (data === undefined) {
-        data = { total: 0, runs: [] };
-        this.state.set(current, data);
+    if (delta !== 0) {
+      // Update total for node and its ancestors.
+      for (
+        let current: Node | null = node;
+        current !== null;
+        current = current.parentNode
+      ) {
+        let data = this.state.get(current);
+        if (data === undefined) {
+          data = { total: 0, runs: [] };
+          this.state.set(current, data);
+        }
+        data.total += delta;
+        if (data.total === 0) this.state.delete(current);
       }
-      data.total += delta;
-      if (data.total === 0) this.state.delete(current);
     }
   }
 
@@ -234,6 +238,9 @@ export class List<T> {
    */
   clear() {
     this.state.clear();
+
+    // Invalidate caches.
+    this.cachedIndexNode = null;
   }
 
   /**
@@ -320,6 +327,9 @@ export class List<T> {
     return getInRuns(runs, valueIndex);
   }
 
+  private cachedIndexNode: Node | null = null;
+  private cachedIndex = -1;
+
   /**
    * Returns the current index of position.
    *
@@ -356,24 +366,41 @@ export class List<T> {
       valuesBefore += this.total(child);
     }
 
-    // Walk up the tree and add totals for sibling values & nodes
-    // that come before our ancestor.
-    for (
-      let current = node;
-      current.parentNode !== null;
-      current = current.parentNode
-    ) {
-      // Sibling values that come before current.
-      valuesBefore += this.getInNode(
-        current.parentNode,
-        current.parentValueIndex
-      )[2];
-      // Sibling nodes that come before current.
-      for (const child of current.parentNode.children()) {
-        if (child === current) break;
-        valuesBefore += this.total(child);
+    // Get the number of values prior to node itself.
+    let beforeNode: number;
+    if (this.cachedIndexNode === node) {
+      // Shortcut: We already computed beforeNode and it has not changed.
+      // Use its cached value to prevent re-walking up the tree when
+      // our caller loops over the same Node's Positions.
+      // TODO: test
+      beforeNode = this.cachedIndex;
+    } else {
+      // Walk up the tree and add totals for sibling values & nodes
+      // that come before our ancestor.
+      beforeNode = 0;
+      for (
+        let current = node;
+        current.parentNode !== null;
+        current = current.parentNode
+      ) {
+        // Sibling values that come before current.
+        beforeNode += this.getInNode(
+          current.parentNode,
+          current.parentValueIndex
+        )[2];
+        // Sibling nodes that come before current.
+        for (const child of current.parentNode.children()) {
+          if (child === current) break;
+          beforeNode += this.total(child);
+        }
       }
+      // Cache beforeNode for future calls to indexOfPosition at Node.
+      // That lets us avoid re-walking up the tree when this method is called
+      // in a loop over node's Positions.
+      this.cachedIndexNode = node;
+      this.cachedIndex = beforeNode;
     }
+    valuesBefore += beforeNode;
 
     if (isPresent) return valuesBefore;
     else {
@@ -672,7 +699,7 @@ export class List<T> {
 
     const existingCount = countPresent(data.runs);
     data.runs = objectToRuns(valuesObj);
-    this.updateTotals(node, countPresent(data.runs) - existingCount);
+    this.onUpdate(node, countPresent(data.runs) - existingCount);
   }
 
   /**
