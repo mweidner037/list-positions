@@ -2,9 +2,9 @@
  * Utility functions for manipulating the "runs" used by List to store
  * its values efficiently (NodeData.runs in list.ts).
  *
- * Each "run" is either an array of present values (T[]) or a number
- * indicating that many deleted values. An array of these runs
- * then represents an array of present-or-deleted values.
+ * Each "run" is either a non-empty array of present values (T[]) or a
+ * positive integer indicating that many deleted values.
+ * An array of these runs then represents an array of present-or-deleted values.
  *
  * In a "runs" array, the elements always alternate between present
  * vs deleted runs (T[] vs number). If the last run would represent

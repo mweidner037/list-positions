@@ -111,18 +111,17 @@ export class List<T> {
    * unless they are new (no causally-future Positions set yet).
    */
   set(pos: Position, value: T): void;
-  set(startPos: Position, ...values: T[]): void;
+  set(startPos: Position, ...sameNodeValues: T[]): void;
   set(startPos: Position, ...values: T[]): void {
     // Validate startPos even if values.length = 0.
     const node = this.order.getNodeFor(startPos);
     if (values.length === 0) return;
-
     if (
       node === this.order.rootNode &&
       startPos.valueIndex + values.length - 1 > 1
     ) {
       throw new Error(
-        `Last value's Position uses rootNode but is not startPosition or endPosition (valueIndex 0 or 1): startPos=${JSON.stringify(
+        `Last value's Position is invalid (rootNode only allows valueIndex 0 or 1): startPos=${JSON.stringify(
           startPos
         )}, values.length=${values.length}`
       );
@@ -152,6 +151,12 @@ export class List<T> {
     this.set(this.positionAt(index), value);
   }
 
+  // TODO: function to get index-offsets within a Node, so that you can get
+  // indices for all values in a bulk set/delete? Would also need to know
+  // which were actually changed.
+  // Maybe better to use internal cursors like planned for Collabs,
+  // so that normal ops are fast.
+  
   /**
    * Deletes the given position, making it no longer
    * present in this list.
@@ -159,24 +164,36 @@ export class List<T> {
    * @returns Whether the position was actually deleted, i.e.,
    * it was initially present.
    */
-  delete(pos: Position): boolean {
-    const node = this.order.getNodeFor(pos);
+  delete(pos: Position): void;
+  delete(startPos: Position, sameNodeCount: number): void;
+  delete(startPos: Position, count = 1): void {
+    // Validate startPos even if values.length = 0.
+    const node = this.order.getNodeFor(startPos);
+    if (count === 0) return;
+    if (count < 0 || !Number.isInteger(count)) {
+      throw new Error(`Invalid count: ${count}`);
+    }
+    if (node === this.order.rootNode && startPos.valueIndex + count - 1 > 1) {
+      throw new Error(
+        `Last value's Position is invalid (rootNode only allows valueIndex 0 or 1): startPos=${JSON.stringify(
+          startPos
+        )}, count=${count}`
+      );
+    }
+
     const data = this.state.get(node);
     if (data === undefined) {
-      // Already not present.
-      return false;
+      // Already deleted.
+      return;
     }
 
     const [before, existing, after] = splitRuns(
       data.runs,
-      pos.valueIndex,
-      pos.valueIndex + 1
+      startPos.valueIndex,
+      startPos.valueIndex + count
     );
-    data.runs = mergeRuns(before, [1], after);
-
-    const existingCount = countPresent(existing);
-    this.updateTotals(node, -existingCount);
-    return existingCount !== 0;
+    data.runs = mergeRuns(before, [count], after);
+    this.updateTotals(node, -countPresent(existing));
   }
 
   /**
