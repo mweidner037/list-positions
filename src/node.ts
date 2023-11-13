@@ -1,9 +1,11 @@
 import { Position } from "./position";
 
 /**
+ * TODO
  * Serializable form of a Node, used for collaboration.
  *
- * Note: not for rootNode.
+ * Notes:
+ * - `Order.rootNode` does not have a NodeDesc, because it does not have a `parent`.
  */
 export type NodeDesc = {
   readonly creatorID: string;
@@ -12,11 +14,17 @@ export type NodeDesc = {
 };
 
 /**
- * By-reference = by-value (within same Order).
+ * A node in an Order's internal tree.
  *
- * Will be a class with extra properties - not JSON serialiable.
+ * You do not need to work with Nodes unless you are doing something advanced.
+ * Instead, work with Positions directly, using a List or `Order.compare`.
+ *
+ * To obtain an Order's unique instance of a Node, call `Order.getNode` or `Order.getNodeFor`.
+ *
+ * Note: Unlike Position and NodeDesc, Nodes are **not** JSON-serializable.
  */
 export interface Node {
+  // TODO: class property docs.
   readonly creatorID: string;
   readonly timestamp: number;
   /** null for the root. */
@@ -39,6 +47,14 @@ export interface Node {
   toString(): string;
 }
 
+/**
+ * [Compare function](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/sort#comparefn)
+ * for **sibling** Nodes in an Order, i.e., Nodes with the same parentNode.
+ *
+ * You do not need to call this function unless you are doing something advanced.
+ * To compare Positions, instead use `Order.compare` or a List. To iterate over
+ * a Node's children in order, use `Node.children()`.
+ */
 export function siblingNodeCompare(a: Node, b: Node): number {
   if (a.parentNode !== b.parentNode) {
     throw new Error(

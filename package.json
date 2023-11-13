@@ -1,22 +1,21 @@
 {
-  "name": "position-strings",
+  "name": "position-structs",
   "version": "2.0.1",
-  "description": "Lexicographically-ordered position strings for collaborative lists and text",
+  "description": "Memory-efficient positions for collaborative lists and text",
   "author": "Matthew Weidner",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/mweidner037/position-strings/issues"
+    "url": "https://github.com/mweidner037/position-structs/issues"
   },
-  "homepage": "https://github.com/mweidner037/position-strings/tree/master/#readme",
+  "homepage": "https://github.com/mweidner037/position-structs/tree/master/#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/mweidner037/position-strings.git"
+    "url": "git+https://github.com/mweidner037/position-structs.git"
   },
   "keywords": [
     "CRDT",
     "text editing",
-    "collaboration",
-    "fractional indexing"
+    "collaboration"
   ],
   "module": "build/esm/index.js",
   "browser": "build/esm/index.js",
@@ -38,7 +37,6 @@
   },
   "devDependencies": {
     "@types/chai": "^4.3.4",
-    "@types/functional-red-black-tree": "^1.0.2",
     "@types/mocha": "^10.0.1",
     "@typescript-eslint/eslint-plugin": "^5.52.0",
     "@typescript-eslint/parser": "^5.52.0",
@@ -47,11 +45,9 @@
     "eslint": "^8.34.0",
     "eslint-config-prettier": "^8.6.0",
     "eslint-plugin-import": "^2.27.5",
-    "functional-red-black-tree": "^1.0.1",
     "mocha": "^10.2.0",
     "npm-run-all": "^4.1.5",
     "prettier": "^2.8.4",
-    "rimraf": "^4.1.2",
     "seedrandom": "^3.0.5",
     "ts-node": "^10.9.1",
     "typedoc": "^0.25.3",
@@ -69,6 +65,6 @@
     "fix:format": "prettier --write .",
     "docs": "typedoc --options typedoc.json src/index.ts",
     "benchmarks": "ts-node --project tsconfig.dev.json benchmarks/main.ts",
-    "clean": "rimraf generated generated_esm build docs"
+    "clean": "rm -rf generated generated_esm build docs"
   }
 }

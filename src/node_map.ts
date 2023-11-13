@@ -1,10 +1,21 @@
+/**
+ * A map from "Node IDs" `{ creatorID, timestamp }` to values.
+ *
+ * We can't use Map for this because we want by-value equality for object keys.
+ */
 export class NodeMap<T> {
+  /**
+   * A two-level map (creatorID -> (timestamp -> T)) storing this NodeMap's state.
+   */
   readonly state = new Map<string, Map<number, T>>();
 
   get(node: { creatorID: string; timestamp: number }): T | undefined {
     return this.state.get(node.creatorID)?.get(node.timestamp);
   }
 
+  /**
+   * Exploded form of `get`.
+   */
   get2(creatorID: string, timestamp: number): T | undefined {
     return this.state.get(creatorID)?.get(timestamp);
   }
@@ -34,7 +45,11 @@ export class NodeMap<T> {
     return this.state.size === 0;
   }
 
-  /** If empty, behavior is undefined. */
+  /**
+   * Returns an arbitrary key that is present in this map.
+   *
+   * If the map is empty, behavior is undefined.
+   */
   someKey(): { creatorID: string; timestamp: number } {
     const [creatorID, byCreator] = this.state.entries().next().value as [
       string,

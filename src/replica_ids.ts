@@ -2,8 +2,7 @@ import * as crypto from "crypto";
 import type seedrandom from "seedrandom";
 
 /**
- * Utitilies for generating `PositionSource` IDs
- * (the `options.ID` constructor argument).
+ * Utitilies for generating `Order.replicaID`s.
  */
 export class ReplicaIDs {
   private constructor() {
@@ -11,12 +10,12 @@ export class ReplicaIDs {
   }
 
   /**
-   * ID reserved for the special root node.
+   * Reserved for the special root node's creatorID.
    */
   static readonly ROOT = "ROOT";
 
   /**
-   * Default characters used in IDs: alphanumeric chars.
+   * Default characters used for generating replicaIDs: the alphanumeric chars.
    */
   static readonly DEFAULT_CHARS: string =
     "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
@@ -30,17 +29,16 @@ export class ReplicaIDs {
   // documents with 1,000 IDs each
   // (= 10 users x 100 days x 1 ID/user/day).
   /**
-   * The default length of an ID, in characters.
+   * The default length of a replicaID, in characters.
    */
   static readonly DEFAULT_LENGTH: number = 8;
 
   /**
-   * Returns a cryptographically random ID made of alphanumeric characters.
+   * Returns a cryptographically random replicaID made of alphanumeric characters.
    *
-   * @param options.length The length of the ID, in characters.
-   * Default: `IDs.DEFAULT_LENGTH`.
-   * @param options.chars The characters to draw from. Default: `IDs.DEFAULT_CHARS`.
-   *
+   * @param options.length The length of the replicaID, in characters.
+   * Default: `ReplicaIDs.DEFAULT_LENGTH`.
+   * @param options.chars The characters to draw from. Default: `ReplicaIDs.DEFAULT_CHARS`.
    * If specified, only the first 256 elements are used, and you achieve
    * about `log_2(chars.length)` bits of entropy per `length`.
    */
@@ -78,16 +76,15 @@ export class ReplicaIDs {
   }
 
   /**
-   * Returns a psuedorandom ID made of alphanumeric characters,
+   * Returns a psuedorandom replicaID made of alphanumeric characters,
    * generated using `rng` from package [seedrandom](https://www.npmjs.com/package/seedrandom).
    *
-   * Pseudorandom IDs with a fixed seed are recommended for
+   * Pseudorandom replicaIDs with a fixed seed are recommended for
    * tests and benchmarks, to make them deterministic.
    *
-   * @param options.length The length of the ID, in characters.
-   * Default: `IDs.DEFAULT_LENGTH`.
-   * @param options.chars The characters to draw from. Default: `IDs.DEFAULT_CHARS`.
-   *
+   * @param options.length The length of the replicaID, in characters.
+   * Default: `ReplicaIDs.DEFAULT_LENGTH`.
+   * @param options.chars The characters to draw from. Default: `ReplicaIDs.DEFAULT_CHARS`.
    * If specified, only the first 256 elements are used, and you achieve
    * about `log_2(chars.length)` bits of entropy per `length`.
    */
@@ -107,6 +104,11 @@ export class ReplicaIDs {
     return arr.join("");
   }
 
+  /**
+   * Throws an error if replicaID is invalid.
+   *
+   * The only invalid replicaID is `ReplicaIDs.ROOT = "ROOT"`, which is reserved.
+   */
   static validate(replicaID: string): void {
     if (replicaID === this.ROOT) {
       throw new Error(

@@ -1,7 +1,6 @@
-# position-strings
+# position-structs
 
-A source of lexicographically-ordered "position strings" for
-collaborative lists and text.
+A source of memory-efficient "position structs" for collaborative lists and text
 
 - [About](#about)
 - [Usage](#usage)

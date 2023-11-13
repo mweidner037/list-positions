@@ -115,7 +115,9 @@ export function getInRuns<T>(
 }
 
 /**
- * Note: may modify array runs in-place.
+ * Merges the given runs-arrays into a single runs-arrays, in order.
+ *
+ * Note: this may modify array runs in-place.
  * So stop using the inputs after calling.
  */
 export function mergeRuns<T>(...allRuns: ValuesAsRuns<T>[]): ValuesAsRuns<T> {
@@ -147,7 +149,10 @@ export function mergeRuns<T>(...allRuns: ValuesAsRuns<T>[]): ValuesAsRuns<T> {
 }
 
 /**
- * Note: may copy array runs by-reference, which might then be changed later.
+ * Splits the given runs-array at the given valueIndexes,
+ * returning `valueIndexes.length + 1` runs-arrays.
+ *
+ * Note: this may copy array runs by-reference, which might then be changed later.
  * So stop using the input after calling.
  */
 export function splitRuns<T>(
