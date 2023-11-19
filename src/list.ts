@@ -21,6 +21,8 @@ type NodeData<T> = {
   /**
    * The values at the node's positions,
    * in order from left to right.
+   *
+   * Always trimmed - length is meaningless.
    */
   values: SparseArray<T>;
 };
@@ -112,6 +114,7 @@ export class List<T> {
 
     const data = this.getOrCreateData(node);
     const existing = data.values.set(startPos.valueIndex, values);
+    data.values.trim();
     this.onUpdate(node, values.length - existing.size);
 
     // TODO: return existing.save()? Likewise in delete, setAt?, deleteAt?.
@@ -157,6 +160,7 @@ export class List<T> {
     }
 
     const existing = data.values.set(startPos.valueIndex, count);
+    data.values.trim();
     this.onUpdate(node, -existing.size);
   }
 
@@ -528,12 +532,16 @@ export class List<T> {
     [start, end] = range;
 
     let index = 0;
+    // Defined because the range is nontrivial, hence root's total != 0.
+    const rootData = this.state.get(this.order.rootNode)!;
     // Use a manual stack instead of recursion, to prevent stack overflows
     // in deep trees.
     const stack = [
       {
         node: this.order.rootNode,
+        data: rootData,
         nextChildIndex: 0,
+        valuesSlicer: rootData.values.newSlicer(),
       },
     ];
     while (stack.length !== 0) {
@@ -541,18 +549,14 @@ export class List<T> {
       const node = top.node;
 
       // Emit node values between the previous and next child.
-      const startValueIndex =
-        top.nextChildIndex === 0
-          ? 0
-          : node.getChild(top.nextChildIndex - 1).parentValueIndex + 1;
+      // OPT: shortcut if we won't start by the end.
       const endValueIndex =
         top.nextChildIndex === node.childrenLength
           ? null
           : node.getChild(top.nextChildIndex).parentValueIndex + 1;
-      // OPT: reuse runIndex state across sliceEntries calls
-      for (const [valueIndex, value] of this.state
-        .get(node)!
-        .values.sliceEntries(startValueIndex, endValueIndex)) {
+      for (const [valueIndex, value] of top.valuesSlicer.nextSlice(
+        endValueIndex
+      )) {
         if (index >= start) {
           yield [
             {
@@ -572,18 +576,21 @@ export class List<T> {
         // Out of children. Go up.
         stack.pop();
       } else {
-        const nextChild = node.getChild(top.nextChildIndex);
+        const child = node.getChild(top.nextChildIndex);
         top.nextChildIndex++;
-        const nextChildTotal = this.total(nextChild);
-        if (nextChildTotal > 0) {
-          if (index + nextChildTotal <= start) {
+
+        const childData = this.state.get(child);
+        if (childData !== undefined) {
+          if (index + childData.total <= start) {
             // Shortcut: We won't start within this child, so skip its recursion.
-            index += nextChildTotal;
+            index += childData.total;
           } else {
             // Visit the child.
             stack.push({
-              node: nextChild,
+              node: child,
+              data: childData,
               nextChildIndex: 0,
+              valuesSlicer: childData.values.newSlicer(),
             });
           }
         }

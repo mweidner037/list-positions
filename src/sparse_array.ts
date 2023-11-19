@@ -173,7 +173,6 @@ function splitRuns<T>(runs: Runs<T>, ...indexes: number[]): Runs<T>[] {
   return ans;
 }
 
-// TODO: trim option?
 export class SparseArray<T> {
   /**
    * @param runs Stored by-reference (we wrap it).
@@ -220,6 +219,13 @@ export class SparseArray<T> {
   }
 
   /**
+   * Removes any deleted entries at the end, possibly reducing this.length.
+   */
+  trim() {
+    if (typeof this.runs.at(-1) === "number") this.runs.pop();
+  }
+
+  /**
    * Returns info about the value at index in runs:
    * [value - undefined if not present, whether it's present,
    * count of present values before it]
@@ -248,32 +254,6 @@ export class SparseArray<T> {
     }
     // If we get here, then the index is after all present values.
     return [undefined, false, beforeCount];
-  }
-
-  *sliceEntries(
-    start: number,
-    end: number | null
-  ): IterableIterator<[index: number, value: T]> {
-    let index = 0;
-    for (const run of this.runs) {
-      if (typeof run === "number") {
-        index += run;
-      } else {
-        if (index + run.length <= start) {
-          // Shortcut: skip over the whole run.
-          index += run.length;
-        } else {
-          for (const value of run) {
-            if (index >= start) {
-              yield [index, value];
-            }
-            index++;
-            if (index === end) return;
-          }
-        }
-      }
-      if (end !== null && index >= end) return;
-    }
   }
 
   /**
@@ -309,11 +289,48 @@ export class SparseArray<T> {
     );
   }
 
+  newSlicer(): Slicer<T> {
+    return new Slicer(this.runs);
+  }
+
   save(): { [index: number]: T } {
     return runsToObject(this.runs);
   }
 
   load(savedState: { [index: number]: T }): void {
     this.runs = objectToRuns(savedState);
+  }
+}
+
+export class Slicer<T> {
+  private index = 0;
+  private r = 0;
+  private withinR = 0;
+
+  /**
+   * Private
+   */
+  constructor(private readonly runs: Runs<T>) {}
+
+  /**
+   * Iterator must be consumed before you call nextSlice again.
+   */
+  *nextSlice(end: number | null): IterableIterator<[index: number, value: T]> {
+    const runs = this.runs;
+    for (; this.r < runs.length; this.r++) {
+      if (end !== null && this.index >= end) return;
+
+      const run = runs[this.r];
+      if (typeof run === "number") {
+        this.index += run;
+      } else {
+        for (; this.withinR < run.length; this.withinR++) {
+          if (this.index === end) return;
+          yield [this.index, run[this.withinR]];
+          this.index++;
+        }
+        this.withinR = 0;
+      }
+    }
   }
 }
