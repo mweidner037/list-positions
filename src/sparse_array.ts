@@ -47,6 +47,7 @@ function runsToObject<T>(runs: Runs<T>): {
 function objectToRuns<T>(obj: { [index: number]: T }): Runs<T> {
   // We maintain the invariant that the last run is T[],
   // except when runs is empty.
+  // TODO: rewrite justification; make sure non-trimming okay elsewhere.
   const runs: Runs<T> = [];
 
   let lastIndex = -1;
@@ -206,6 +207,22 @@ export class SparseArray<T> {
   }
 
   /**
+   *
+   * @param startIndex
+   * @param valuesOrLength May be copied by-reference, so not safe afterwards.
+   * @returns The replaced values, padded with deleted values to match values.length.
+   */
+  set(startIndex: number, valuesOrLength: T[] | number): SparseArray<T> {
+    const [before, existing, after] = splitRuns(
+      this.runs,
+      startIndex,
+      startIndex + runLength(valuesOrLength)
+    );
+    this.runs = mergeRuns(before, [valuesOrLength], after);
+    return new SparseArray(existing);
+  }
+
+  /**
    * Returns info about the value at index in runs:
    * [value - undefined if not present, whether it's present,
    * count of present values before it]
@@ -234,6 +251,32 @@ export class SparseArray<T> {
     }
     // If we get here, then the index is after all present values.
     return [undefined, false, beforeCount];
+  }
+
+  *sliceEntries(
+    start: number,
+    end: number | null
+  ): IterableIterator<[index: number, value: T]> {
+    let index = 0;
+    for (const run of this.runs) {
+      if (typeof run === "number") {
+        index += run;
+      } else {
+        if (index + run.length <= start) {
+          // Shortcut: skip over the whole run.
+          index += run.length;
+        } else {
+          for (const value of run) {
+            if (index >= start) {
+              yield [index, value];
+            }
+            index++;
+            if (index === end) return;
+          }
+        }
+      }
+      if (end !== null && index >= end) return;
+    }
   }
 
   /**
@@ -267,22 +310,6 @@ export class SparseArray<T> {
         this.runs
       )}`
     );
-  }
-
-  /**
-   *
-   * @param startIndex
-   * @param valuesOrLength May be copied by-reference, so not safe afterwards.
-   * @returns The replaced values, padded with deleted values to match values.length.
-   */
-  set(startIndex: number, valuesOrLength: T[] | number): SparseArray<T> {
-    const [before, existing, after] = splitRuns(
-      this.runs,
-      startIndex,
-      startIndex + runLength(valuesOrLength)
-    );
-    this.runs = mergeRuns(before, [valuesOrLength], after);
-    return new SparseArray(existing);
   }
 
   save(): { [index: number]: T } {

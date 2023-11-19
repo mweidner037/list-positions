@@ -26,29 +26,6 @@ type NodeData<T> = {
 };
 
 /**
- * Type used in LocalList.slicesAndChildren.
- *
- * Either a slice of values in a Node that are also contiguous in the list order,
- * or a non-empty Node child.
- */
-type SliceOrChild<T> =
-  | {
-      type: "slice";
-      /** Use item.slice(start, end) */
-      values: T[];
-      start: number;
-      end: number;
-      /** valueIndex of first value */
-      valueIndex: number;
-    }
-  | {
-      type: "child";
-      child: Node;
-      /** Always non-zero (zero total children are skipped). */
-      total: number;
-    };
-
-/**
  * TODO: Explain format (obvious triple-map rep). JSON ordering guarantees.
  */
 export type ListSavedState<T> = {
@@ -543,56 +520,69 @@ export class List<T> {
     end?: number
   ): IterableIterator<[pos: Position, value: T, index: number]> {
     const range = this.normalizeSliceRange(start, end);
-    if (range === null) return [];
+    if (range === null) return;
     [start, end] = range;
 
     let index = 0;
-    let node: Node | null = this.order.rootNode;
-    // Manage our own stack instead of recursing, to avoid stack overflow
+    // Use a manual stack instead of recursion, to prevent stack overflows
     // in deep trees.
-    const stack: IterableIterator<SliceOrChild<T>>[] = [
-      // root will indeed have total != 0 since we checked length != 0.
-      this.slicesAndChildren(this.order.rootNode),
+    const stack = [
+      {
+        node: this.order.rootNode,
+        // TODO: sth more efficient than copying node._children?
+        children: [...this.order.rootNode.children()],
+        nextChildIndex: 0,
+      },
     ];
-    while (node !== null) {
-      const iter = stack[stack.length - 1];
-      const next = iter.next();
-      if (next.done) {
+    while (stack.length !== 0) {
+      const top = stack[stack.length - 1];
+
+      // Emit node values between the previous and next child.
+      const startValueIndex =
+        top.nextChildIndex === 0
+          ? 0
+          : top.children[top.nextChildIndex - 1].parentValueIndex + 1;
+      const endValueIndex =
+        top.nextChildIndex === top.children.length
+          ? null
+          : top.children[top.nextChildIndex].parentValueIndex + 1;
+      // OPT: reuse runIndex state across sliceEntries calls
+      for (const [valueIndex, value] of this.state
+        .get(top.node)!
+        .values.sliceEntries(startValueIndex, endValueIndex)) {
+        if (index >= start) {
+          yield [
+            {
+              creatorID: top.node.creatorID,
+              timestamp: top.node.timestamp,
+              valueIndex,
+            },
+            value,
+            index,
+          ];
+        }
+        index++;
+        if (index >= end) return;
+      }
+
+      if (top.nextChildIndex === top.children.length) {
+        // Out of children. Go up.
         stack.pop();
-        node = node.parentNode;
       } else {
-        const valuesOrChild = next.value;
-        if (valuesOrChild.type === "slice") {
-          // Emit slice's values.
-          const sliceLength = valuesOrChild.end - valuesOrChild.start;
-          if (index + sliceLength <= start) {
-            // Shortcut: We won't start by the end of the slice, so skip its loop.
-            index += sliceLength;
-          } else {
-            for (let i = 0; i < sliceLength; i++) {
-              if (index >= start) {
-                yield [
-                  {
-                    creatorID: node.creatorID,
-                    timestamp: node.timestamp,
-                    valueIndex: valuesOrChild.valueIndex + i,
-                  },
-                  valuesOrChild.values[valuesOrChild.start + i],
-                  index,
-                ];
-              }
-              index++;
-              if (index >= end) return;
-            }
-          }
-        } else {
-          // Recurse into child.
-          if (index + valuesOrChild.total <= start) {
+        const nextChild = top.children[top.nextChildIndex];
+        top.nextChildIndex++;
+        const nextChildTotal = this.total(nextChild);
+        if (nextChildTotal > 0) {
+          if (index + nextChildTotal <= start) {
             // Shortcut: We won't start within this child, so skip its recursion.
-            index += valuesOrChild.total;
+            index += nextChildTotal;
           } else {
-            node = valuesOrChild.child;
-            stack.push(this.slicesAndChildren(node));
+            // Visit the child.
+            stack.push({
+              node: nextChild,
+              children: [...nextChild.children()],
+              nextChildIndex: 0,
+            });
           }
         }
       }
@@ -618,79 +608,6 @@ export class List<T> {
 
     if (end <= start) return null;
     return [start, end];
-  }
-
-  /**
-   * Yields non-trivial values and Node children
-   * for node, in list order. This is used when
-   * iterating over the list.
-   *
-   * Specifically, it yields:
-   * - Slices of a Node's values that are present and contiguous in the list order.
-   * - Node children with non-zero total.
-   *
-   * together with enough info to infer their starting valueIndex's.
-   *
-   * @throws If valuesByNode does not have an entry for node.
-   */
-  private *slicesAndChildren(node: Node): IterableIterator<SliceOrChild<T>> {
-    const runs = this.state.get(node)!.values;
-    const children = [...node.children()];
-    let childIndex = 0;
-    let startValueIndex = 0;
-    for (const run of runs) {
-      const runSize = typeof run === "number" ? run : run.length;
-      // After (next startValueIndex)
-      const endValueIndex = startValueIndex + runSize;
-      // Next value to yield
-      let valueIndex = startValueIndex;
-      for (; childIndex < children.length; childIndex++) {
-        const child = children[childIndex];
-        if (child.parentValueIndex >= endValueIndex) {
-          // child comes after run. End the loop and visit child
-          // during the next run.
-          break;
-        }
-        const total = this.total(child);
-        if (total !== 0) {
-          // Emit child. If needed, first emit values that come before it.
-          if (valueIndex < child.parentValueIndex) {
-            if (typeof run !== "number") {
-              yield {
-                type: "slice",
-                values: run,
-                start: valueIndex - startValueIndex,
-                end: child.parentValueIndex - startValueIndex,
-                valueIndex,
-              };
-            }
-            valueIndex = child.parentValueIndex;
-          }
-          yield { type: "child", child, total };
-        }
-      }
-
-      // Emit remaining values in run.
-      if (typeof run !== "number" && valueIndex < endValueIndex) {
-        yield {
-          type: "slice",
-          values: run,
-          start: valueIndex - startValueIndex,
-          end: runSize,
-          valueIndex,
-        };
-      }
-      startValueIndex = endValueIndex;
-    }
-    // Visit remaining children (left children among a possible deleted
-    // final run (which runs omits) and right children).
-    for (; childIndex < children.length; childIndex++) {
-      const child = children[childIndex];
-      const total = this.total(child);
-      if (this.total(child) !== 0) {
-        yield { type: "child", child, total };
-      }
-    }
   }
 
   // ----------

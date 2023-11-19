@@ -448,7 +448,7 @@ export class Order {
     ];
     while (stack.length !== 0) {
       const top = stack[stack.length - 1];
-      if (top.nextChildIndex === (top.node.children?.length ?? 0)) {
+      if (top.nextChildIndex === (top.node._children?.length ?? 0)) {
         // Out of children. Finish the values and then go up.
         yield {
           node: top.node,
