@@ -1,15 +1,7 @@
 import { Node, NodeDesc } from "./node";
 import { Order } from "./order";
 import { Position } from "./position";
-import {
-  ValuesAsRuns,
-  countPresent,
-  getInRuns,
-  mergeRuns,
-  objectToRuns,
-  runsToObject,
-  splitRuns,
-} from "./runs";
+import { SparseArray } from "./sparse_array";
 
 /**
  * List data associated to a Node.
@@ -22,10 +14,9 @@ type NodeData<T> = {
   total: number;
   /**
    * The values at the node's positions,
-   * in order from left to right. Represented as an array of "runs" -
-   * see ./runs.ts.
+   * in order from left to right.
    */
-  runs: ValuesAsRuns<T>;
+  values: SparseArray<T>;
 };
 
 /**
@@ -138,17 +129,12 @@ export class List<T> {
 
     let data = this.state.get(node);
     if (data === undefined) {
-      data = { total: 0, runs: [] };
+      data = { total: 0, values: SparseArray.new() };
       this.state.set(node, data);
     }
 
-    const [before, existing, after] = splitRuns(
-      data.runs,
-      startPos.valueIndex,
-      startPos.valueIndex + values.length
-    );
-    data.runs = mergeRuns(before, [values], after);
-    this.onUpdate(node, values.length - countPresent(existing));
+    const existing = data.values.set(startPos.valueIndex, values);
+    this.onUpdate(node, values.length - existing.size);
   }
 
   /**
@@ -190,13 +176,8 @@ export class List<T> {
       return;
     }
 
-    const [before, existing, after] = splitRuns(
-      data.runs,
-      startPos.valueIndex,
-      startPos.valueIndex + count
-    );
-    data.runs = mergeRuns(before, [count], after);
-    this.onUpdate(node, -countPresent(existing));
+    const existing = data.values.set(startPos.valueIndex, count);
+    this.onUpdate(node, -existing.size);
   }
 
   /**
@@ -226,7 +207,8 @@ export class List<T> {
       ) {
         let data = this.state.get(current);
         if (data === undefined) {
-          data = { total: 0, runs: [] };
+          // TODO: omit values when empty? Incl cleaning up old ones?
+          data = { total: 0, values: SparseArray.new() };
           this.state.set(current, data);
         }
         data.total += delta;
@@ -323,12 +305,9 @@ export class List<T> {
     node: Node,
     valueIndex: number
   ): [value: T | undefined, isPresent: boolean, nodeValuesBefore: number] {
-    const runs = this.state.get(node)?.runs;
-    if (runs === undefined) {
-      // No values within node.
-      return [undefined, false, 0];
-    }
-    return getInRuns(runs, valueIndex);
+    const data = this.state.get(node);
+    if (data === undefined) return [undefined, false, 0];
+    return data.values.getInfo(valueIndex);
   }
 
   private cachedIndexNode: Node | null = null;
@@ -612,7 +591,7 @@ export class List<T> {
    * @throws If valuesByNode does not have an entry for node.
    */
   private *slicesAndChildren(node: Node): IterableIterator<SliceOrChild<T>> {
-    const runs = this.state.get(node)!.runs;
+    const runs = this.state.get(node)!.values;
     const children = [...node.children()];
     let childIndex = 0;
     let startValueIndex = 0;
@@ -680,7 +659,7 @@ export class List<T> {
   } {
     const data = this.state.get(node);
     if (data === undefined) return {};
-    return runsToObject(data.runs);
+    return data.values.save();
   }
 
   /**
@@ -697,13 +676,13 @@ export class List<T> {
   ): void {
     let data = this.state.get(node);
     if (data === undefined) {
-      data = { total: 0, runs: [] };
+      data = { total: 0, values: SparseArray.new() };
       this.state.set(node, data);
     }
 
-    const existingCount = countPresent(data.runs);
-    data.runs = objectToRuns(valuesObj);
-    this.onUpdate(node, countPresent(data.runs) - existingCount);
+    const existingCount = data.values.size;
+    data.values.load(valuesObj);
+    this.onUpdate(node, data.values.size - existingCount);
   }
 
   /**
@@ -720,7 +699,7 @@ export class List<T> {
   save(): ListSavedState<T> {
     const savedStatePre: ListSavedState<T> = {};
     for (const [node, data] of this.state) {
-      if (data.runs.length === 0) continue;
+      if (data.values.length === 0) continue;
 
       let byCreator = savedStatePre[node.creatorID];
       if (byCreator === undefined) {
@@ -728,7 +707,7 @@ export class List<T> {
         savedStatePre[node.creatorID] = byCreator;
       }
 
-      byCreator[node.timestamp] = runsToObject(data.runs);
+      byCreator[node.timestamp] = data.values.save();
     }
 
     // Make a (shallow) copy of savedStatePre that touches all

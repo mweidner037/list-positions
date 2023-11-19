@@ -10,15 +10,21 @@
  * vs deleted runs (T[] vs number). If the last run would represent
  * deleted values (type number), it is omitted.
  */
+type Runs<T> = (T[] | number)[];
 
-export type ValuesAsRuns<T> = (T[] | number)[];
+// TODO: valueIndex -> index
+
+function runLength<T>(run: T[] | number): number {
+  if (typeof run === "number") return run;
+  else return run.length;
+}
 
 /**
  * Converts runs into an object mapping valueIndex to value.
  *
  * Inverse: objectToRuns.
  */
-export function runsToObject<T>(runs: ValuesAsRuns<T>): {
+function runsToObject<T>(runs: Runs<T>): {
   [valueIndex: number]: T;
 } {
   const obj: { [valueIndex: number]: T } = {};
@@ -43,12 +49,10 @@ export function runsToObject<T>(runs: ValuesAsRuns<T>): {
  * TODO: will this work with a sparse array input as well? If so, document
  * in type signature & in calling methods.
  */
-export function objectToRuns<T>(obj: {
-  [valueIndex: number]: T;
-}): ValuesAsRuns<T> {
+function objectToRuns<T>(obj: { [valueIndex: number]: T }): Runs<T> {
   // We maintain the invariant that the last run is T[],
   // except when runs is empty.
-  const runs: ValuesAsRuns<T> = [];
+  const runs: Runs<T> = [];
 
   let lastValueIndex = -1;
   // Here we use the guarantee that an object's nonnegative integer keys
@@ -72,17 +76,6 @@ export function objectToRuns<T>(obj: {
 }
 
 /**
- * @returns Number of *present* values in runs.
- */
-export function countPresent<T>(runs: ValuesAsRuns<T>): number {
-  let count = 0;
-  for (const run of runs) {
-    if (typeof run !== "number") count += run.length;
-  }
-  return count;
-}
-
-/**
  * Returns info about the value at valueIndex in runs:
  * [value - undefined if not present, whether it's present,
  * count of present values before it]
@@ -90,8 +83,8 @@ export function countPresent<T>(runs: ValuesAsRuns<T>): number {
  * number of present values within node
  * (not descendants) strictly prior to position]
  */
-export function getInRuns<T>(
-  runs: ValuesAsRuns<T>,
+function getInRuns<T>(
+  runs: Runs<T>,
   valueIndex: number
 ): [value: T | undefined, isPresent: boolean, beforeCount: number] {
   let remaining = valueIndex;
@@ -120,8 +113,8 @@ export function getInRuns<T>(
  * Note: this may modify array runs in-place.
  * So stop using the inputs after calling.
  */
-export function mergeRuns<T>(...allRuns: ValuesAsRuns<T>[]): ValuesAsRuns<T> {
-  const merged: ValuesAsRuns<T> = [];
+function mergeRuns<T>(...allRuns: Runs<T>[]): Runs<T> {
+  const merged: Runs<T> = [];
   for (let i = 0; i < allRuns.length; i++) {
     const currentRuns = allRuns[i];
     // currentRuns[0]
@@ -155,15 +148,12 @@ export function mergeRuns<T>(...allRuns: ValuesAsRuns<T>[]): ValuesAsRuns<T> {
  * Note: this may copy array runs by-reference, which might then be changed later.
  * So stop using the input after calling.
  */
-export function splitRuns<T>(
-  runs: ValuesAsRuns<T>,
-  ...valueIndexes: number[]
-): ValuesAsRuns<T>[] {
-  const ans = new Array<ValuesAsRuns<T>>(valueIndexes.length + 1);
+function splitRuns<T>(runs: Runs<T>, ...valueIndexes: number[]): Runs<T>[] {
+  const ans = new Array<Runs<T>>(valueIndexes.length + 1);
   let r = 0;
   let leftoverRun: T[] | number | undefined = undefined;
   for (let i = 0; i < valueIndexes.length; i++) {
-    const slice: ValuesAsRuns<T> = [];
+    const slice: Runs<T> = [];
     ans[i] = slice;
 
     let remaining =
@@ -212,7 +202,7 @@ export function splitRuns<T>(
   }
 
   // Final slice: everything left in runs.
-  const finalSlice: ValuesAsRuns<T> = [];
+  const finalSlice: Runs<T> = [];
   ans[valueIndexes.length] = finalSlice;
   if (leftoverRun !== undefined) {
     finalSlice.push(leftoverRun);
@@ -221,4 +211,65 @@ export function splitRuns<T>(
   finalSlice.push(...runs.slice(r));
 
   return ans;
+}
+
+// TODO: trim option?
+export class SparseArray<T> {
+  /**
+   * @param runs Stored by-reference (we wrap it).
+   */
+  private constructor(private runs: Runs<T> = []) {}
+
+  static new<T>(): SparseArray<T> {
+    return new SparseArray();
+  }
+
+  /**
+   * The number of *present* values.
+   */
+  get size(): number {
+    let ans = 0;
+    for (const run of this.runs) {
+      if (typeof run !== "number") ans += run.length;
+    }
+    return ans;
+  }
+
+  get length(): number {
+    let ans = 0;
+    for (const run of this.runs) {
+      ans += runLength(run);
+    }
+    return ans;
+  }
+
+  getInfo(
+    index: number
+  ): [value: T | undefined, isPresent: boolean, beforeCount: number] {
+    return getInRuns(this.runs, index);
+  }
+
+  /**
+   *
+   * @param startIndex
+   * @param valuesOrLength May be copied by-reference, so not safe afterwards.
+   * @returns The replaced values, padded with deleted values to match values.length.
+   */
+  set(startIndex: number, valuesOrLength: T[] | number): SparseArray<T> {
+    const [before, existing, after] = splitRuns(
+      this.runs,
+      startIndex,
+      startIndex + runLength(valuesOrLength)
+    );
+    this.runs = mergeRuns(before, [valuesOrLength], after);
+    return new SparseArray(existing);
+  }
+
+  save(): { [index: number]: T } {
+    return runsToObject(this.runs);
+  }
+
+  load(savedState: { [index: number]: T }): void {
+    this.runs = objectToRuns(savedState);
+  }
 }
