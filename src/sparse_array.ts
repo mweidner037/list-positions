@@ -12,29 +12,27 @@
  */
 type Runs<T> = (T[] | number)[];
 
-// TODO: valueIndex -> index
-
 function runLength<T>(run: T[] | number): number {
   if (typeof run === "number") return run;
   else return run.length;
 }
 
 /**
- * Converts runs into an object mapping valueIndex to value.
+ * Converts runs into an object mapping index to value.
  *
  * Inverse: objectToRuns.
  */
 function runsToObject<T>(runs: Runs<T>): {
-  [valueIndex: number]: T;
+  [index: number]: T;
 } {
-  const obj: { [valueIndex: number]: T } = {};
-  let valueIndex = 0;
+  const obj: { [index: number]: T } = {};
+  let index = 0;
   for (const run of runs) {
-    if (typeof run === "number") valueIndex += run;
+    if (typeof run === "number") index += run;
     else {
       for (const value of run) {
-        obj[valueIndex] = value;
-        valueIndex++;
+        obj[index] = value;
+        index++;
       }
     }
   }
@@ -42,69 +40,34 @@ function runsToObject<T>(runs: Runs<T>): {
 }
 
 /**
- * Converts an object mapping valueIndex to value into runs.
+ * Converts an object mapping index to value into runs.
  *
  * Inverse: runsToObject.
- *
- * TODO: will this work with a sparse array input as well? If so, document
- * in type signature & in calling methods.
  */
-function objectToRuns<T>(obj: { [valueIndex: number]: T }): Runs<T> {
+function objectToRuns<T>(obj: { [index: number]: T }): Runs<T> {
   // We maintain the invariant that the last run is T[],
   // except when runs is empty.
   const runs: Runs<T> = [];
 
-  let lastValueIndex = -1;
+  let lastIndex = -1;
   // Here we use the guarantee that an object's nonnegative integer keys
   // are visited first, in numeric order.
   for (const [key, value] of Object.entries(obj)) {
-    const valueIndex = Number.parseInt(key);
-    if (isNaN(valueIndex)) {
+    const index = Number.parseInt(key);
+    if (isNaN(index)) {
       // We're done visiting integer keys.
       break;
     }
-    const gap = valueIndex - lastValueIndex - 1;
+    const gap = index - lastIndex - 1;
     if (gap !== 0) runs.push(gap, [value]);
     else {
       if (runs.length === 0) runs.push([value]);
       else (runs[runs.length - 1] as T[]).push(value);
     }
-    lastValueIndex = valueIndex;
+    lastIndex = index;
   }
 
   return runs;
-}
-
-/**
- * Returns info about the value at valueIndex in runs:
- * [value - undefined if not present, whether it's present,
- * count of present values before it]
- * @returns [value at position, whether position is present,
- * number of present values within node
- * (not descendants) strictly prior to position]
- */
-function getInRuns<T>(
-  runs: Runs<T>,
-  valueIndex: number
-): [value: T | undefined, isPresent: boolean, beforeCount: number] {
-  let remaining = valueIndex;
-  let beforeCount = 0;
-  for (const run of runs) {
-    if (typeof run === "number") {
-      if (remaining < run) {
-        return [undefined, false, beforeCount];
-      } else remaining -= run;
-    } else {
-      if (remaining < run.length) {
-        return [run[remaining], true, beforeCount + remaining];
-      } else {
-        remaining -= run.length;
-        beforeCount += run.length;
-      }
-    }
-  }
-  // If we get here, then the valueIndex is after all present values.
-  return [undefined, false, beforeCount];
 }
 
 /**
@@ -142,22 +105,21 @@ function mergeRuns<T>(...allRuns: Runs<T>[]): Runs<T> {
 }
 
 /**
- * Splits the given runs-array at the given valueIndexes,
- * returning `valueIndexes.length + 1` runs-arrays.
+ * Splits the given runs-array at the given indexes,
+ * returning `indexes.length + 1` runs-arrays.
  *
  * Note: this may copy array runs by-reference, which might then be changed later.
  * So stop using the input after calling.
  */
-function splitRuns<T>(runs: Runs<T>, ...valueIndexes: number[]): Runs<T>[] {
-  const ans = new Array<Runs<T>>(valueIndexes.length + 1);
+function splitRuns<T>(runs: Runs<T>, ...indexes: number[]): Runs<T>[] {
+  const ans = new Array<Runs<T>>(indexes.length + 1);
   let r = 0;
   let leftoverRun: T[] | number | undefined = undefined;
-  for (let i = 0; i < valueIndexes.length; i++) {
+  for (let i = 0; i < indexes.length; i++) {
     const slice: Runs<T> = [];
     ans[i] = slice;
 
-    let remaining =
-      i === 0 ? valueIndexes[i] : valueIndexes[i] - valueIndexes[i - 1];
+    let remaining = i === 0 ? indexes[i] : indexes[i] - indexes[i - 1];
     while (r < runs.length) {
       const run: T[] | number = leftoverRun ?? runs[r];
       leftoverRun = undefined;
@@ -203,7 +165,7 @@ function splitRuns<T>(runs: Runs<T>, ...valueIndexes: number[]): Runs<T>[] {
 
   // Final slice: everything left in runs.
   const finalSlice: Runs<T> = [];
-  ans[valueIndexes.length] = finalSlice;
+  ans[indexes.length] = finalSlice;
   if (leftoverRun !== undefined) {
     finalSlice.push(leftoverRun);
     r++;
@@ -243,10 +205,35 @@ export class SparseArray<T> {
     return ans;
   }
 
+  /**
+   * Returns info about the value at index in runs:
+   * [value - undefined if not present, whether it's present,
+   * count of present values before it]
+   * @returns [value at position, whether position is present,
+   * number of present values within node
+   * (not descendants) strictly prior to position]
+   */
   getInfo(
     index: number
   ): [value: T | undefined, isPresent: boolean, beforeCount: number] {
-    return getInRuns(this.runs, index);
+    let remaining = index;
+    let beforeCount = 0;
+    for (const run of this.runs) {
+      if (typeof run === "number") {
+        if (remaining < run) {
+          return [undefined, false, beforeCount];
+        } else remaining -= run;
+      } else {
+        if (remaining < run.length) {
+          return [run[remaining], true, beforeCount + remaining];
+        } else {
+          remaining -= run.length;
+          beforeCount += run.length;
+        }
+      }
+    }
+    // If we get here, then the index is after all present values.
+    return [undefined, false, beforeCount];
   }
 
   /**
@@ -256,7 +243,6 @@ export class SparseArray<T> {
    * @throws If such an index is not found.
    */
   findPresentIndex(startIndex: number, count: number): number {
-    // TODO: runs function
     let startRemaining = startIndex;
     let countRemaining = count;
     let ans = startIndex;

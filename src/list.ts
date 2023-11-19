@@ -220,8 +220,8 @@ export class List<T> {
     // Invalidate caches.
     if (this.cachedIndexNode !== node) this.cachedIndexNode = null;
 
+    // Update total for node and its ancestors.
     if (delta !== 0) {
-      // Update total for node and its ancestors.
       for (
         let current: Node | null = node;
         current !== null;
@@ -230,6 +230,20 @@ export class List<T> {
         const data = this.getOrCreateData(node);
         data.total += delta;
         if (data.total === 0) this.state.delete(current);
+      }
+    }
+
+    // Update child.parentValuesBefore for node's children.
+    const nodeData = this.state.get(node);
+    if (nodeData !== undefined) {
+      for (const child of node.children()) {
+        const childData = this.state.get(child);
+        if (childData === undefined) continue;
+        // OPT: in principle can make this loop O((# runs) + (# children)) instead
+        // of O((# runs) * (# children)).
+        childData.parentValuesBefore = nodeData.values.getInfo(
+          child.parentValueIndex + 1
+        )[2];
       }
     }
   }
