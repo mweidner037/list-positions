@@ -13,6 +13,12 @@ type NodeData<T> = {
    */
   total: number;
   /**
+   * The number of present values in this node's parent that appear
+   * prior to this node. Part of the index offset between this node
+   * and its parent (the other part is from prior siblings).
+   */
+  parentValuesBefore: number;
+  /**
    * The values at the node's positions,
    * in order from left to right.
    */
@@ -127,14 +133,11 @@ export class List<T> {
       );
     }
 
-    let data = this.state.get(node);
-    if (data === undefined) {
-      data = { total: 0, values: SparseArray.new() };
-      this.state.set(node, data);
-    }
-
+    const data = this.getOrCreateData(node);
     const existing = data.values.set(startPos.valueIndex, values);
     this.onUpdate(node, values.length - existing.size);
+
+    // TODO: return existing.save()? Likewise in delete, setAt?, deleteAt?.
   }
 
   /**
@@ -189,6 +192,25 @@ export class List<T> {
     this.delete(this.positionAt(index));
   }
 
+  private getOrCreateData(node: Node): NodeData<T> {
+    let data = this.state.get(node);
+    if (data === undefined) {
+      let parentValuesBefore = 0;
+      if (node.parentNode !== null) {
+        const parentData = this.state.get(node.parentNode);
+        if (parentData !== undefined) {
+          // +1 to also include the parent Position's value.
+          parentValuesBefore = parentData.values.getInfo(
+            node.parentValueIndex + 1
+          )[2];
+        }
+      }
+      data = { total: 0, parentValuesBefore, values: SparseArray.new() };
+      this.state.set(node, data);
+    }
+    return data;
+  }
+
   /**
    * Call this after updating node's values.
    *
@@ -205,12 +227,7 @@ export class List<T> {
         current !== null;
         current = current.parentNode
       ) {
-        let data = this.state.get(current);
-        if (data === undefined) {
-          // TODO: omit values when empty? Incl cleaning up old ones?
-          data = { total: 0, values: SparseArray.new() };
-          this.state.set(current, data);
-        }
+        const data = this.getOrCreateData(node);
         data.total += delta;
         if (data.total === 0) this.state.delete(current);
       }
@@ -358,7 +375,7 @@ export class List<T> {
       // TODO: test
       beforeNode = this.cachedIndex;
     } else {
-      // Walk up the tree and add totals for sibling values & nodes
+      // Walk up the tree and add totals for ancestors' values & nodes
       // that come before our ancestor.
       beforeNode = 0;
       for (
@@ -366,11 +383,9 @@ export class List<T> {
         current.parentNode !== null;
         current = current.parentNode
       ) {
-        // Sibling values that come before current.
-        beforeNode += this.getInNode(
-          current.parentNode,
-          current.parentValueIndex
-        )[2];
+        // Parent's values that come before current.
+        beforeNode +=
+          this.state.get(current.parentNode)?.parentValuesBefore ?? 0;
         // Sibling nodes that come before current.
         for (const child of current.parentNode.children()) {
           if (child === current) break;
@@ -401,40 +416,54 @@ export class List<T> {
   /**
    * Returns the position currently at index.
    *
-   * Won't return minPosition or maxPosition.
+   * Won't return minPosition or maxPosition. TODO: actually, will if they're
+   * part of the list - check that code is compatible.
    */
   positionAt(index: number): Position {
     if (index < 0 || index >= this.length) {
       throw new Error(`Index out of bounds: ${index} (length: ${this.length})`);
     }
     let remaining = index;
-    let node = this.order.rootNode;
+    let current = this.order.rootNode;
     // eslint-disable-next-line no-constant-condition
     while (true) {
-      nodeLoop: {
-        for (const next of this.slicesAndChildren(node)) {
-          if (next.type === "slice") {
-            const length = next.end - next.start;
-            if (remaining < length) {
-              // Answer is values[remaining].
-              return {
-                creatorID: node.creatorID,
-                timestamp: node.timestamp,
-                valueIndex: next.valueIndex + remaining,
-              };
-            } else remaining -= length;
-          } else {
-            if (remaining < next.total) {
-              // Recurse into child.
-              node = next.child;
-              break nodeLoop;
-            } else remaining -= next.total;
-          }
+      const currentData = this.state.get(current)!;
+      let prevParentValueIndex = -1;
+      let prevParentValuesBefore = 0;
+      for (const child of current.children()) {
+        const childData = this.state.get(child);
+        if (childData === undefined) continue;
+
+        const valuesBetween =
+          childData.parentValuesBefore - prevParentValuesBefore;
+        if (remaining < valuesBetween) {
+          // The position is among node's values, between child and the
+          // previous child-with-data.
+          return {
+            creatorID: current.creatorID,
+            timestamp: current.timestamp,
+            valueIndex: currentData.values.findPresentIndex(
+              prevParentValueIndex + 1,
+              remaining
+            ),
+          };
+        } else {
+          remaining -= valuesBetween;
+          if (remaining < childData.total) {
+            // Recurse into child.
+            current = child;
+            // Breaks the for loop, taking us to the next iteration of while(true).
+            break;
+          } else remaining -= childData.total;
         }
-        // We should always end by the break statement (recursion), not by
-        // the for loop's finishing.
-        throw new Error("Internal error: failed to find index among children");
+
+        prevParentValueIndex = child.parentValueIndex;
+        prevParentValuesBefore = childData.parentValuesBefore;
       }
+
+      // We should always end by the break statement (recursion), not by
+      // the for loop's finishing.
+      throw new Error("Internal error: failed to find index among children");
     }
   }
 
@@ -674,12 +703,7 @@ export class List<T> {
       [valueIndex: number]: T;
     }
   ): void {
-    let data = this.state.get(node);
-    if (data === undefined) {
-      data = { total: 0, values: SparseArray.new() };
-      this.state.set(node, data);
-    }
-
+    const data = this.getOrCreateData(node);
     const existingCount = data.values.size;
     data.values.load(valuesObj);
     this.onUpdate(node, data.values.size - existingCount);
@@ -756,6 +780,8 @@ export class List<T> {
             })}. You must call Order.addNodeDescs before referencing a Node.`
           );
         }
+        // TODO: opt: wait until end to compute all parentValuesBefores, totals.
+        // To avoid ?? complexity.
         this.loadOneNode(node, valuesObj);
       }
     }

@@ -250,6 +250,40 @@ export class SparseArray<T> {
   }
 
   /**
+   * Starting at startIndex (inclusive), find the count-th present value
+   * and return its index.
+   *
+   * @throws If such an index is not found.
+   */
+  findPresentIndex(startIndex: number, count: number): number {
+    // TODO: runs function
+    let startRemaining = startIndex;
+    let countRemaining = count;
+    let ans = startIndex;
+    for (const run of this.runs) {
+      const len = runLength(run);
+      if (startRemaining < len) {
+        // startIndex is at run[startRemaining].
+        if (typeof run !== "number") {
+          // Search the rest of run.
+          const searchedLength = run.length - startRemaining;
+          if (countRemaining < searchedLength) {
+            return ans + countRemaining;
+          } else {
+            countRemaining -= searchedLength;
+            ans += searchedLength;
+          }
+        }
+      } else startRemaining -= len;
+    }
+    throw new Error(
+      `Internal error: findPresentIndex result not found (startIndex=${startIndex}, count=${count}, runs=${JSON.stringify(
+        this.runs
+      )}`
+    );
+  }
+
+  /**
    *
    * @param startIndex
    * @param valuesOrLength May be copied by-reference, so not safe afterwards.
