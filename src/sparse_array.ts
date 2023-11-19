@@ -45,9 +45,6 @@ function runsToObject<T>(runs: Runs<T>): {
  * Inverse: runsToObject.
  */
 function objectToRuns<T>(obj: { [index: number]: T }): Runs<T> {
-  // We maintain the invariant that the last run is T[],
-  // except when runs is empty.
-  // TODO: rewrite justification; make sure non-trimming okay elsewhere.
   const runs: Runs<T> = [];
 
   let lastIndex = -1;

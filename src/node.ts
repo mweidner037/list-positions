@@ -40,9 +40,13 @@ export interface Node {
    * Returns this Node's NodeDesc.
    *
    * Errors if this is the rootNode.
+   *
+   * TODO: should be on Order instead.
    */
   desc(): NodeDesc;
-  children(): IterableIterator<Node>;
+
+  readonly childrenLength: number;
+  getChild(index: number): Node;
 
   toString(): string;
 }

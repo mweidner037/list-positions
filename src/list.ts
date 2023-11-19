@@ -213,7 +213,8 @@ export class List<T> {
     // Update child.parentValuesBefore for node's children.
     const nodeData = this.state.get(node);
     if (nodeData !== undefined) {
-      for (const child of node.children()) {
+      for (let i = 0; i < node.childrenLength; i++) {
+        const child = node.getChild(i);
         const childData = this.state.get(child);
         if (childData === undefined) continue;
         // OPT: in principle can make this loop O((# runs) + (# children)) instead
@@ -352,7 +353,8 @@ export class List<T> {
     // Add totals for child nodes that come before valueIndex.
     // These are precisely the left children with
     // parentValueIndex <= valueIndex.
-    for (const child of node.children()) {
+    for (let i = 0; i < node.childrenLength; i++) {
+      const child = node.getChild(i);
       if (child.parentValueIndex > pos.valueIndex) break;
       valuesBefore += this.total(child);
     }
@@ -378,7 +380,8 @@ export class List<T> {
         beforeNode +=
           this.state.get(current.parentNode)?.parentValuesBefore ?? 0;
         // Sibling nodes that come before current.
-        for (const child of current.parentNode.children()) {
+        for (let i = 0; i < current.parentNode.childrenLength; i++) {
+          const child = current.parentNode.getChild(i);
           if (child === current) break;
           beforeNode += this.total(child);
         }
@@ -421,7 +424,8 @@ export class List<T> {
       const currentData = this.state.get(current)!;
       let prevParentValueIndex = -1;
       let prevParentValuesBefore = 0;
-      for (const child of current.children()) {
+      for (let i = 0; i < current.childrenLength; i++) {
+        const child = current.getChild(i);
         const childData = this.state.get(child);
         if (childData === undefined) continue;
 
@@ -529,32 +533,31 @@ export class List<T> {
     const stack = [
       {
         node: this.order.rootNode,
-        // TODO: sth more efficient than copying node._children?
-        children: [...this.order.rootNode.children()],
         nextChildIndex: 0,
       },
     ];
     while (stack.length !== 0) {
       const top = stack[stack.length - 1];
+      const node = top.node;
 
       // Emit node values between the previous and next child.
       const startValueIndex =
         top.nextChildIndex === 0
           ? 0
-          : top.children[top.nextChildIndex - 1].parentValueIndex + 1;
+          : node.getChild(top.nextChildIndex - 1).parentValueIndex + 1;
       const endValueIndex =
-        top.nextChildIndex === top.children.length
+        top.nextChildIndex === node.childrenLength
           ? null
-          : top.children[top.nextChildIndex].parentValueIndex + 1;
+          : node.getChild(top.nextChildIndex).parentValueIndex + 1;
       // OPT: reuse runIndex state across sliceEntries calls
       for (const [valueIndex, value] of this.state
-        .get(top.node)!
+        .get(node)!
         .values.sliceEntries(startValueIndex, endValueIndex)) {
         if (index >= start) {
           yield [
             {
-              creatorID: top.node.creatorID,
-              timestamp: top.node.timestamp,
+              creatorID: node.creatorID,
+              timestamp: node.timestamp,
               valueIndex,
             },
             value,
@@ -565,11 +568,11 @@ export class List<T> {
         if (index >= end) return;
       }
 
-      if (top.nextChildIndex === top.children.length) {
+      if (top.nextChildIndex === node.childrenLength) {
         // Out of children. Go up.
         stack.pop();
       } else {
-        const nextChild = top.children[top.nextChildIndex];
+        const nextChild = node.getChild(top.nextChildIndex);
         top.nextChildIndex++;
         const nextChildTotal = this.total(nextChild);
         if (nextChildTotal > 0) {
@@ -580,7 +583,6 @@ export class List<T> {
             // Visit the child.
             stack.push({
               node: nextChild,
-              children: [...nextChild.children()],
               nextChildIndex: 0,
             });
           }

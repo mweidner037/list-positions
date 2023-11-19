@@ -33,7 +33,7 @@ class NodeInternal implements Node {
   /**
    * May be undefined when empty.
    */
-  _children?: NodeInternal[];
+  children?: NodeInternal[];
 
   /**
    * If this Node was created by us, the next valueIndex to create.
@@ -58,8 +58,12 @@ class NodeInternal implements Node {
     };
   }
 
-  children(): IterableIterator<NodeInternal> {
-    return (this._children ?? [])[Symbol.iterator]();
+  get childrenLength(): number {
+    return this.children?.length ?? 0;
+  }
+
+  getChild(index: number): Node {
+    return this.children![index];
   }
 
   desc(): NodeDesc {
@@ -346,16 +350,16 @@ export class Order {
     this.timestamp = Math.max(this.timestamp, node.timestamp);
 
     // Add node to parentNode._children.
-    if (parentNode._children === undefined) parentNode._children = [node];
+    if (parentNode.children === undefined) parentNode.children = [node];
     else {
       // Find the index of the first sibling > node.
       let i = 0;
-      for (; i < parentNode._children.length; i++) {
+      for (; i < parentNode.children.length; i++) {
         // Break if sibling > node.
-        if (siblingNodeCompare(parentNode._children[i], node) > 0) break;
+        if (siblingNodeCompare(parentNode.children[i], node) > 0) break;
       }
       // Insert node just before that sibling.
-      parentNode._children.splice(i, 0, node);
+      parentNode.children.splice(i, 0, node);
     }
 
     return node;
@@ -448,7 +452,7 @@ export class Order {
     ];
     while (stack.length !== 0) {
       const top = stack[stack.length - 1];
-      if (top.nextChildIndex === (top.node._children?.length ?? 0)) {
+      if (top.nextChildIndex === top.node.childrenLength) {
         // Out of children. Finish the values and then go up.
         yield {
           node: top.node,
@@ -457,7 +461,7 @@ export class Order {
         };
         stack.pop();
       } else {
-        const nextChild = top.node._children![top.nextChildIndex];
+        const nextChild = top.node.getChild(top.nextChildIndex);
         top.nextChildIndex++;
         // Emit values less than that child.
         const startValueIndex = top.nextValueIndex;
