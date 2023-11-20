@@ -1,6 +1,12 @@
-import { Node, NodeDesc, siblingNodeCompare } from "./node";
+import {
+  Node,
+  NodeDesc,
+  NodeID,
+  compareSiblingNodes,
+  nodeDescEquals,
+} from "./node";
 import { NodeMap } from "./node_map";
-import { Position, positionEquals } from "./position";
+import { Position } from "./position";
 import { ReplicaIDs } from "./replica_ids";
 
 export type Item = {
@@ -19,11 +25,14 @@ export type Item = {
 /**
  * JSON saved state for an Order, representing all of its Nodes.
  *
- * Maps (creatorID, timestamp) -> parent Position. Excludes rootNode.
+ * Maps (creatorID, timestamp) -> rest of NodeDesc. Excludes rootNode.
  */
 export type OrderSavedState = {
   [creatorID: string]: {
-    [timestamp: number]: Position;
+    [counter: number]: {
+      parentID: NodeID;
+      offset: number;
+    };
   };
 };
 
@@ -42,20 +51,19 @@ class NodeInternal implements Node {
 
   constructor(
     readonly creatorID: string,
-    readonly timestamp: number,
-    readonly parentNode: NodeInternal | null,
-    readonly parentValueIndex: number
+    readonly counter: number,
+    readonly parent: NodeInternal | null,
+    readonly offset: number
   ) {
-    this.depth = parentNode === null ? 0 : parentNode.depth + 1;
+    this.depth = parent === null ? 0 : parent.depth + 1;
   }
 
-  get parent(): Position | null {
-    if (this.parentNode === null) return null;
-    return {
-      creatorID: this.parentNode.creatorID,
-      timestamp: this.parentNode.timestamp,
-      valueIndex: this.parentValueIndex,
-    };
+  get leftValueIndex(): number {
+    return ((this.offset + 1) >> 1) - 1;
+  }
+
+  get rightValueIndex(): number {
+    return (this.offset + 1) >> 1;
   }
 
   get childrenLength(): number {
@@ -66,18 +74,19 @@ class NodeInternal implements Node {
     return this.children![index];
   }
 
+  id(): NodeID {
+    return { creatorID: this.creatorID, counter: this.counter };
+  }
+
   desc(): NodeDesc {
-    if (this.parentNode === null) {
+    if (this.parent === null) {
       throw new Error("Cannot call desc() on the root Node");
     }
     return {
       creatorID: this.creatorID,
-      timestamp: this.timestamp,
-      parent: {
-        creatorID: this.parentNode.creatorID,
-        timestamp: this.parentNode.timestamp,
-        valueIndex: this.parentValueIndex,
-      },
+      counter: this.counter,
+      parentID: this.parent.id(),
+      offset: this.offset,
     };
   }
 
@@ -85,22 +94,16 @@ class NodeInternal implements Node {
     // Similar to NodeDesc, but valid for rootNode as well.
     return JSON.stringify({
       creatorID: this.creatorID,
-      timestamp: this.timestamp,
-      parent:
-        this.parentNode === null
-          ? null
-          : {
-              creatorID: this.parentNode.creatorID,
-              timestamp: this.parentNode.timestamp,
-              valueIndex: this.parentValueIndex,
-            },
+      timestamp: this.counter,
+      parentID: this.parent === null ? null : this.parent.id(),
+      offset: this.offset,
     });
   }
 }
 
 export class Order {
   readonly replicaID: string;
-  private timestamp = 0;
+  private counter = 0;
 
   readonly rootNode: Node;
   // Can't be set etc., but can be createPosition'd or appear in a Cursor.
@@ -123,12 +126,12 @@ export class Order {
     this.tree.set(this.rootNode, this.rootNode);
     this.minPosition = {
       creatorID: this.rootNode.creatorID,
-      timestamp: this.rootNode.timestamp,
+      counter: this.rootNode.counter,
       valueIndex: 0,
     };
     this.maxPosition = {
       creatorID: this.rootNode.creatorID,
-      timestamp: this.rootNode.timestamp,
+      counter: this.rootNode.counter,
       valueIndex: 1,
     };
   }
@@ -184,35 +187,35 @@ export class Order {
     let aAnc = aNode;
     let bAnc = bNode;
     for (let i = aNode.depth; i > bNode.depth; i--) {
-      if (aAnc.parentNode === bNode) {
-        if (aAnc.parentValueIndex === b.valueIndex) {
-          // Descendant is greater than its ancestors.
+      if (aAnc.parent === bNode) {
+        if (aAnc.leftValueIndex === b.valueIndex) {
+          // aAnc is between b and the next Position, hence greater.
           return 1;
-        } else return aAnc.parentValueIndex - b.valueIndex;
+        } else return aAnc.leftValueIndex - b.valueIndex;
       }
       // parentNode is non-null because we are not at b's depth yet,
       // hence aAnc is not the root.
-      aAnc = aAnc.parentNode!;
+      aAnc = aAnc.parent!;
     }
     for (let i = bNode.depth; i > aNode.depth; i--) {
-      if (bAnc.parentNode === aNode) {
-        if (bAnc.parentValueIndex === a.valueIndex) return -1;
-        else return a.valueIndex - bAnc.parentValueIndex;
+      if (bAnc.parent === aNode) {
+        if (bAnc.leftValueIndex === a.valueIndex) return -1;
+        else return -(bAnc.leftValueIndex - a.valueIndex);
       }
-      bAnc = bAnc.parentNode!;
+      bAnc = bAnc.parent!;
     }
 
     // Now aAnc and bAnc are distinct nodes at the same depth.
     // Walk up the tree in lockstep until we find a common Node parent.
-    while (aAnc.parentNode !== bAnc.parentNode) {
+    while (aAnc.parent !== bAnc.parent) {
       // parentNode is non-null because we would reach a common parent
       // (rootNode) before reaching aAnc = bAnc = rootNode.
-      aAnc = aAnc.parentNode!;
-      bAnc = bAnc.parentNode!;
+      aAnc = aAnc.parent!;
+      bAnc = bAnc.parent!;
     }
 
     // Now aAnc and bAnc are distinct siblings. Use sibling order.
-    return siblingNodeCompare(aAnc, bAnc);
+    return compareSiblingNodes(aAnc, bAnc);
   }
 
   // ----------
@@ -244,9 +247,9 @@ export class Order {
       }
       const existing = this.tree.get(nodeDesc);
       if (existing !== undefined) {
-        if (!positionEquals(nodeDesc.parent, existing.parent!)) {
+        if (!nodeDescEquals(nodeDesc, existing.desc())) {
           throw new Error(
-            `Received NodeDesc describing an existing node but with a different parent: received=${JSON.stringify(
+            `Received NodeDesc describing an existing node but with different metadata: received=${JSON.stringify(
               nodeDesc
             )}, existing=${JSON.stringify(existing.desc())}`
           );
@@ -254,7 +257,7 @@ export class Order {
       } else {
         const otherNew = createdNodeDescs.get(nodeDesc);
         if (otherNew !== undefined) {
-          if (!positionEquals(nodeDesc.parent, otherNew.parent)) {
+          if (!nodeDescEquals(nodeDesc, otherNew)) {
             throw new Error(
               `Received two NodeDescs for the same node with different parents: first=${JSON.stringify(
                 otherNew
@@ -273,15 +276,15 @@ export class Order {
     const pendingChildren = new NodeMap<NodeDesc[]>();
 
     for (const nodeDesc of createdNodeDescs.values()) {
-      if (this.tree.get(nodeDesc.parent) !== undefined) {
+      if (this.tree.get(nodeDesc.parentID) !== undefined) {
         // Parent already exists - ready to process.
         toProcess.push(nodeDesc);
       } else {
         // Parent should be in createdNodeDescs. Store in pendingChildren for now.
-        let siblings = pendingChildren.get(nodeDesc.parent);
+        let siblings = pendingChildren.get(nodeDesc.parentID);
         if (siblings === undefined) {
           siblings = [];
-          pendingChildren.set(nodeDesc.parent, siblings);
+          pendingChildren.set(nodeDesc.parentID, siblings);
         }
         siblings.push(nodeDesc);
       }
@@ -332,7 +335,7 @@ export class Order {
   }
 
   private newNode(nodeDesc: NodeDesc): NodeInternal {
-    const parentNode = this.tree.get(nodeDesc.parent);
+    const parentNode = this.tree.get(nodeDesc.parentID);
     if (parentNode === undefined) {
       throw new Error(
         `Internal error: NodeDesc ${JSON.stringify(
@@ -342,12 +345,11 @@ export class Order {
     }
     const node = new NodeInternal(
       nodeDesc.creatorID,
-      nodeDesc.timestamp,
+      nodeDesc.counter,
       parentNode,
-      nodeDesc.parent.valueIndex
+      nodeDesc.offset
     );
     this.tree.set(node, node);
-    this.timestamp = Math.max(this.timestamp, node.timestamp);
 
     // Add node to parentNode._children.
     if (parentNode.children === undefined) parentNode.children = [node];
@@ -356,7 +358,7 @@ export class Order {
       let i = 0;
       for (; i < parentNode.children.length; i++) {
         // Break if sibling > node.
-        if (siblingNodeCompare(parentNode.children[i], node) > 0) break;
+        if (compareSiblingNodes(parentNode.children[i], node) > 0) break;
       }
       // Insert node just before that sibling.
       parentNode.children.splice(i, 0, node);
@@ -381,13 +383,15 @@ export class Order {
       throw new Error("Cannot create a position after maxPosition");
     }
 
+    // TODO: rewrite for Fugue.
+
     // First try to extend prevPos's Node.
     if (prevPos.creatorID === this.replicaID) {
       if (prevNode.nextValueIndex === prevPos.valueIndex + 1) {
         // Success.
         const pos: Position = {
           creatorID: prevPos.creatorID,
-          timestamp: prevPos.timestamp,
+          counter: prevPos.counter,
           valueIndex: prevNode.nextValueIndex,
         };
         prevNode.nextValueIndex++;
@@ -398,12 +402,13 @@ export class Order {
     // Else create a new Node.
     const createdNodeDesc: NodeDesc = {
       creatorID: this.replicaID,
-      timestamp: ++this.timestamp,
-      parent: prevPos,
+      counter: this.counter,
+      parentID: prevPos,
     };
+    this.counter++;
     const pos: Position = {
       creatorID: createdNodeDesc.creatorID,
-      timestamp: createdNodeDesc.timestamp,
+      counter: createdNodeDesc.counter,
       valueIndex: 0,
     };
     const node = this.newNode(createdNodeDesc);
@@ -465,7 +470,7 @@ export class Order {
         top.nextChildIndex++;
         // Emit values less than that child.
         const startValueIndex = top.nextValueIndex;
-        const endValueIndex = nextChild.parentValueIndex + 1;
+        const endValueIndex = nextChild.rightValueIndex;
         if (endValueIndex !== startValueIndex) {
           yield {
             node: top.node,
@@ -506,7 +511,10 @@ export class Order {
     for (const [creatorID, byCreator] of this.tree.state) {
       if (creatorID === ReplicaIDs.ROOT) continue;
       for (const [timestamp, node] of byCreator) {
-        savedState[creatorID][timestamp] = node.parent!;
+        savedState[creatorID][timestamp] = {
+          parentID: node.parent!.id(),
+          offset: node.offset,
+        };
       }
     }
 
@@ -521,11 +529,14 @@ export class Order {
     // merging nearly-identical states.
     const nodeDescs: NodeDesc[] = [];
     for (const [creatorID, byCreator] of Object.entries(savedState)) {
-      for (const [timestampStr, parent] of Object.entries(byCreator)) {
+      for (const [timestampStr, { parentID, offset }] of Object.entries(
+        byCreator
+      )) {
         nodeDescs.push({
           creatorID,
-          timestamp: Number.parseInt(timestampStr),
-          parent,
+          counter: Number.parseInt(timestampStr),
+          parentID,
+          offset,
         });
       }
     }

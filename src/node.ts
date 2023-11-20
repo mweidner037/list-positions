@@ -1,4 +1,7 @@
-import { Position } from "./position";
+export type NodeID = {
+  readonly creatorID: string;
+  readonly counter: number;
+};
 
 /**
  * TODO
@@ -7,11 +10,32 @@ import { Position } from "./position";
  * Notes:
  * - `Order.rootNode` does not have a NodeDesc, because it does not have a `parent`.
  */
-export type NodeDesc = {
-  readonly creatorID: string;
-  readonly timestamp: number;
-  readonly parent: Position;
+export type NodeDesc = NodeID & {
+  readonly parentID: NodeID;
+  /**
+   * 0: left child of (parent, 0).
+   * 1: right child of (parent, 0).
+   * 2: left child of (parent, 1).
+   * Etc.
+   *
+   * I.e., we're between valueIndexes ((offset + 1) >> 1 - 1) and ((offset + 1) >> 1), and
+   * siblings are in order by offset.
+   */
+  readonly offset: number;
 };
+
+/**
+ * Returns whether two NodeDescs are equal, i.e., they have equal contents.
+ */
+export function nodeDescEquals(a: NodeDesc, b: NodeDesc): boolean {
+  return (
+    a.creatorID === b.creatorID &&
+    a.counter === b.counter &&
+    a.parentID.creatorID === b.parentID.creatorID &&
+    a.parentID.counter === b.parentID.counter &&
+    a.offset === b.offset
+  );
+}
 
 /**
  * A node in an Order's internal tree.
@@ -26,16 +50,21 @@ export type NodeDesc = {
 export interface Node {
   // TODO: class property docs.
   readonly creatorID: string;
-  readonly timestamp: number;
+  readonly counter: number;
   /** null for the root. */
-  readonly parentNode: Node | null;
+  readonly parent: Node | null;
   /** Unspecified for the root. */
-  readonly parentValueIndex: number;
-  /** null for the root. */
-  readonly parent: Position | null;
+  readonly offset: number;
   /** 0 for the root. */
   readonly depth: number;
 
+  /** Parent valueIndex to our left. */
+  readonly leftValueIndex: number;
+  /** Parent valueIndex to our right. */
+  readonly rightValueIndex: number;
+
+  // TODO: getter instead of function?
+  id(): NodeID;
   /**
    * Returns this Node's NodeDesc.
    *
@@ -59,21 +88,20 @@ export interface Node {
  * To compare Positions, instead use `Order.compare` or a List. To iterate over
  * a Node's children in order, use `Node.children()`.
  */
-export function siblingNodeCompare(a: Node, b: Node): number {
-  if (a.parentNode !== b.parentNode) {
+export function compareSiblingNodes(a: Node, b: Node): number {
+  if (a.parent !== b.parent) {
     throw new Error(
       `nodeSiblingCompare can only compare Nodes with the same parentNode, not a=${a}, b=${b}`
     );
   }
 
-  // Sibling sort order: first by parentValueIndex, then by *reverse* timestamp,
-  // then by creatorID.
-  if (a.parentValueIndex !== b.parentValueIndex) {
-    return a.parentValueIndex - b.parentValueIndex;
+  // Sibling sort order: first by offset, then by creatorID, then by counter.
+  // TODO: can we rule out same offset+creatorID via createPosition local memory?
+  if (a.offset !== b.offset) {
+    return a.offset - b.offset;
   }
-  if (a.timestamp !== b.timestamp) {
-    // Reverse order.
-    return b.timestamp - a.timestamp;
+  if (a.counter !== b.counter) {
+    return a.counter - b.counter;
   }
   if (a.creatorID !== b.creatorID) {
     return a.creatorID > b.creatorID ? 1 : -1;
