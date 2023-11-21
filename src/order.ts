@@ -376,16 +376,17 @@ export class Order {
   }
 
   /**
-   *
    * @param prevPos
+   * @param count Use pos as startPos (node & startIndex)
    * @returns
    * @throws If prevPos >= nextPos.
    */
-  createPosition(
+  createPositions(
     prevPos: Position,
-    nextPos: Position
+    nextPos: Position,
+    count = 1
   ): {
-    pos: Position;
+    startPos: Position;
     createdNodeDesc: NodeDesc | null;
   } {
     // Also validates the positions.
@@ -396,6 +397,7 @@ export class Order {
         )}, nextPos=${JSON.stringify(nextPos)}`
       );
     }
+    if (count < 1) throw new Error(`Invalid count: ${count}`);
 
     /* 
       Unlike in the Fugue paper, we don't track all tombstones (in particular,
@@ -432,13 +434,12 @@ export class Order {
         // It's okay if nextValueIndex is not prevPos.valueIndex + 1:
         // pos will still be < nextPos, and going farther along prevNode
         // amounts to following the Exception above.
-        const pos: Position = {
-          creatorID: prevPos.creatorID,
-          counter: prevPos.counter,
+        const startPos: Position = {
+          ...prevNode.id(),
           valueIndex: prevNode.nextValueIndex!,
         };
-        prevNode.nextValueIndex!++;
-        return { pos, createdNodeDesc: null };
+        prevNode.nextValueIndex! += count;
+        return { startPos, createdNodeDesc: null };
       }
 
       newNodeParent = prevNode;
@@ -454,13 +455,12 @@ export class Order {
     // right child of a right child of ...
     const conflict = newNodeParent.ourChildren?.get(newNodeOffset);
     if (conflict !== undefined) {
-      const pos: Position = {
-        creatorID: conflict.creatorID,
-        counter: conflict.counter,
+      const startPos: Position = {
+        ...conflict.id(),
         valueIndex: conflict.nextValueIndex!,
       };
-      conflict.nextValueIndex!++;
-      return { pos, createdNodeDesc: null };
+      conflict.nextValueIndex! += count;
+      return { startPos, createdNodeDesc: null };
     }
 
     const createdNodeDesc: NodeDesc = {
@@ -470,22 +470,17 @@ export class Order {
       offset: newNodeOffset,
     };
     this.counter++;
-    const pos: Position = {
-      creatorID: createdNodeDesc.creatorID,
-      counter: createdNodeDesc.counter,
-      valueIndex: 0,
-    };
 
-    const createdNode = this.newNode(createdNodeDesc);
-    createdNode.nextValueIndex = 1;
+    const node = this.newNode(createdNodeDesc);
+    node.nextValueIndex = count;
     if (newNodeParent.ourChildren === undefined) {
       newNodeParent.ourChildren = new Map();
     }
-    newNodeParent.ourChildren.set(createdNodeDesc.offset, createdNode);
+    newNodeParent.ourChildren.set(createdNodeDesc.offset, node);
 
     this.onCreateNode?.(createdNodeDesc);
 
-    return { pos, createdNodeDesc };
+    return { startPos: { ...node.id(), valueIndex: 0 }, createdNodeDesc };
   }
 
   /**

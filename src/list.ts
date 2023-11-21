@@ -256,12 +256,12 @@ export class List<T> {
   insert(
     prevPos: Position,
     ...values: T[]
-  ): { pos: Position; createdNodeDesc: NodeDesc | null } {
+  ): { startPos: Position; createdNodeDesc: NodeDesc | null } {
     // TODO: way to do it without getting index?
     const nextIndex = this.indexOfPosition(prevPos, "left") + 1;
     const nextPos = this.positionAt(nextIndex);
-    const ret = this.order.createPosition(prevPos, nextPos, values.length);
-    this.set(ret.pos, ...values);
+    const ret = this.order.createPositions(prevPos, nextPos, values.length);
+    this.set(ret.startPos, ...values);
     return ret;
   }
 
@@ -275,13 +275,13 @@ export class List<T> {
   insertAt(
     index: number,
     ...values: T[]
-  ): { pos: Position; createdNodeDesc: NodeDesc | null } {
+  ): { startPos: Position; createdNodeDesc: NodeDesc | null } {
     const prevPos =
       index === 0 ? this.order.minPosition : this.positionAt(index - 1);
     const nextPos =
       index === this.length ? this.order.maxPosition : this.positionAt(index);
-    const ret = this.order.createPosition(prevPos, nextPos, values.length);
-    this.set(ret.pos, ...values);
+    const ret = this.order.createPositions(prevPos, nextPos, values.length);
+    this.set(ret.startPos, ...values);
     return ret;
   }
 
