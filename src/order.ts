@@ -522,53 +522,6 @@ export class Order {
     }
   }
 
-  /**
-   * Includes minPosition & maxPosition.
-   */
-  *items(): IterableIterator<Item> {
-    // Use a manual stack instead of recursion, to prevent stack overflows
-    // in deep trees.
-    const stack = [
-      {
-        node: this.rootNode as NodeInternal,
-        nextChildIndex: 0,
-        nextValueIndex: 0,
-      },
-    ];
-    while (stack.length !== 0) {
-      const top = stack[stack.length - 1];
-      if (top.nextChildIndex === top.node.childrenLength) {
-        // Out of children. Finish the values and then go up.
-        yield {
-          node: top.node,
-          startValueIndex: top.nextValueIndex,
-          endValueIndex: undefined,
-        };
-        stack.pop();
-      } else {
-        const nextChild = top.node.getChild(top.nextChildIndex);
-        top.nextChildIndex++;
-        // Emit values less than that child.
-        const startValueIndex = top.nextValueIndex;
-        const endValueIndex = nextChild.nextValueIndex;
-        if (endValueIndex !== startValueIndex) {
-          yield {
-            node: top.node,
-            startValueIndex,
-            endValueIndex,
-          };
-          top.nextValueIndex = endValueIndex;
-        }
-        // Visit the child.
-        stack.push({
-          node: nextChild,
-          nextChildIndex: 0,
-          nextValueIndex: 0,
-        });
-      }
-    }
-  }
-
   // ----------
   // Save & Load
   // ----------

@@ -58,6 +58,7 @@ export type ListSavedState<T> = {
  * @typeParam T The value type.
  */
 export class List<T> {
+  readonly order: Order;
   /**
    * Map from Node to its data (total & values).
    *
@@ -75,7 +76,11 @@ export class List<T> {
    * @param order The source for positions that may be used with this
    * LocalList.
    */
-  constructor(readonly order: Order) {}
+  constructor(order?: Order) {
+    this.order = order ?? new Order();
+  }
+
+  // TODO: way to convert to/from regular arrays { lexPos: value }[] (Gurgen suggestion).
 
   // ----------
   // Mutators

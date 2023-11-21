@@ -12,6 +12,7 @@ export type NodeID = {
  */
 export type NodeDesc = NodeID & {
   // TODO: re-flatten so it's a struct?
+  // If so, also flatten OrderSavedState.
   readonly parentID: NodeID;
   /**
    * 0: left child of (parent, 0).
@@ -71,7 +72,7 @@ export interface Node {
    *
    * Errors if this is the rootNode.
    *
-   * TODO: should be on Order instead.
+   * TODO: should be on Order instead?
    */
   desc(): NodeDesc;
 
