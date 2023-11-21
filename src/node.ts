@@ -59,10 +59,10 @@ export interface Node {
   /** 0 for the root. */
   readonly depth: number;
 
-  /** Parent valueIndex to our left. */
-  readonly leftValueIndex: number;
-  /** Parent valueIndex to our right. */
-  readonly rightValueIndex: number;
+  /**
+   * The valueIndex of the next Position after Node in our parent. Possibly 0.
+   */
+  readonly nextValueIndex: number;
 
   // TODO: getter instead of function?
   id(): NodeID;

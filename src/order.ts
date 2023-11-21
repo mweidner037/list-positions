@@ -47,7 +47,7 @@ class NodeInternal implements Node {
   /**
    * If this node was created by us, the next valueIndex to create.
    */
-  nextValueIndex?: number;
+  createdCounter?: number;
 
   /**
    * Nodes created by us that are children of Positions in this node,
@@ -66,11 +66,7 @@ class NodeInternal implements Node {
     this.depth = parent === null ? 0 : parent.depth + 1;
   }
 
-  get leftValueIndex(): number {
-    return ((this.offset + 1) >> 1) - 1;
-  }
-
-  get rightValueIndex(): number {
+  get nextValueIndex(): number {
     return (this.offset + 1) >> 1;
   }
 
@@ -148,6 +144,7 @@ export class Order {
   // Accessors
   // ----------
 
+  // TODO: NodeID/NodeDesc version?
   getNode(creatorID: string, timestamp: number): Node | undefined {
     return this.tree.get2(creatorID, timestamp);
   }
@@ -196,10 +193,10 @@ export class Order {
     let bAnc = bNode;
     for (let i = aNode.depth; i > bNode.depth; i--) {
       if (aAnc.parent === bNode) {
-        if (aAnc.leftValueIndex === b.valueIndex) {
+        if (aAnc.nextValueIndex === b.valueIndex + 1) {
           // aAnc is between b and the next Position, hence greater.
           return 1;
-        } else return aAnc.leftValueIndex - b.valueIndex;
+        } else return aAnc.nextValueIndex - (b.valueIndex + 1);
       }
       // parentNode is non-null because we are not at b's depth yet,
       // hence aAnc is not the root.
@@ -207,8 +204,8 @@ export class Order {
     }
     for (let i = bNode.depth; i > aNode.depth; i--) {
       if (bAnc.parent === aNode) {
-        if (bAnc.leftValueIndex === a.valueIndex) return -1;
-        else return -(bAnc.leftValueIndex - a.valueIndex);
+        if (bAnc.nextValueIndex === a.valueIndex + 1) return -1;
+        else return -(bAnc.nextValueIndex - (b.valueIndex + 1));
       }
       bAnc = bAnc.parent!;
     }
@@ -436,9 +433,9 @@ export class Order {
         // amounts to following the Exception above.
         const startPos: Position = {
           ...prevNode.id(),
-          valueIndex: prevNode.nextValueIndex!,
+          valueIndex: prevNode.createdCounter!,
         };
-        prevNode.nextValueIndex! += count;
+        prevNode.createdCounter! += count;
         return { startPos, createdNodeDesc: null };
       }
 
@@ -457,9 +454,9 @@ export class Order {
     if (conflict !== undefined) {
       const startPos: Position = {
         ...conflict.id(),
-        valueIndex: conflict.nextValueIndex!,
+        valueIndex: conflict.createdCounter!,
       };
-      conflict.nextValueIndex! += count;
+      conflict.createdCounter! += count;
       return { startPos, createdNodeDesc: null };
     }
 
@@ -472,7 +469,7 @@ export class Order {
     this.counter++;
 
     const node = this.newNode(createdNodeDesc);
-    node.nextValueIndex = count;
+    node.createdCounter = count;
     if (newNodeParent.ourChildren === undefined) {
       newNodeParent.ourChildren = new Map();
     }
@@ -484,7 +481,7 @@ export class Order {
   }
 
   /**
-   * @returns True if a is a descendant of b in the *Position* tree,
+   * @returns True if `a` is a descendant of `b` in the *Position* tree,
    * in which a Node's Positions form a rightward chain.
    */
   private isDescendant(a: Position, b: Position): boolean {
@@ -492,13 +489,14 @@ export class Order {
     const bNode = this.tree.get(b)!;
 
     let aAnc = aNode;
-    let lastValueIndex = a.valueIndex;
+    // The greatest valueIndex that `a` descends from (left or right) in aAnc.
+    let curValueIndex = a.valueIndex;
     if (aAnc.depth > bNode.depth) {
-      lastValueIndex = aAnc.leftValueIndex;
+      curValueIndex = aAnc.offset >> 1;
       aAnc = aAnc.parent!;
     }
 
-    return aAnc === bNode && lastValueIndex >= b.valueIndex;
+    return aAnc === bNode && curValueIndex >= b.valueIndex;
   }
 
   // ----------
@@ -552,7 +550,7 @@ export class Order {
         top.nextChildIndex++;
         // Emit values less than that child.
         const startValueIndex = top.nextValueIndex;
-        const endValueIndex = nextChild.rightValueIndex;
+        const endValueIndex = nextChild.nextValueIndex;
         if (endValueIndex !== startValueIndex) {
           yield {
             node: top.node,

@@ -1,4 +1,5 @@
-import { NodeID } from "./node";
+import { Node, NodeDesc, NodeID } from "./node";
+import { Position } from "./position";
 
 /**
  * A map from NodeIDs to values. You can also pass
@@ -12,7 +13,7 @@ export class NodeMap<T> {
    */
   readonly state = new Map<string, Map<number, T>>();
 
-  get(node: NodeID): T | undefined {
+  get(node: NodeID | Node | NodeDesc | Position): T | undefined {
     return this.state.get(node.creatorID)?.get(node.counter);
   }
 
@@ -23,7 +24,7 @@ export class NodeMap<T> {
     return this.state.get(creatorID)?.get(counter);
   }
 
-  set(node: NodeID, value: T): void {
+  set(node: NodeID | Node | NodeDesc | Position, value: T): void {
     let byCreator = this.state.get(node.creatorID);
     if (byCreator === undefined) {
       byCreator = new Map();
@@ -32,7 +33,7 @@ export class NodeMap<T> {
     byCreator.set(node.counter, value);
   }
 
-  delete(node: NodeID): boolean {
+  delete(node: NodeID | Node | NodeDesc | Position): boolean {
     const byCreator = this.state.get(node.creatorID);
     if (byCreator === undefined) return false;
     const had = byCreator.delete(node.counter);

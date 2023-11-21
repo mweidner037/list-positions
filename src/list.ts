@@ -180,9 +180,8 @@ export class List<T> {
       if (node.parent !== null) {
         const parentData = this.state.get(node.parent);
         if (parentData !== undefined) {
-          // rightValueIndex so we include a value at leftValueIndex.
           parentValuesBefore = parentData.values.getInfo(
-            node.rightValueIndex
+            node.nextValueIndex
           )[2];
         }
       }
@@ -224,7 +223,7 @@ export class List<T> {
         // OPT: in principle can make this loop O((# runs) + (# children)) instead
         // of O((# runs) * (# children)).
         childData.parentValuesBefore = nodeData.values.getInfo(
-          child.rightValueIndex
+          child.nextValueIndex
         )[2];
       }
     }
@@ -362,10 +361,9 @@ export class List<T> {
     let valuesBefore = nodeValuesBefore;
 
     // Add totals for child nodes that come before valueIndex.
-    // These are precisely the children with rightValueIndex <= valueIndex.
     for (let i = 0; i < node.childrenLength; i++) {
       const child = node.getChild(i);
-      if (!(child.rightValueIndex <= pos.valueIndex)) break;
+      if (!(child.nextValueIndex <= pos.valueIndex)) break;
       valuesBefore += this.total(child);
     }
 
@@ -431,7 +429,7 @@ export class List<T> {
     // eslint-disable-next-line no-constant-condition
     while (true) {
       const currentData = this.state.get(current)!;
-      let prevRightValueIndex = 0;
+      let nextValueIndex = 0;
       let prevParentValuesBefore = 0;
       for (let i = 0; i < current.childrenLength; i++) {
         const child = current.getChild(i);
@@ -447,7 +445,7 @@ export class List<T> {
             creatorID: current.creatorID,
             counter: current.counter,
             valueIndex: currentData.values.findPresentIndex(
-              prevRightValueIndex,
+              nextValueIndex,
               remaining
             ),
           };
@@ -461,7 +459,7 @@ export class List<T> {
           } else remaining -= childData.total;
         }
 
-        prevRightValueIndex = child.rightValueIndex;
+        nextValueIndex = child.nextValueIndex;
         prevParentValuesBefore = childData.parentValuesBefore;
       }
 
@@ -559,7 +557,7 @@ export class List<T> {
       const endValueIndex =
         top.nextChildIndex === node.childrenLength
           ? null
-          : node.getChild(top.nextChildIndex).rightValueIndex;
+          : node.getChild(top.nextChildIndex).nextValueIndex;
       for (const [valueIndex, value] of top.valuesSlicer.nextSlice(
         endValueIndex
       )) {
