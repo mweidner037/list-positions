@@ -45,9 +45,17 @@ class NodeInternal implements Node {
   children?: NodeInternal[];
 
   /**
-   * If this Node was created by us, the next valueIndex to create.
+   * If this node was created by us, the next valueIndex to create.
    */
   nextValueIndex?: number;
+
+  /**
+   * Nodes created by us that are children of Positions in this node,
+   * keyed by offset.
+   *
+   * May be undefined when empty.
+   */
+  ourChildren?: Map<number, NodeInternal>;
 
   constructor(
     readonly creatorID: string,
@@ -371,39 +379,95 @@ export class Order {
    *
    * @param prevPos
    * @returns
-   * @throws If prevPos is maxPosition.
+   * @throws If prevPos >= nextPos.
    */
-  createPosition(prevPos: Position): {
+  createPosition(
+    prevPos: Position,
+    nextPos: Position
+  ): {
     pos: Position;
     createdNodeDesc: NodeDesc | null;
   } {
-    // Also validates pos.
-    const prevNode = this.getNodeFor(prevPos) as NodeInternal;
-    if (prevNode === this.rootNode && prevPos.valueIndex === 1) {
-      throw new Error("Cannot create a position after maxPosition");
+    // Also validates the positions.
+    if (this.compare(prevPos, nextPos) >= 0) {
+      throw new Error(
+        `prevPos >= nextPos: prevPos=${JSON.stringify(
+          prevPos
+        )}, nextPos=${JSON.stringify(nextPos)}`
+      );
     }
 
-    // TODO: rewrite for Fugue.
+    /* 
+      Unlike in the Fugue paper, we don't track all tombstones (in particular,
+      the max valueIndex for each Node).
+      Instead, we use the provided nextPos as the rightOrigin, and apply the rule:
+      
+      1. If nextPos is a *not* descendant of prevPos, make a right child of prevPos.
+      2. Else make a left child of nextPos.
+      
+      Either way, pos is a descendant of prevPos, which roughly guarantees
+      forward non-interleaving; and if possible, pos is also a descendant of
+      nextPos, which roughly guarantees backward non-interleaving.
+      
+      Exception: We don't want to create a Position with the same parent Position,
+      side, and creatorID as an existing Position - to avoid extra tiebreakers.
+      Instead, we become a right child of such a Position (or its right child
+      if needed, etc.). As a consequence, if a user repeatedly types and deletes
+      a char at the same place, then "resurrects" all of the chars, the chars
+      be in time order (LtR).
+    */
 
-    // First try to extend prevPos's Node.
-    if (prevPos.creatorID === this.replicaID) {
-      if (prevNode.nextValueIndex === prevPos.valueIndex + 1) {
-        // Success.
+    // TODO: in tree structure (?): doc senderID sort different from Fugue:
+    // same-as-parent last. Would like first (as in Collabs), but trickier, esp
+    // in lex rep (need reverse lex numbers).
+
+    let newNodeParent: NodeInternal;
+    let newNodeOffset: number;
+
+    if (!this.isDescendant(nextPos, prevPos)) {
+      // Make a right child of prevPos.
+      const prevNode = this.tree.get(prevPos)!;
+      if (prevPos.creatorID === this.replicaID) {
+        // Use the next Position in prevPos's Node.
+        // It's okay if nextValueIndex is not prevPos.valueIndex + 1:
+        // pos will still be < nextPos, and going farther along prevNode
+        // amounts to following the Exception above.
         const pos: Position = {
           creatorID: prevPos.creatorID,
           counter: prevPos.counter,
-          valueIndex: prevNode.nextValueIndex,
+          valueIndex: prevNode.nextValueIndex!,
         };
-        prevNode.nextValueIndex++;
+        prevNode.nextValueIndex!++;
         return { pos, createdNodeDesc: null };
       }
+
+      newNodeParent = prevNode;
+      newNodeOffset = 2 * prevPos.valueIndex + 1;
+    } else {
+      // Make a left child of nextPos.
+      newNodeParent = this.tree.get(nextPos)!;
+      newNodeOffset = 2 * prevPos.valueIndex;
     }
 
-    // Else create a new Node.
+    // Apply the Exception above: if we already created a node with the same
+    // parent and offset, append a new Position to it instead, with is its
+    // right child of a right child of ...
+    const conflict = newNodeParent.ourChildren?.get(newNodeOffset);
+    if (conflict !== undefined) {
+      const pos: Position = {
+        creatorID: conflict.creatorID,
+        counter: conflict.counter,
+        valueIndex: conflict.nextValueIndex!,
+      };
+      conflict.nextValueIndex!++;
+      return { pos, createdNodeDesc: null };
+    }
+
     const createdNodeDesc: NodeDesc = {
       creatorID: this.replicaID,
       counter: this.counter,
-      parentID: prevPos,
+      parentID: newNodeParent.id(),
+      offset: newNodeOffset,
     };
     this.counter++;
     const pos: Position = {
@@ -411,12 +475,35 @@ export class Order {
       counter: createdNodeDesc.counter,
       valueIndex: 0,
     };
-    const node = this.newNode(createdNodeDesc);
-    node.nextValueIndex = 1;
+
+    const createdNode = this.newNode(createdNodeDesc);
+    createdNode.nextValueIndex = 1;
+    if (newNodeParent.ourChildren === undefined) {
+      newNodeParent.ourChildren = new Map();
+    }
+    newNodeParent.ourChildren.set(createdNodeDesc.offset, createdNode);
 
     this.onCreateNode?.(createdNodeDesc);
 
     return { pos, createdNodeDesc };
+  }
+
+  /**
+   * @returns True if a is a descendant of b in the *Position* tree,
+   * in which a Node's Positions form a rightward chain.
+   */
+  private isDescendant(a: Position, b: Position): boolean {
+    const aNode = this.tree.get(a)!;
+    const bNode = this.tree.get(b)!;
+
+    let aAnc = aNode;
+    let lastValueIndex = a.valueIndex;
+    if (aAnc.depth > bNode.depth) {
+      lastValueIndex = aAnc.leftValueIndex;
+      aAnc = aAnc.parent!;
+    }
+
+    return aAnc === bNode && lastValueIndex >= b.valueIndex;
   }
 
   // ----------

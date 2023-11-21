@@ -11,6 +11,7 @@ export type NodeID = {
  * - `Order.rootNode` does not have a NodeDesc, because it does not have a `parent`.
  */
 export type NodeDesc = NodeID & {
+  // TODO: re-flatten so it's a struct?
   readonly parentID: NodeID;
   /**
    * 0: left child of (parent, 0).
