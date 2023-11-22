@@ -4,6 +4,6 @@ export * from "./node";
 export * from "./order";
 export * from "./position";
 export * from "./replica_ids";
-// node_map and sparse_array are internal use only
+// node_map, sparse_array, item_list are internal use only
 // TODO: export NodeMap? E.g. for implementing your own NodeDesc
-// dependency manager. Likewise for SparseArray (own List).
+// dependency manager.

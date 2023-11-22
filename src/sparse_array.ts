@@ -81,6 +81,17 @@ export type SparseArray<I> = (I | number)[];
 export class SparseArrayManager<I, T> {
   constructor(readonly itemMan: ItemManager<I, T>) {}
 
+  new(length = 0): SparseArray<I> {
+    return length === 0 ? [] : [this.itemMan.empty(), length];
+  }
+
+  /**
+   * Empty *and* no deleted values.
+   */
+  isEmpty(arr: SparseArray<I>): boolean {
+    return arr.length === 0;
+  }
+
   /**
    * The number of *present* values.
    */
@@ -108,7 +119,7 @@ export class SparseArrayManager<I, T> {
     arr: SparseArray<I>,
     startIndex: number,
     item: I
-  ): [arr: SparseArray<I>, previous: SparseArray<I>] {
+  ): [arr: SparseArray<I>, existing: SparseArray<I>] {
     const [before, existing, after] = this.split(
       arr,
       startIndex,
