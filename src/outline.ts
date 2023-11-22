@@ -2,82 +2,38 @@ import { ItemList } from "./item_list";
 import { Node, NodeDesc } from "./node";
 import { Order } from "./order";
 import { Position } from "./position";
-import { ArrayItemManager, SparseArray } from "./sparse_array";
+import { NumberItemManager, SparseArray } from "./sparse_array";
 
 /**
- * TODO: Explain format (obvious triple-map rep). JSON ordering guarantees.
+ * TODO: Explain format (double-map to alternating present, deleted
+ * counts, starting with present (maybe 0)). JSON ordering guarantees.
  */
-export type ListSavedState<T> = {
+export type OutlineSavedState = {
   [creatorID: string]: {
-    [timestamp: number]: {
-      [valueIndex: number]: T;
-    };
+    [timestamp: number]: number[];
   };
 };
 
-function saveArray<T>(arr: SparseArray<T[]>): { [valueIndex: number]: T } {
-  const savedArr: { [valueIndex: number]: T } = {};
-  let index = 0;
-  for (let i = 0; i < arr.length; i++) {
-    if (i % 2 === 0) {
-      for (const value of arr[i] as T[]) {
-        savedArr[index] = value;
-        index++;
-      }
-    } else index += arr[i] as number;
-  }
-  return savedArr;
+function saveArray(arr: SparseArray<number>): number[] {
+  // Defensive copy
+  return arr.slice();
 }
 
-function loadArray<T>(savedArr: { [valueIndex: number]: T }): SparseArray<T[]> {
-  const arr: SparseArray<T[]> = [[]];
-  let nextIndex = 0;
-  // Since savedArr's keys are nonnegative integers, this loop visits them
-  // in numeric order.
-  for (const [indexStr, value] of Object.entries(savedArr)) {
-    const index = Number.parseInt(indexStr);
-    if (isNaN(index)) {
-      // We were passed an array-like object but with extra properties.
-      // Break on the first such property, which appears after all valueIndex keys.
-      break;
-    }
-    if (index === nextIndex) {
-      // Append to previous T[].
-      (arr[arr.length - 1] as T[]).push(value);
-    } else {
-      // Indicate deleted values in between.
-      arr.push(index - nextIndex, [value]);
-    }
-    nextIndex = index + 1;
-  }
-
-  // If savedArr was empty, return [] instead of [[]].
-  if (arr.length === 1 && (arr[0] as T[]).length === 0) return [];
-  else return arr;
+function loadArray(savedArr: number[]): number[] {
+  // Defensive copy
+  return savedArr.slice();
 }
 
 /**
- * A local (non-collaborative) data structure mapping [[Position]]s to
- * values, in list order.
+ * Like List, but doesn't track values. Instead, tracks which are present and
+ * converts between indexes and Positions.
  *
- * You can use a LocalList to maintain a sorted, indexable view of a
- * [[CValueList]], [[CList]], or [[CText]]'s values.
- * For example, when using a [[CList]],
- * you could store its archived values in a LocalList.
- * That would let you iterate over the archived values in list order.
- *
- * To construct a LocalList that uses an existing list's positions, pass
- * that list's `totalOrder` to our constructor.
- *
- * It is *not* safe to modify a LocalList while iterating over it. The iterator
- * will attempt to throw an exception if it detects such modification,
- * but this is not guaranteed.
- *
- * @typeParam T The value type.
+ * Can use this to save memory when you have values in separate list-like
+ * data structure, e.g., a rich-text editor's internal representation.
  */
-export class List<T> {
+export class Outline {
   readonly order: Order;
-  private readonly itemList: ItemList<T[], T>;
+  private readonly itemList: ItemList<number, true>;
 
   /**
    * Constructs a LocalList whose allowed [[Position]]s are given by
@@ -91,7 +47,7 @@ export class List<T> {
    */
   constructor(order?: Order) {
     this.order = order ?? new Order();
-    this.itemList = new ItemList(this.order, new ArrayItemManager());
+    this.itemList = new ItemList(this.order, new NumberItemManager());
   }
 
   // TODO: way to convert to/from regular arrays { lexPos: value }[] (Gurgen suggestion).
@@ -105,7 +61,7 @@ export class List<T> {
    *
    * @throws TODO pos invalid
    */
-  set(pos: Position, value: T): void;
+  set(pos: Position): void;
   /**
    * TODO
    *
@@ -115,19 +71,10 @@ export class List<T> {
    * @param startPos
    * @param sameNodeValues
    */
-  set(startPos: Position, ...sameNodeValues: T[]): void;
-  set(startPos: Position, ...values: T[]): void {
+  set(startPos: Position, count: number): void;
+  set(startPos: Position, count = 1): void {
     // TODO: return existing.save()? Likewise in delete, setAt?, deleteAt?
-    this.itemList.set(startPos, values);
-  }
-
-  /**
-   * Sets the value at index.
-   *
-   * @throws If index is not in `[0, this.length)`.
-   */
-  setAt(index: number, value: T): void {
-    this.set(this.positionAt(index), value);
+    this.itemList.set(startPos, count);
   }
 
   /**
@@ -174,9 +121,9 @@ export class List<T> {
    */
   insert(
     prevPos: Position,
-    ...values: T[]
+    count: number
   ): { startPos: Position; createdNodeDesc: NodeDesc | null } {
-    return this.itemList.insert(prevPos, values);
+    return this.itemList.insert(prevPos, count);
   }
 
   /**
@@ -188,33 +135,14 @@ export class List<T> {
    */
   insertAt(
     index: number,
-    ...values: T[]
+    count: number
   ): { startPos: Position; createdNodeDesc: NodeDesc | null } {
-    return this.itemList.insertAt(index, values);
+    return this.itemList.insertAt(index, count);
   }
 
   // ----------
   // Accessors
   // ----------
-
-  /**
-   * Returns the value at position, or undefined if it is not currently present
-   * ([[hasPosition]] returns false).
-   */
-  get(pos: Position): T | undefined {
-    return this.itemList.get(pos);
-  }
-
-  /**
-   * Returns the value currently at index.
-   *
-   * @throws If index is not in `[0, this.length)`.
-   * Note that this differs from an ordinary Array,
-   * which would instead return undefined.
-   */
-  getAt(index: number): T {
-    return this.itemList.getAt(index);
-  }
 
   /**
    * Returns whether position is currently present in the list,
@@ -268,27 +196,12 @@ export class List<T> {
   // Iterators
   // ----------
 
-  /** Returns an iterator for values in the list, in list order. */
-  [Symbol.iterator](): IterableIterator<T> {
-    return this.values();
-  }
-
   /**
-   * Returns an iterator for values in the list, in list order.
-   *
-   * Args as in Array.slice.
+   * Returns an iterator of [pos, index] tuples for every
+   * value in the list, in list order.
    */
-  *values(start?: number, end?: number): IterableIterator<T> {
-    for (const [, value] of this.entries(start, end)) yield value;
-  }
-
-  /**
-   * Returns a copy of a section of this list, as an array.
-   *
-   * Args as in Array.slice.
-   */
-  slice(start?: number, end?: number): T[] {
-    return [...this.values(start, end)];
+  [Symbol.iterator](): IterableIterator<[pos: Position, index: number]> {
+    return this.entries();
   }
 
   /**
@@ -301,27 +214,27 @@ export class List<T> {
   }
 
   /**
-   * Returns an iterator of [pos, value, index] tuples for every
+   * Returns an iterator of [pos, index] tuples for every
    * value in the list, in list order.
    *
    * Args as in Array.slice.
    */
-  entries(
+  *entries(
     start?: number,
     end?: number
-  ): IterableIterator<[pos: Position, value: T, index: number]> {
-    return this.itemList.entries(start, end);
+  ): IterableIterator<[pos: Position, index: number]> {
+    for (const [pos, , index] of this.itemList.entries(start, end)) {
+      yield [pos, index];
+    }
   }
 
   // ----------
   // Save & Load
   // ----------
 
-  saveOneNode(node: Node): {
-    [valueIndex: number]: T;
-  } {
+  saveOneNode(node: Node): number[] {
     const arr = this.itemList.saveOneNode(node);
-    if (arr === undefined) return {};
+    if (arr === undefined) return [];
     return saveArray(arr);
   }
 
@@ -331,12 +244,7 @@ export class List<T> {
    *
    * Note that values might not be contiguous in the list.
    */
-  loadOneNode(
-    node: Node,
-    nodeSavedState: {
-      [valueIndex: number]: T;
-    }
-  ): void {
+  loadOneNode(node: Node, nodeSavedState: number[]): void {
     this.itemList.loadOneNode(node, loadArray(nodeSavedState));
   }
 
@@ -351,7 +259,7 @@ export class List<T> {
    * Only saves values, not Order. "Natural" format; order
    * guarantees.
    */
-  save(): ListSavedState<T> {
+  save(): OutlineSavedState {
     return this.itemList.save(saveArray);
   }
 
@@ -367,7 +275,7 @@ export class List<T> {
    * @param savedState Saved state from a List's
    * [[save]] call.
    */
-  load(savedState: ListSavedState<T>): void {
+  load(savedState: OutlineSavedState): void {
     this.itemList.load(savedState, loadArray);
   }
 }
