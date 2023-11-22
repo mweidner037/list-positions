@@ -1,228 +1,228 @@
-/**
- * Utility functions for manipulating the "runs" used by List to store
- * its values efficiently (NodeData.runs in list.ts).
- *
- * Each "run" is either a non-empty array of present values (T[]) or a
- * positive integer indicating that many deleted values.
- * An array of these runs then represents an array of present-or-deleted values.
- *
- * In a "runs" array, the elements always alternate between present
- * vs deleted runs (T[] vs number). If the last run would represent
- * deleted values (type number), it is omitted.
- */
-type Runs<T> = (T[] | number)[];
+export interface ItemManager<I, T> {
+  get(item: I, index: number): T;
 
-function runLength<T>(run: T[] | number): number {
-  if (typeof run === "number") return run;
-  else return run.length;
-}
+  length(item: I): number;
 
-/**
- * Converts runs into an object mapping index to value.
- *
- * Inverse: objectToRuns.
- */
-function runsToObject<T>(runs: Runs<T>): {
-  [index: number]: T;
-} {
-  const obj: { [index: number]: T } = {};
-  let index = 0;
-  for (const run of runs) {
-    if (typeof run === "number") index += run;
-    else {
-      for (const value of run) {
-        obj[index] = value;
-        index++;
-      }
-    }
-  }
-  return obj;
-}
+  isEmpty(item: I): boolean;
 
-/**
- * Converts an object mapping index to value into runs.
- *
- * Inverse: runsToObject.
- */
-function objectToRuns<T>(obj: { [index: number]: T }): Runs<T> {
-  const runs: Runs<T> = [];
-
-  let lastIndex = -1;
-  // Here we use the guarantee that an object's nonnegative integer keys
-  // are visited first, in numeric order.
-  for (const [key, value] of Object.entries(obj)) {
-    const index = Number.parseInt(key);
-    if (isNaN(index)) {
-      // We're done visiting integer keys.
-      break;
-    }
-    const gap = index - lastIndex - 1;
-    if (gap !== 0) runs.push(gap, [value]);
-    else {
-      if (runs.length === 0) runs.push([value]);
-      else (runs[runs.length - 1] as T[]).push(value);
-    }
-    lastIndex = index;
-  }
-
-  return runs;
-}
-
-/**
- * Merges the given runs-arrays into a single runs-arrays, in order.
- *
- * Note: this may modify array runs in-place.
- * So stop using the inputs after calling.
- */
-function mergeRuns<T>(...allRuns: Runs<T>[]): Runs<T> {
-  const merged: Runs<T> = [];
-  for (let i = 0; i < allRuns.length; i++) {
-    const currentRuns = allRuns[i];
-    // currentRuns[0]
-    if (currentRuns.length === 0) continue;
-    const nextRun = currentRuns[0];
-    const prevRun = merged.at(-1);
-    if (prevRun !== undefined && typeof prevRun === typeof nextRun) {
-      // We need to merge nextRun into prevRun.
-      if (typeof nextRun === "number") {
-        (merged[merged.length - 1] as number) += nextRun;
-      } else (prevRun as T[]).push(...nextRun);
-    } else merged.push(nextRun);
-    // currentRuns[1+]
-    for (let j = 1; j < currentRuns.length; j++) {
-      merged.push(currentRuns[j]);
-    }
-  }
-
-  // If the last run is a number (deleted), omit it.
-  if (merged.length !== 0 && typeof merged[merged.length - 1] === "number") {
-    merged.pop();
-  }
-
-  return merged;
-}
-
-/**
- * Splits the given runs-array at the given indexes,
- * returning `indexes.length + 1` runs-arrays.
- *
- * Note: this may copy array runs by-reference, which might then be changed later.
- * So stop using the input after calling.
- */
-function splitRuns<T>(runs: Runs<T>, ...indexes: number[]): Runs<T>[] {
-  const ans = new Array<Runs<T>>(indexes.length + 1);
-  let r = 0;
-  let leftoverRun: T[] | number | undefined = undefined;
-  for (let i = 0; i < indexes.length; i++) {
-    const slice: Runs<T> = [];
-    ans[i] = slice;
-
-    let remaining = i === 0 ? indexes[i] : indexes[i] - indexes[i - 1];
-    while (r < runs.length) {
-      const run: T[] | number = leftoverRun ?? runs[r];
-      leftoverRun = undefined;
-
-      if (typeof run === "number") {
-        if (run <= remaining) {
-          slice.push(run);
-          remaining -= run;
-          r++;
-          if (remaining === 0) break;
-        } else {
-          // run > remaining
-          slice.push(remaining);
-          leftoverRun = run - remaining;
-          remaining = 0;
-          break;
-        }
-      } else {
-        // run has type T[]
-        if (run.length <= remaining) {
-          slice.push(run);
-          remaining -= run.length;
-          r++;
-          if (remaining === 0) break;
-        } else {
-          // run.length > remaining
-          slice.push(run.slice(0, remaining));
-          leftoverRun = run.slice(remaining);
-          remaining = 0;
-          break;
-        }
-      }
-    }
-
-    if (remaining > 0) {
-      // We reached the end of runs before filling slice.
-      // Finish with a deleted run.
-      if (slice.length !== 0 && typeof slice[slice.length - 1] === "number") {
-        (slice[slice.length - 1] as number) += remaining;
-      } else slice.push(remaining);
-    }
-  }
-
-  // Final slice: everything left in runs.
-  const finalSlice: Runs<T> = [];
-  ans[indexes.length] = finalSlice;
-  if (leftoverRun !== undefined) {
-    finalSlice.push(leftoverRun);
-    r++;
-  }
-  finalSlice.push(...runs.slice(r));
-
-  return ans;
-}
-
-export class SparseArray<T> {
   /**
-   * @param runs Stored by-reference (we wrap it).
+   * New reference to an empty item.
    */
-  private constructor(private runs: Runs<T> = []) {}
+  empty(): I;
 
-  static new<T>(): SparseArray<T> {
-    return new SparseArray();
+  merge(a: I, b: I): I;
+
+  slice(item: I, start: number, end: number): I;
+}
+
+export class ArrayItemManager<T> implements ItemManager<T[], T> {
+  get(item: T[], index: number): T {
+    return item[index];
   }
+
+  length(item: T[]): number {
+    return item.length;
+  }
+
+  isEmpty(item: T[]): boolean {
+    return item.length === 0;
+  }
+
+  empty(): T[] {
+    return [];
+  }
+
+  merge(a: T[], b: T[]): T[] {
+    a.push(...b);
+    return a;
+  }
+
+  slice(item: T[], start: number, end: number): T[] {
+    return item.slice(start, end);
+  }
+}
+
+export class NumberItemManager implements ItemManager<number, true> {
+  get(item: number, index: number): true {
+    return true;
+  }
+
+  length(item: number): number {
+    return item;
+  }
+
+  isEmpty(item: number): boolean {
+    return item === 0;
+  }
+
+  empty(): number {
+    return 0;
+  }
+
+  merge(a: number, b: number): number {
+    return a + b;
+  }
+
+  slice(item: number, start: number, end: number): number {
+    return end - start;
+  }
+}
+
+/**
+ * Alternating (item, positive number = deleted). If nonempty, starts with an item
+ * (possibly empty).
+ */
+export type SparseArray<I> = (I | number)[];
+
+/**
+ * Some methods in functional style (return result) but may also reuse/modify
+ * inputs. So stop using the inputs after calling.
+ */
+export class SparseArrayManager<I, T> {
+  constructor(readonly itemMan: ItemManager<I, T>) {}
 
   /**
    * The number of *present* values.
    */
-  get size(): number {
+  size(arr: SparseArray<I>): number {
     let ans = 0;
-    for (const run of this.runs) {
-      if (typeof run !== "number") ans += run.length;
+    for (let i = 0; i < arr.length; i += 2) {
+      ans += this.itemMan.length(arr[i] as I);
     }
     return ans;
   }
 
-  get length(): number {
-    let ans = 0;
-    for (const run of this.runs) {
-      ans += runLength(run);
-    }
-    return ans;
+  trim(arr: SparseArray<I>): SparseArray<I> {
+    // Omit last deleted item.
+    if (arr.length !== 0 && arr.length % 2 === 0) arr.pop();
+    // Omit only item if it's empty.
+    if (arr.length === 0 && this.itemMan.isEmpty(arr[0] as I)) arr.pop();
+    return arr;
   }
 
   /**
-   *
-   * @param startIndex
-   * @param valuesOrLength May be copied by-reference, so not safe afterwards.
-   * @returns The replaced values, padded with deleted values to match values.length.
+   * @param item May be copied by-reference, so not safe afterwards.
+   * @returns [new SparseArray, the replaced values padded with deleted values to match item's length.]
    */
-  set(startIndex: number, valuesOrLength: T[] | number): SparseArray<T> {
-    const [before, existing, after] = splitRuns(
-      this.runs,
+  set(
+    arr: SparseArray<I>,
+    startIndex: number,
+    item: I
+  ): [arr: SparseArray<I>, previous: SparseArray<I>] {
+    const [before, existing, after] = this.split(
+      arr,
       startIndex,
-      startIndex + runLength(valuesOrLength)
+      startIndex + this.itemMan.length(item)
     );
-    this.runs = mergeRuns(before, [valuesOrLength], after);
-    return new SparseArray(existing);
+    return [this.merge(before, [item], after), existing];
   }
 
   /**
-   * Removes any deleted entries at the end, possibly reducing this.length.
+   * @returns [new SparseArray, the replaced values padded with deleted values to match item's length.]
    */
-  trim() {
-    if (typeof this.runs.at(-1) === "number") this.runs.pop();
+  delete(
+    arr: SparseArray<I>,
+    startIndex: number,
+    count: number
+  ): [arr: SparseArray<I>, previous: SparseArray<I>] {
+    const [before, existing, after] = this.split(
+      arr,
+      startIndex,
+      startIndex + count
+    );
+    return [this.merge(before, [this.itemMan.empty(), count], after), existing];
+  }
+
+  /**
+   * Splits arr at the given indexes,
+   * returning `indexes.length + 1` SparseArrays.
+   *
+   * Length is preserved, except possibly extended to the last index.
+   */
+  private split(arr: SparseArray<I>, ...indexes: number[]): SparseArray<I>[] {
+    const ans = new Array<SparseArray<I>>(indexes.length + 1);
+    let arrI = 0;
+    let withinItem = 0;
+    for (let i = 0; i < indexes.length + 1; i++) {
+      const slice: SparseArray<I> = [];
+      ans[i] = slice;
+
+      let remaining: number;
+      if (i === 0) remaining = indexes[0];
+      else if (i === indexes.length) {
+        // Last slice; consume the rest of arr.
+        remaining = Number.MAX_SAFE_INTEGER;
+      } else remaining = indexes[i] - indexes[i - 1];
+      while (arrI < arr.length) {
+        const length =
+          arrI % 2 === 0
+            ? this.itemMan.length(arr[arrI] as I)
+            : (arr[arrI] as number);
+        if (withinItem === length) {
+          arrI++;
+          withinItem = 0;
+          continue;
+        }
+
+        if (arrI % 2 === 0) {
+          let item = arr[arrI] as I;
+          if (remaining < length - withinItem) {
+            item = this.itemMan.slice(item, withinItem, withinItem + remaining);
+            withinItem += remaining;
+          }
+          slice.push(item);
+          remaining -= this.itemMan.length(item);
+        } else {
+          let item = arr[arrI] as number;
+          if (remaining < length - withinItem) {
+            item = remaining;
+            withinItem += remaining;
+          }
+          if (slice.length === 0) slice.push(this.itemMan.empty());
+          slice.push(item);
+          remaining -= item;
+        }
+      }
+
+      // If arr doesn't go all the way, pad with deleted items.
+      // Except, the last slice can stay empty.
+      if (i !== indexes.length) {
+        if (slice.length === 0) slice.push(this.itemMan.empty());
+        slice.push(remaining);
+      }
+    }
+
+    return ans;
+  }
+
+  /**
+   * Merges arrs into a single SparseArray, preserving lengths.
+   */
+  private merge(...arrs: SparseArray<I>[]): SparseArray<I> {
+    const merged: SparseArray<I> = [this.itemMan.empty()];
+    for (const arr of arrs) {
+      if (arr.length === 0) continue;
+
+      if (merged.length % 2 === 1) {
+        // Combine merged[-1] with arr[0] (both present), then push the rest.
+        merged[merged.length - 1] = this.itemMan.merge(
+          merged[merged.length - 1] as I,
+          arr[0] as I
+        );
+        merged.push(...arr.slice(1));
+      } else {
+        if (this.itemMan.isEmpty(arr[0] as I)) {
+          // Skip arr[0], combine merged[-1] with arr[1] (both deleted), then push the rest.
+          if (arr.length === 1) continue;
+          (merged[merged.length - 1] as number) += arr[1] as number;
+          merged.push(...arr.slice(2));
+        } else {
+          // Push arr (starts present) after merged (ends deleted).
+          merged.push(...arr);
+        }
+      }
+    }
+    return merged;
   }
 
   /**
@@ -234,22 +234,29 @@ export class SparseArray<T> {
    * (not descendants) strictly prior to position]
    */
   getInfo(
+    arr: SparseArray<I>,
     index: number
   ): [value: T | undefined, isPresent: boolean, beforeCount: number] {
     let remaining = index;
     let beforeCount = 0;
-    for (const run of this.runs) {
-      if (typeof run === "number") {
-        if (remaining < run) {
-          return [undefined, false, beforeCount];
-        } else remaining -= run;
-      } else {
-        if (remaining < run.length) {
-          return [run[remaining], true, beforeCount + remaining];
+    for (let i = 0; i < arr.length; i++) {
+      if (i % 2 === 0) {
+        const length = this.itemMan.length(arr[i] as I);
+        if (remaining < length) {
+          return [
+            this.itemMan.get(arr[i] as I, remaining),
+            true,
+            beforeCount + remaining,
+          ];
         } else {
-          remaining -= run.length;
-          beforeCount += run.length;
+          remaining -= length;
+          beforeCount += length;
         }
+      } else {
+        const length = arr[i] as number;
+        if (remaining < length) {
+          return [undefined, false, beforeCount];
+        } else remaining -= length;
       }
     }
     // If we get here, then the index is after all present values.
@@ -262,17 +269,22 @@ export class SparseArray<T> {
    *
    * @throws If such an index is not found.
    */
-  findPresentIndex(startIndex: number, count: number): number {
+  findPresentIndex(
+    arr: SparseArray<I>,
+    startIndex: number,
+    count: number
+  ): number {
     let startRemaining = startIndex;
     let countRemaining = count;
     let ans = startIndex;
-    for (const run of this.runs) {
-      const len = runLength(run);
-      if (startRemaining < len) {
+    for (let i = 0; i < arr.length; i++) {
+      const length =
+        i % 2 === 0 ? this.itemMan.length(arr[i] as I) : (arr[i] as number);
+      if (startRemaining < length) {
         // startIndex is at run[startRemaining].
-        if (typeof run !== "number") {
-          // Search the rest of run.
-          const searchedLength = run.length - startRemaining;
+        if (i % 2 === 0) {
+          // Search the rest of arr[i].
+          const searchedLength = length - startRemaining;
           if (countRemaining < searchedLength) {
             return ans + countRemaining;
           } else {
@@ -280,56 +292,50 @@ export class SparseArray<T> {
             ans += searchedLength;
           }
         }
-      } else startRemaining -= len;
+      } else startRemaining -= length;
     }
     throw new Error(
-      `Internal error: findPresentIndex result not found (startIndex=${startIndex}, count=${count}, runs=${JSON.stringify(
-        this.runs
+      `Internal error: findPresentIndex result not found (startIndex=${startIndex}, count=${count}, arr=${JSON.stringify(
+        arr
       )}`
     );
   }
 
-  newSlicer(): Slicer<T> {
-    return new Slicer(this.runs);
-  }
-
-  save(): { [index: number]: T } {
-    return runsToObject(this.runs);
-  }
-
-  load(savedState: { [index: number]: T }): void {
-    this.runs = objectToRuns(savedState);
+  newSlicer(arr: SparseArray<I>) {
+    return new Slicer(this.itemMan, arr);
   }
 }
 
-export class Slicer<T> {
+export class Slicer<I, T> {
   private index = 0;
-  private r = 0;
-  private withinR = 0;
+  private arrI = 0;
+  private withinItem = 0;
 
   /**
    * Private
    */
-  constructor(private readonly runs: Runs<T>) {}
+  constructor(
+    private readonly itemMan: ItemManager<I, T>,
+    private readonly arr: SparseArray<I>
+  ) {}
 
   /**
    * Iterator must be consumed before you call nextSlice again.
    */
   *nextSlice(end: number | null): IterableIterator<[index: number, value: T]> {
-    const runs = this.runs;
-    for (; this.r < runs.length; this.r++) {
+    for (; this.arrI < this.arr.length; this.arrI++) {
       if (end !== null && this.index >= end) return;
-
-      const run = runs[this.r];
-      if (typeof run === "number") {
-        this.index += run;
-      } else {
-        for (; this.withinR < run.length; this.withinR++) {
+      if (this.arrI % 2 === 0) {
+        const item = this.arr[this.arrI] as I;
+        const length = this.itemMan.length(item);
+        for (; this.withinItem < length; this.withinItem++) {
           if (this.index === end) return;
-          yield [this.index, run[this.withinR]];
+          yield [this.index, this.itemMan.get(item, this.withinItem)];
           this.index++;
         }
-        this.withinR = 0;
+        this.withinItem = 0;
+      } else {
+        this.index += this.arr[this.arrI] as number;
       }
     }
   }
