@@ -1,8 +1,8 @@
-import { ItemList } from "./item_list";
+import { ItemList } from "./internal/item_list";
+import { ArrayItemManager, SparseArray } from "./internal/sparse_array";
 import { Node, NodeDesc } from "./node";
 import { Order } from "./order";
 import { Position } from "./position";
-import { ArrayItemManager, SparseArray } from "./sparse_array";
 
 /**
  * TODO: Explain format (obvious triple-map rep). JSON ordering guarantees.

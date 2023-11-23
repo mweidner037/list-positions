@@ -1,6 +1,6 @@
-import { Node, NodeDesc } from "./node";
-import { Order } from "./order";
-import { Position } from "./position";
+import { Node, NodeDesc } from "../node";
+import { Order } from "../order";
+import { Position } from "../position";
 import { ItemManager, SparseArray, SparseArrayManager } from "./sparse_array";
 
 /**

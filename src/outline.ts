@@ -1,8 +1,8 @@
-import { ItemList } from "./item_list";
+import { ItemList } from "./internal/item_list";
+import { NumberItemManager, SparseArray } from "./internal/sparse_array";
 import { Node, NodeDesc } from "./node";
 import { Order } from "./order";
 import { Position } from "./position";
-import { NumberItemManager, SparseArray } from "./sparse_array";
 
 /**
  * TODO: Explain format (double-map to alternating present, deleted

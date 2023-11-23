@@ -1,3 +1,4 @@
+import { NodeMap } from "./internal/node_map";
 import {
   Node,
   NodeDesc,
@@ -5,9 +6,8 @@ import {
   compareSiblingNodes,
   nodeDescEquals,
 } from "./node";
-import { NodeMap } from "./node_map";
 import { Position } from "./position";
-import { ReplicaIDs } from "./replica_ids";
+import { ReplicaIDs } from "./util/replica_ids";
 
 export type Item = {
   readonly node: Node;
@@ -181,7 +181,8 @@ export class Order {
     return node;
   }
 
-  compare(a: Position, b: Position): number {
+  // Bind as variable instead of class method, in case callers forget.
+  readonly compare: (a: Position, b: Position) => number = (a, b) => {
     const aNode = this.getNodeFor(a);
     const bNode = this.getNodeFor(b);
 
@@ -221,7 +222,7 @@ export class Order {
 
     // Now aAnc and bAnc are distinct siblings. Use sibling order.
     return compareSiblingNodes(aAnc, bAnc);
-  }
+  };
 
   // ----------
   // Mutators

@@ -1,6 +1,7 @@
-import { Node, NodeDesc, NodeID } from "./node";
-import { Position } from "./position";
+import { Node, NodeDesc, NodeID } from "../node";
+import { Position } from "../position";
 
+// TODO: export (move out of internal)? So you can use it for dep management.
 /**
  * A map from NodeIDs to values. You can also pass
  * other Node types that extend NodeID.

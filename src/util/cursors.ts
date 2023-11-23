@@ -1,5 +1,5 @@
-import { List } from "./list";
-import { Position, positionEquals } from "./position";
+import { List } from "../list";
+import { Position, positionEquals } from "../position";
 
 /**
  * Utilities for working with cursors.
