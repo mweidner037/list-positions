@@ -1,60 +1,7 @@
-import { ItemList } from "./internal/item_list";
-import { ArrayItemManager, SparseArray } from "./internal/sparse_array";
-import { Node, NodeDesc } from "./node";
+import { List } from "./list";
 import { Order } from "./order";
-import { Position } from "./position";
-
-/**
- * TODO: Explain format (obvious triple-map rep). JSON ordering guarantees.
- */
-export type ListSavedState<T> = {
-  [creatorID: string]: {
-    [timestamp: number]: {
-      [valueIndex: number]: T;
-    };
-  };
-};
-
-function saveArray<T>(arr: SparseArray<T[]>): { [valueIndex: number]: T } {
-  const savedArr: { [valueIndex: number]: T } = {};
-  let index = 0;
-  for (let i = 0; i < arr.length; i++) {
-    if (i % 2 === 0) {
-      for (const value of arr[i] as T[]) {
-        savedArr[index] = value;
-        index++;
-      }
-    } else index += arr[i] as number;
-  }
-  return savedArr;
-}
-
-function loadArray<T>(savedArr: { [valueIndex: number]: T }): SparseArray<T[]> {
-  const arr: SparseArray<T[]> = [[]];
-  let nextIndex = 0;
-  // Since savedArr's keys are nonnegative integers, this loop visits them
-  // in numeric order.
-  for (const [indexStr, value] of Object.entries(savedArr)) {
-    const index = Number.parseInt(indexStr);
-    if (isNaN(index)) {
-      // We were passed an array-like object but with extra properties.
-      // Break on the first such property, which appears after all valueIndex keys.
-      break;
-    }
-    if (index === nextIndex) {
-      // Append to previous T[].
-      (arr[arr.length - 1] as T[]).push(value);
-    } else {
-      // Indicate deleted values in between.
-      arr.push(index - nextIndex, [value]);
-    }
-    nextIndex = index + 1;
-  }
-
-  // If savedArr was empty, return [] instead of [[]].
-  if (arr.length === 1 && (arr[0] as T[]).length === 0) return [];
-  else return arr;
-}
+import { LexPosition, Position } from "./position";
+import { LexUtils } from "./util/lex_utils";
 
 /**
  * A local (non-collaborative) data structure mapping [[Position]]s to
@@ -75,9 +22,9 @@ function loadArray<T>(savedArr: { [valueIndex: number]: T }): SparseArray<T[]> {
  *
  * @typeParam T The value type.
  */
-export class List<T> {
+export class LexList<T> {
   readonly order: Order;
-  private readonly itemList: ItemList<T[], T>;
+  readonly list: List<T>;
 
   /**
    * Constructs a LocalList whose allowed [[Position]]s are given by
@@ -90,11 +37,21 @@ export class List<T> {
    * LocalList.
    */
   constructor(order?: Order) {
-    this.order = order ?? new Order();
-    this.itemList = new ItemList(this.order, new ArrayItemManager());
+    this.list = new List(order);
+    this.order = this.list.order;
   }
 
-  // TODO: way to convert to/from regular arrays { lexPos: value }[] (Gurgen suggestion).
+  /**
+   * Use with save()'d state. (Rename vars to savedState?)
+   */
+  static from<T>(
+    lexPosMap: { [lexPos: LexPosition]: T },
+    order?: Order
+  ): LexList<T> {
+    const lexList = new LexList<T>(order);
+    lexList.load(lexPosMap);
+    return lexList;
+  }
 
   // ----------
   // Mutators
@@ -105,20 +62,8 @@ export class List<T> {
    *
    * @throws TODO pos invalid
    */
-  set(pos: Position, value: T): void;
-  /**
-   * TODO
-   *
-   * If multiple values are given, they are set starting at startPos
-   * in the same Node. Note these might not be contiguous anymore,
-   * unless they are new (no causally-future Positions set yet).
-   * @param startPos
-   * @param sameNodeValues
-   */
-  set(startPos: Position, ...sameNodeValues: T[]): void;
-  set(startPos: Position, ...values: T[]): void {
-    // TODO: return existing.save()? Likewise in delete, setAt?, deleteAt?
-    this.itemList.set(startPos, values);
+  set(lexPos: LexPosition, value: T): void {
+    this.list.set(this.order.unlex(lexPos), value);
   }
 
   /**
@@ -127,7 +72,7 @@ export class List<T> {
    * @throws If index is not in `[0, this.length)`.
    */
   setAt(index: number, value: T): void {
-    this.set(this.positionAt(index), value);
+    this.list.setAt(index, value);
   }
 
   /**
@@ -137,10 +82,8 @@ export class List<T> {
    * @returns Whether the position was actually deleted, i.e.,
    * it was initially present.
    */
-  delete(pos: Position): void;
-  delete(startPos: Position, sameNodeCount: number): void;
-  delete(startPos: Position, count = 1): void {
-    this.itemList.delete(startPos, count);
+  delete(lexPos: LexPosition): void {
+    this.list.delete(this.order.unlex(lexPos));
   }
 
   /**
@@ -149,7 +92,7 @@ export class List<T> {
    * @throws If index is not in `[0, this.length)`.
    */
   deleteAt(index: number): void {
-    this.delete(this.positionAt(index));
+    this.list.deleteAt(index);
   }
 
   /**
@@ -158,7 +101,7 @@ export class List<T> {
    * The Order is unaffected (retains all Nodes).
    */
   clear() {
-    this.itemList.clear();
+    this.list.clear();
   }
 
   /**
@@ -172,11 +115,12 @@ export class List<T> {
    * changed - can use this instead of calling Order.createPosition directly.
    * @throws If prevPos is order.maxPosition.
    */
-  insert(
-    prevPos: Position,
-    ...values: T[]
-  ): { startPos: Position; createdNodeDesc: NodeDesc | null } {
-    return this.itemList.insert(prevPos, values);
+  insert(prevLexPos: LexPosition, ...values: T[]): LexPosition[] {
+    const { startPos } = this.list.insert(
+      this.order.unlex(prevLexPos),
+      ...values
+    );
+    return this.lexAll(startPos, values.length);
   }
 
   /**
@@ -186,11 +130,22 @@ export class List<T> {
    * @returns
    * @throws If index is this.length and our last value is at order.maxPosition.
    */
-  insertAt(
-    index: number,
-    ...values: T[]
-  ): { startPos: Position; createdNodeDesc: NodeDesc | null } {
-    return this.itemList.insertAt(index, values);
+  insertAt(index: number, ...values: T[]): LexPosition[] {
+    const { startPos } = this.list.insertAt(index, ...values);
+    return this.lexAll(startPos, values.length);
+  }
+
+  private lexAll(startPos: Position, count: number): LexPosition[] {
+    // Use nodeSummary as opt over calling order.lex on each Position.
+    const nodeSummary = this.order.summary(this.order.getNodeFor(startPos));
+    const lexPositions = new Array<LexPosition>(count);
+    for (let i = 0; i < count; i++) {
+      lexPositions[i] = LexUtils.fromSummary(
+        nodeSummary,
+        startPos.valueIndex + i
+      );
+    }
+    return lexPositions;
   }
 
   // ----------
@@ -201,8 +156,8 @@ export class List<T> {
    * Returns the value at position, or undefined if it is not currently present
    * ([[hasPosition]] returns false).
    */
-  get(pos: Position): T | undefined {
-    return this.itemList.get(pos);
+  get(lexPos: LexPosition): T | undefined {
+    return this.list.get(this.order.unlex(lexPos));
   }
 
   /**
@@ -213,15 +168,15 @@ export class List<T> {
    * which would instead return undefined.
    */
   getAt(index: number): T {
-    return this.itemList.getAt(index);
+    return this.list.getAt(index);
   }
 
   /**
    * Returns whether position is currently present in the list,
    * i.e., its value is present.
    */
-  has(pos: Position): boolean {
-    return this.itemList.has(pos);
+  has(lexPos: LexPosition): boolean {
+    return this.list.has(this.order.unlex(lexPos));
   }
 
   /**
@@ -241,10 +196,10 @@ export class List<T> {
    * present, use `searchDir = "right"`.
    */
   indexOfPosition(
-    pos: Position,
+    lexPos: LexPosition,
     searchDir: "none" | "left" | "right" = "none"
   ): number {
-    return this.itemList.indexOfPosition(pos, searchDir);
+    return this.list.indexOfPosition(this.order.unlex(lexPos), searchDir);
   }
 
   /**
@@ -253,15 +208,15 @@ export class List<T> {
    * Won't return minPosition or maxPosition. TODO: actually, will if they're
    * part of the list - check that code is compatible.
    */
-  positionAt(index: number): Position {
-    return this.itemList.positionAt(index);
+  positionAt(index: number): LexPosition {
+    return this.order.lex(this.list.positionAt(index));
   }
 
   /**
    * The length of the list.
    */
   get length() {
-    return this.itemList.length;
+    return this.list.length;
   }
 
   // ----------
@@ -278,8 +233,8 @@ export class List<T> {
    *
    * Args as in Array.slice.
    */
-  *values(start?: number, end?: number): IterableIterator<T> {
-    for (const [, value] of this.entries(start, end)) yield value;
+  values(start?: number, end?: number): IterableIterator<T> {
+    return this.list.values(start, end);
   }
 
   /**
@@ -288,7 +243,7 @@ export class List<T> {
    * Args as in Array.slice.
    */
   slice(start?: number, end?: number): T[] {
-    return [...this.values(start, end)];
+    return this.list.slice(start, end);
   }
 
   /**
@@ -296,8 +251,9 @@ export class List<T> {
    *
    * Args as in Array.slice.
    */
-  *positions(start?: number, end?: number): IterableIterator<Position> {
-    for (const [pos] of this.entries(start, end)) yield pos;
+  *lexPositions(start?: number, end?: number): IterableIterator<LexPosition> {
+    for (const pos of this.list.positions(start, end))
+      yield this.order.lex(pos);
   }
 
   /**
@@ -306,39 +262,18 @@ export class List<T> {
    *
    * Args as in Array.slice.
    */
-  entries(
+  *entries(
     start?: number,
     end?: number
-  ): IterableIterator<[pos: Position, value: T, index: number]> {
-    return this.itemList.entries(start, end);
+  ): IterableIterator<[lexPos: LexPosition, value: T, index: number]> {
+    for (const [pos, value, index] of this.list.entries(start, end)) {
+      yield [this.order.lex(pos), value, index];
+    }
   }
 
   // ----------
   // Save & Load
   // ----------
-
-  saveOneNode(node: Node): {
-    [valueIndex: number]: T;
-  } {
-    const arr = this.itemList.saveOneNode(node);
-    if (arr === undefined) return {};
-    return saveArray(arr);
-  }
-
-  /**
-   * Overwrites all of node's existing values - so non-present keys become
-   * deleted, even if they come after the last present key.
-   *
-   * Note that values might not be contiguous in the list.
-   */
-  loadOneNode(
-    node: Node,
-    nodeSavedState: {
-      [valueIndex: number]: T;
-    }
-  ): void {
-    this.itemList.loadOneNode(node, loadArray(nodeSavedState));
-  }
 
   /**
    * Returns saved state describing the current state of this LocalList,
@@ -349,10 +284,12 @@ export class List<T> {
    * same list state.
    *
    * Only saves values, not Order. "Natural" format; order
-   * guarantees.
+   * guarantees (list order).
    */
-  save(): ListSavedState<T> {
-    return this.itemList.save(saveArray);
+  save(): { [lexPos: LexPosition]: T } {
+    const lexPosMap: { [lexPos: LexPosition]: T } = {};
+    for (const [lexPos, value] of this.entries()) lexPosMap[lexPos] = value;
+    return lexPosMap;
   }
 
   /**
@@ -367,14 +304,7 @@ export class List<T> {
    * @param savedState Saved state from a List's
    * [[save]] call.
    */
-  load(savedState: ListSavedState<T>): void {
-    this.itemList.load(savedState, loadArray);
+  load(lexPosMap: { [lexPos: LexPosition]: T }): void {
+    // TODO
   }
-
-  // TODO: for saving your own map node->values, will want iterator that returns:
-  // - all *nontrivial* Nodes (nodes with values) with saveOneNode state
-  // - way to load a bunch of Nodes and update the caches at the end like load() does.
-  // Then do we even need save/load? I guess convenient for quickly dispatching a state.
-  // (Also: maybe saveOneNode/loadOneNode -> getNode/setNode? Doesn't have to loading related,
-  // except for the overwrite behavior.)
 }

@@ -6,7 +6,7 @@ import {
   compareSiblingNodes,
   nodeDescEquals,
 } from "./node";
-import { Position } from "./position";
+import { LexPosition, Position } from "./position";
 import { ReplicaIDs } from "./util/replica_ids";
 
 export type Item = {
@@ -224,6 +224,14 @@ export class Order {
     return compareSiblingNodes(aAnc, bAnc);
   };
 
+  desc(node: Node): NodeDesc {
+
+  }
+  
+  summary(node: Node): string {
+
+  }
+
   // ----------
   // Mutators
   // ----------
@@ -371,6 +379,10 @@ export class Order {
     }
 
     return node;
+  }
+
+  receiveSummary(summary: string): Node {
+    
   }
 
   /**
@@ -576,4 +588,12 @@ export class Order {
     }
     this.receive(nodeDescs);
   }
+
+  // ----------
+  // LexPosition
+  // ----------
+
+  lex(pos: Position): LexPosition {}
+
+  unlex(lexPos: LexPosition): Position {}
 }

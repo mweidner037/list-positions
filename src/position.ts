@@ -48,3 +48,12 @@ export function positionEquals(a: Position, b: Position): boolean {
     a.valueIndex === b.valueIndex
   );
 }
+
+/**
+ * Encoded form of Position that is lexicographically ordered wrt other LexPositions.
+ * 
+ * Internally, describes all dependencies (path in the tree). Can use without worrying
+ * about them; "delivering" to an Order applies all of those deps. Can also use
+ * indie of an Order, e.g. DB "ORDER BY" column; see LexUtils.
+ */
+export type LexPosition = string;
