@@ -11,8 +11,6 @@ export type NodeID = {
  * - `Order.rootNode` does not have a NodeDesc, because it does not have a `parent`.
  */
 export type NodeDesc = NodeID & {
-  // TODO: re-flatten so it's a struct?
-  // If so, also flatten OrderSavedState.
   readonly parentID: NodeID;
   /**
    * 0: left child of (parent, 0).
@@ -98,15 +96,15 @@ export function compareSiblingNodes(a: Node, b: Node): number {
   }
 
   // Sibling sort order: first by offset, then by creatorID, then by counter.
-  // TODO: can we rule out same offset+creatorID via createPosition local memory?
+  // TODO: ensure counter sort matches LexPosition. Sort by stringified int (in right base)?
   if (a.offset !== b.offset) {
     return a.offset - b.offset;
   }
-  if (a.counter !== b.counter) {
-    return a.counter - b.counter;
-  }
   if (a.creatorID !== b.creatorID) {
     return a.creatorID > b.creatorID ? 1 : -1;
+  }
+  if (a.counter !== b.counter) {
+    return a.counter - b.counter;
   }
   return 0;
 }
