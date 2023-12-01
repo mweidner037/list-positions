@@ -1,6 +1,6 @@
 import { List } from "./list";
 import { Order } from "./order";
-import { LexPosition, Position } from "./position";
+import { LexPosition, MIN_LEX_POSITION, Position } from "./position";
 import { LexUtils } from "./util/lex_utils";
 
 /**
@@ -224,14 +224,14 @@ export class LexList<T> {
    * That is, the cursor is between the list elements at `index - 1` and `index`.
    *
    * Internally, a cursor is the Position of the list element to its left
-   * (or `LexUtils.minLexPosition` for the start of the list).
+   * (or `MIN_LEX_POSITION` for the start of the list).
    * If that position becomes not present in the list, the cursor stays the
    * same, but its index moves left.
    *
    * Invert with indexOfCursor.
    */
   cursorAt(index: number): LexPosition {
-    return index === 0 ? LexUtils.minLexPosition : this.positionAt(index - 1);
+    return index === 0 ? MIN_LEX_POSITION : this.positionAt(index - 1);
   }
 
   /**
@@ -241,7 +241,7 @@ export class LexList<T> {
    * Inverts cursorAt.
    */
   indexOf(cursor: LexPosition): number {
-    return cursor === LexUtils.minLexPosition
+    return cursor === MIN_LEX_POSITION
       ? 0
       : this.indexOfPosition(cursor, "left") + 1;
   }

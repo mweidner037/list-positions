@@ -1,6 +1,6 @@
 import { Node, NodeDesc } from "../node";
 import { Order } from "../order";
-import { Position } from "../position";
+import { MAX_POSITION, MIN_POSITION, Position } from "../position";
 import { ItemManager, SparseArray, SparseArrayManager } from "./sparse_array";
 
 /**
@@ -213,10 +213,9 @@ export class ItemList<I, T> {
     index: number,
     item: I
   ): { startPos: Position; createdNodeDesc: NodeDesc | null } {
-    const prevPos =
-      index === 0 ? this.order.minPosition : this.positionAt(index - 1);
+    const prevPos = index === 0 ? MIN_POSITION : this.positionAt(index - 1);
     const nextPos =
-      index === this.length ? this.order.maxPosition : this.positionAt(index);
+      index === this.length ? MAX_POSITION : this.positionAt(index);
     const ret = this.order.createPositions(
       prevPos,
       nextPos,

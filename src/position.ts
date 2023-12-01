@@ -1,3 +1,5 @@
+import { ReplicaIDs } from "./util/replica_ids";
+
 /**
  * A Position in a collaborative list or text string.
  *
@@ -38,6 +40,17 @@ export type Position = {
   readonly valueIndex: number;
 };
 
+export const MIN_POSITION: Position = {
+  creatorID: ReplicaIDs.ROOT,
+  counter: 0,
+  valueIndex: 0,
+};
+export const MAX_POSITION: Position = {
+  creatorID: ReplicaIDs.ROOT,
+  counter: 0,
+  valueIndex: 1,
+};
+
 /**
  * Returns whether two Positions are equal, i.e., they have equal contents.
  */
@@ -51,9 +64,12 @@ export function positionEquals(a: Position, b: Position): boolean {
 
 /**
  * Encoded form of Position that is lexicographically ordered wrt other LexPositions.
- * 
+ *
  * Internally, describes all dependencies (path in the tree). Can use without worrying
  * about them; "delivering" to an Order applies all of those deps. Can also use
  * indie of an Order, e.g. DB "ORDER BY" column; see LexUtils.
  */
 export type LexPosition = string;
+
+export const MIN_LEX_POSITION: LexPosition = "TODO";
+export const MAX_LEX_POSITION: LexPosition = "TODO";

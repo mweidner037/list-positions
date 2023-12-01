@@ -110,10 +110,6 @@ export class Order {
   private counter = 0;
 
   readonly rootNode: Node;
-  // Can't be set etc., but can be createPosition'd or appear in a Cursor.
-  // TODO: test these: hit by all iterators; can set/delete/get; error cases
-  readonly minPosition: Position;
-  readonly maxPosition: Position;
 
   /**
    * Maps from a Node's desc to that Node.
@@ -128,16 +124,6 @@ export class Order {
 
     this.rootNode = new NodeInternal(ReplicaIDs.ROOT, 0, null, 0);
     this.tree.set(this.rootNode, this.rootNode);
-    this.minPosition = {
-      creatorID: this.rootNode.creatorID,
-      counter: this.rootNode.counter,
-      valueIndex: 0,
-    };
-    this.maxPosition = {
-      creatorID: this.rootNode.creatorID,
-      counter: this.rootNode.counter,
-      valueIndex: 1,
-    };
   }
 
   // ----------

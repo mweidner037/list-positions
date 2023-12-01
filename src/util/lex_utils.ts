@@ -3,9 +3,6 @@ import { LexPosition, Position } from "../position";
 import { ReplicaIDs } from "./replica_ids";
 
 export const LexUtils = {
-  minLexPosition: "TODO" as LexPosition,
-  maxLexPosition: "TODO" as LexPosition,
-
   validate(lexPos: LexPosition): void {},
 
   decode(lexPos: LexPosition): [pos: Position, NodeDescs: NodeDesc[]] {},
@@ -24,7 +21,7 @@ export const LexUtils = {
  *
  * Designed for backend use - e.g., easy to port (short, simple) source code
  * to other languages.
- * 
+ *
  * Cf position-strings
  */
 export class LexPositionSource {
