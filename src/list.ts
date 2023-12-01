@@ -2,7 +2,7 @@ import { ItemList } from "./internal/item_list";
 import { ArrayItemManager, SparseArray } from "./internal/sparse_array";
 import { Node, NodeDesc } from "./node";
 import { Order } from "./order";
-import { Position } from "./position";
+import { Position, positionEquals } from "./position";
 
 /**
  * TODO: Explain format (obvious triple-map rep). JSON ordering guarantees.
@@ -262,6 +262,33 @@ export class List<T> {
    */
   get length() {
     return this.itemList.length;
+  }
+
+  /**
+   * Returns the cursor at `index` within the list.
+   * That is, the cursor is between the list elements at `index - 1` and `index`.
+   *
+   * Internally, a cursor is the Position of the list element to its left
+   * (or `this.order.minPosition` for the start of the list).
+   * If that position becomes not present in the list, the cursor stays the
+   * same, but its index moves left.
+   *
+   * Invert with indexOfCursor.
+   */
+  cursorAt(index: number): Position {
+    return index === 0 ? this.order.minPosition : this.positionAt(index - 1);
+  }
+
+  /**
+   * Returns the current index of `cursor` within the list.
+   * That is, the cursor is between the list elements at `index - 1` and `index`.
+   *
+   * Inverts cursorAt.
+   */
+  indexOf(cursor: Position): number {
+    return positionEquals(cursor, this.order.minPosition)
+      ? 0
+      : this.indexOfPosition(cursor, "left") + 1;
   }
 
   // ----------

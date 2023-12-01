@@ -4,5 +4,5 @@ export * from "./node";
 export * from "./order";
 export * from "./outline";
 export * from "./position";
-export * from "./util/cursors";
+export * from "./util/lex_utils";
 export * from "./util/replica_ids";

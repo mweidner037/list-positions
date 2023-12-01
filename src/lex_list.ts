@@ -219,6 +219,33 @@ export class LexList<T> {
     return this.list.length;
   }
 
+  /**
+   * Returns the cursor at `index` within the list.
+   * That is, the cursor is between the list elements at `index - 1` and `index`.
+   *
+   * Internally, a cursor is the Position of the list element to its left
+   * (or `LexUtils.minLexPosition` for the start of the list).
+   * If that position becomes not present in the list, the cursor stays the
+   * same, but its index moves left.
+   *
+   * Invert with indexOfCursor.
+   */
+  cursorAt(index: number): LexPosition {
+    return index === 0 ? LexUtils.minLexPosition : this.positionAt(index - 1);
+  }
+
+  /**
+   * Returns the current index of `cursor` within the list.
+   * That is, the cursor is between the list elements at `index - 1` and `index`.
+   *
+   * Inverts cursorAt.
+   */
+  indexOf(cursor: LexPosition): number {
+    return cursor === LexUtils.minLexPosition
+      ? 0
+      : this.indexOfPosition(cursor, "left") + 1;
+  }
+
   // ----------
   // Iterators
   // ----------
