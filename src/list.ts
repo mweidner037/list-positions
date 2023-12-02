@@ -168,8 +168,8 @@ export class List<T> {
    * @returns [ first value's new position, createdNode if created by Order ].
    * If values.length > 1, their positions start at pos using the same Node
    * with increasing valueIndex.
-   * @throws If count = 0 (doesn't know what to return).
    * @throws If prevPos is order.maxPosition.
+   * @throws If values.length = 0 (doesn't know what to return)
    */
   insert(
     prevPos: Position,

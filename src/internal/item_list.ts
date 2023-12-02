@@ -180,11 +180,10 @@ export class ItemList<I, T> {
    * @param prevPos
    * @param values
    * @returns [ first value's new position, createdNode if created by Order ].
-   * If values.length > 1, their positions start at pos using the same Node
+   * If item.length > 1, their positions start at pos using the same Node
    * with increasing valueIndex.
-   * If values.length = 0, a new position is created but the List state is not
-   * changed - can use this instead of calling Order.createPosition directly.
    * @throws If prevPos is order.maxPosition.
+   * @throws If item.length = 0 (doesn't know what to return)
    */
   insert(
     prevPos: Position,
@@ -208,6 +207,7 @@ export class ItemList<I, T> {
    * @param values
    * @returns
    * @throws If index is this.length and our last value is at order.maxPosition.
+   * @throws If item.length = 0 (doesn't know what to return)
    */
   insertAt(
     index: number,

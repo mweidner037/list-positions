@@ -115,6 +115,7 @@ export class LexList<T> {
    * @param values
    * @returns Array of created LexPositions.
    * @throws If prevPos is order.maxPosition.
+   * @throws If values.length = 0 (doesn't know what to return)
    */
   insert(prevLexPos: LexPosition, ...values: T[]): LexPosition[] {
     const [startPos] = this.list.insert(
@@ -130,6 +131,7 @@ export class LexList<T> {
    * @param values
    * @returns
    * @throws If index is this.length and our last value is at order.maxPosition.
+   * @throws If item.length = 0 (doesn't know what to return)
    */
   insertAt(index: number, ...values: T[]): LexPosition[] {
     const [startPos] = this.list.insertAt(index, ...values);
