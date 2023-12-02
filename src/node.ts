@@ -9,6 +9,8 @@ export type NodeID = {
  *
  * Notes:
  * - `Order.rootNode` does not have a NodeDesc, because it does not have a `parent`.
+ *
+ * @see Order.equalsNodeDesc
  */
 export type NodeDesc = NodeID & {
   readonly parentID: NodeID;
@@ -23,19 +25,6 @@ export type NodeDesc = NodeID & {
    */
   readonly offset: number;
 };
-
-/**
- * Returns whether two NodeDescs are equal, i.e., they have equal contents.
- */
-export function nodeDescEquals(a: NodeDesc, b: NodeDesc): boolean {
-  return (
-    a.creatorID === b.creatorID &&
-    a.counter === b.counter &&
-    a.parentID.creatorID === b.parentID.creatorID &&
-    a.parentID.counter === b.parentID.counter &&
-    a.offset === b.offset
-  );
-}
 
 /**
  * A node in an Order's internal tree.
@@ -78,33 +67,4 @@ export interface Node {
   getChild(index: number): Node;
 
   toString(): string;
-}
-
-/**
- * [Compare function](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/sort#comparefn)
- * for **sibling** Nodes in an Order, i.e., Nodes with the same parentNode.
- *
- * You do not need to call this function unless you are doing something advanced.
- * To compare Positions, instead use `Order.compare` or a List. To iterate over
- * a Node's children in order, use `Node.children()`.
- */
-export function compareSiblingNodes(a: Node, b: Node): number {
-  if (a.parent !== b.parent) {
-    throw new Error(
-      `nodeSiblingCompare can only compare Nodes with the same parentNode, not a=${a}, b=${b}`
-    );
-  }
-
-  // Sibling sort order: first by offset, then by creatorID, then by counter.
-  // TODO: ensure counter sort matches LexPosition. Sort by stringified int (in right base)?
-  if (a.offset !== b.offset) {
-    return a.offset - b.offset;
-  }
-  if (a.creatorID !== b.creatorID) {
-    return a.creatorID > b.creatorID ? 1 : -1;
-  }
-  if (a.counter !== b.counter) {
-    return a.counter - b.counter;
-  }
-  return 0;
 }

@@ -1,5 +1,3 @@
-import { ReplicaIDs } from "./util/replica_ids";
-
 /**
  * A Position in a collaborative list or text string.
  *
@@ -15,6 +13,8 @@ import { ReplicaIDs } from "./util/replica_ids";
  * while `valueIndex` identifies a specific value belonging to that Node.
  * The "metadata" you must supply to Order is a NodeDesc for the node
  * `{ creatorID, timestamp }`.
+ *
+ * @see Order.equalsPosition
  */
 export type Position = {
   /**
@@ -40,28 +40,6 @@ export type Position = {
   readonly valueIndex: number;
 };
 
-export const MIN_POSITION: Position = {
-  creatorID: ReplicaIDs.ROOT,
-  counter: 0,
-  valueIndex: 0,
-};
-export const MAX_POSITION: Position = {
-  creatorID: ReplicaIDs.ROOT,
-  counter: 0,
-  valueIndex: 1,
-};
-
-/**
- * Returns whether two Positions are equal, i.e., they have equal contents.
- */
-export function positionEquals(a: Position, b: Position): boolean {
-  return (
-    a.creatorID === b.creatorID &&
-    a.counter === b.counter &&
-    a.valueIndex === b.valueIndex
-  );
-}
-
 /**
  * Encoded form of Position that is lexicographically ordered wrt other LexPositions.
  *
@@ -70,6 +48,3 @@ export function positionEquals(a: Position, b: Position): boolean {
  * indie of an Order, e.g. DB "ORDER BY" column; see LexUtils.
  */
 export type LexPosition = string;
-
-export const MIN_LEX_POSITION: LexPosition = "TODO";
-export const MAX_LEX_POSITION: LexPosition = "TODO";

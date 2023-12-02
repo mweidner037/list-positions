@@ -1,11 +1,5 @@
 import { NodeMap } from "./internal/node_map";
-import {
-  Node,
-  NodeDesc,
-  NodeID,
-  compareSiblingNodes,
-  nodeDescEquals,
-} from "./node";
+import { Node, NodeDesc, NodeID } from "./node";
 import { LexPosition, Position } from "./position";
 import { ReplicaIDs } from "./util/replica_ids";
 
@@ -168,7 +162,7 @@ export class Order {
   }
 
   // Bind as variable instead of class method, in case callers forget.
-  readonly compare: (a: Position, b: Position) => number = (a, b) => {
+  readonly compare = (a: Position, b: Position): number => {
     const aNode = this.getNodeFor(a);
     const bNode = this.getNodeFor(b);
 
@@ -207,7 +201,7 @@ export class Order {
     }
 
     // Now aAnc and bAnc are distinct siblings. Use sibling order.
-    return compareSiblingNodes(aAnc, bAnc);
+    return Order.compareSiblingNodes(aAnc, bAnc);
   };
 
   desc(node: Node): NodeDesc {}
@@ -243,7 +237,7 @@ export class Order {
       }
       const existing = this.tree.get(nodeDesc);
       if (existing !== undefined) {
-        if (!nodeDescEquals(nodeDesc, existing.desc())) {
+        if (!Order.equalsNodeDesc(nodeDesc, existing.desc())) {
           throw new Error(
             `Received NodeDesc describing an existing node but with different metadata: received=${JSON.stringify(
               nodeDesc
@@ -253,7 +247,7 @@ export class Order {
       } else {
         const otherNew = createdNodeDescs.get(nodeDesc);
         if (otherNew !== undefined) {
-          if (!nodeDescEquals(nodeDesc, otherNew)) {
+          if (!Order.equalsNodeDesc(nodeDesc, otherNew)) {
             throw new Error(
               `Received two NodeDescs for the same node with different parents: first=${JSON.stringify(
                 otherNew
@@ -354,7 +348,7 @@ export class Order {
       let i = 0;
       for (; i < parentNode.children.length; i++) {
         // Break if sibling > node.
-        if (compareSiblingNodes(parentNode.children[i], node) > 0) break;
+        if (Order.compareSiblingNodes(parentNode.children[i], node) > 0) break;
       }
       // Insert node just before that sibling.
       parentNode.children.splice(i, 0, node);
@@ -589,4 +583,75 @@ export class Order {
   lex(pos: Position): LexPosition {}
 
   unlex(lexPos: LexPosition): Position {}
+
+  // ----------
+  // Static utilities
+  // ----------
+
+  static readonly MIN_POSITION: Position = {
+    creatorID: ReplicaIDs.ROOT,
+    counter: 0,
+    valueIndex: 0,
+  };
+  static readonly MAX_POSITION: Position = {
+    creatorID: ReplicaIDs.ROOT,
+    counter: 0,
+    valueIndex: 1,
+  };
+
+  static readonly MIN_LEX_POSITION: LexPosition = "TODO";
+  static readonly MAX_LEX_POSITION: LexPosition = "TODO";
+
+  /**
+   * Returns whether two Positions are equal, i.e., they have equal contents.
+   */
+  static equalsPosition(a: Position, b: Position): boolean {
+    return (
+      a.creatorID === b.creatorID &&
+      a.counter === b.counter &&
+      a.valueIndex === b.valueIndex
+    );
+  }
+
+  /**
+   * Returns whether two NodeDescs are equal, i.e., they have equal contents.
+   */
+  static equalsNodeDesc(a: NodeDesc, b: NodeDesc): boolean {
+    return (
+      a.creatorID === b.creatorID &&
+      a.counter === b.counter &&
+      a.parentID.creatorID === b.parentID.creatorID &&
+      a.parentID.counter === b.parentID.counter &&
+      a.offset === b.offset
+    );
+  }
+
+  /**
+   * [Compare function](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/sort#comparefn)
+   * for **sibling** Nodes in an Order, i.e., Nodes with the same parentNode.
+   *
+   * You do not need to call this function unless you are doing something advanced.
+   * To compare Positions, instead use `Order.compare` or a List. To iterate over
+   * a Node's children in order, use `Node.children()`.
+   */
+  static compareSiblingNodes(a: Node, b: Node): number {
+    if (a.parent !== b.parent) {
+      throw new Error(
+        `nodeSiblingCompare can only compare Nodes with the same parentNode, not a=${a}, b=${b}`
+      );
+    }
+
+    // Sibling sort order: first by offset, then by creatorID, then by counter.
+    // TODO: ensure counter sort matches LexPosition. Sort by stringified int (in right base)?
+    if (a.offset !== b.offset) {
+      return a.offset - b.offset;
+    }
+    if (a.creatorID !== b.creatorID) {
+      return a.creatorID > b.creatorID ? 1 : -1;
+    }
+    if (a.counter !== b.counter) {
+      return a.counter - b.counter;
+    }
+    return 0;
+  }
 }

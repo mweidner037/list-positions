@@ -2,7 +2,7 @@ import { ItemList } from "./internal/item_list";
 import { ArrayItemManager, SparseArray } from "./internal/sparse_array";
 import { Node } from "./node";
 import { Order } from "./order";
-import { MIN_POSITION, Position, positionEquals } from "./position";
+import { Position } from "./position";
 
 /**
  * TODO: Explain format (double-map to alternating present values, deleted
@@ -160,7 +160,7 @@ export class List<T> {
   insert(
     prevPos: Position,
     value: T
-  ): [pos: Position, createdNode: Node| null];
+  ): [pos: Position, createdNode: Node | null];
   /**
    *
    * @param prevPos
@@ -189,10 +189,7 @@ export class List<T> {
    * @returns
    * @throws If index is this.length and our last value is at order.maxPosition.
    */
-  insertAt(
-    index: number,
-    value: T
-  ): [pos: Position, createdNode: Node | null];
+  insertAt(index: number, value: T): [pos: Position, createdNode: Node | null];
   insertAt(
     index: number,
     ...values: T[]
@@ -210,7 +207,7 @@ export class List<T> {
 
   /**
    * Returns the value at position, or undefined if it is not currently present
-   * ([[hasPosition]] returns false).
+   * (`has(pos)` returns false).
    */
   get(pos: Position): T | undefined {
     return this.itemList.get(pos);
@@ -287,7 +284,7 @@ export class List<T> {
    * Invert with indexOfCursor.
    */
   cursorAt(index: number): Position {
-    return index === 0 ? MIN_POSITION : this.positionAt(index - 1);
+    return index === 0 ? Order.MIN_POSITION : this.positionAt(index - 1);
   }
 
   /**
@@ -297,7 +294,7 @@ export class List<T> {
    * Inverts cursorAt.
    */
   indexOfCursor(cursor: Position): number {
-    return positionEquals(cursor, MIN_POSITION)
+    return Order.equalsPosition(cursor, Order.MIN_POSITION)
       ? 0
       : this.indexOfPosition(cursor, "left") + 1;
   }

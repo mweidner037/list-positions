@@ -1,6 +1,6 @@
 import { List } from "./list";
 import { Order } from "./order";
-import { LexPosition, MIN_LEX_POSITION, Position } from "./position";
+import { LexPosition, Position } from "./position";
 import { LexUtils } from "./util/lex_utils";
 
 /**
@@ -232,7 +232,7 @@ export class LexList<T> {
    * Invert with indexOfCursor.
    */
   cursorAt(index: number): LexPosition {
-    return index === 0 ? MIN_LEX_POSITION : this.positionAt(index - 1);
+    return index === 0 ? Order.MIN_LEX_POSITION : this.positionAt(index - 1);
   }
 
   /**
@@ -242,7 +242,7 @@ export class LexList<T> {
    * Inverts cursorAt.
    */
   indexOfCursor(cursor: LexPosition): number {
-    return cursor === MIN_LEX_POSITION
+    return cursor === Order.MIN_LEX_POSITION
       ? 0
       : this.indexOfPosition(cursor, "left") + 1;
   }
