@@ -62,7 +62,22 @@ export class List<T> {
     this.itemList = new ItemList(this.order, new ArrayItemManager());
   }
 
-  // TODO: way to convert to/from regular arrays { lexPos: value }[] (Gurgen suggestion).
+  /**
+   *
+   * @param entries Don't need to be in list order.
+   * @param order Mandatory to remind you to load its NodeDescs first.
+   * @returns
+   */
+  static from<T>(
+    entries: Iterable<[pos: Position, value: T]>,
+    order: Order
+  ): List<T> {
+    const list = new List<T>(order);
+    for (const [pos, value] of entries) {
+      list.set(pos, value);
+    }
+    return list;
+  }
 
   // ----------
   // Mutators
@@ -324,7 +339,7 @@ export class List<T> {
   }
 
   /**
-   * Returns an iterator of [pos, value, index] tuples for every
+   * Returns an iterator of [pos, value] tuples for every
    * value in the list, in list order.
    *
    * Args as in Array.slice.
@@ -332,7 +347,7 @@ export class List<T> {
   entries(
     start?: number,
     end?: number
-  ): IterableIterator<[pos: Position, value: T, index: number]> {
+  ): IterableIterator<[pos: Position, value: T]> {
     return this.itemList.entries(start, end);
   }
 

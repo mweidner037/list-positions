@@ -431,7 +431,7 @@ export class ItemList<I, T> {
   // ----------
 
   /**
-   * Returns an iterator of [pos, value, index] tuples for every
+   * Returns an iterator of [pos, value] tuples for every
    * value in the list, in list order.
    *
    * Args as in Array.slice.
@@ -439,7 +439,7 @@ export class ItemList<I, T> {
   *entries(
     start?: number,
     end?: number
-  ): IterableIterator<[pos: Position, value: T, index: number]> {
+  ): IterableIterator<[pos: Position, value: T]> {
     const range = this.normalizeSliceRange(start, end);
     if (range === null) return;
     [start, end] = range;
@@ -479,7 +479,6 @@ export class ItemList<I, T> {
               valueIndex,
             },
             value,
-            index,
           ];
         }
         index++;

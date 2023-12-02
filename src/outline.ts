@@ -45,6 +45,20 @@ export class Outline {
     this.itemList = new ItemList(this.order, new NumberItemManager());
   }
 
+  /**
+   *
+   * @param positions Don't need to be in list order.
+   * @param order Mandatory to remind you to load its NodeDescs first.
+   * @returns
+   */
+  static from(positions: Iterable<Position>, order: Order): Outline {
+    const outline = new Outline(order);
+    for (const pos of positions) {
+      outline.set(pos);
+    }
+    return outline;
+  }
+
   // ----------
   // Mutators
   // ----------
@@ -244,22 +258,7 @@ export class Outline {
    * Args as in Array.slice.
    */
   *positions(start?: number, end?: number): IterableIterator<Position> {
-    for (const [pos] of this.entries(start, end)) yield pos;
-  }
-
-  /**
-   * Returns an iterator of [pos, index] tuples for every
-   * value in the list, in list order.
-   *
-   * Args as in Array.slice.
-   */
-  *entries(
-    start?: number,
-    end?: number
-  ): IterableIterator<[pos: Position, index: number]> {
-    for (const [pos, , index] of this.itemList.entries(start, end)) {
-      yield [pos, index];
-    }
+    for (const [pos] of this.itemList.entries(start, end)) yield pos;
   }
 
   // ----------

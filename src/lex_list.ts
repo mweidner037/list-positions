@@ -41,12 +41,18 @@ export class LexList<T> {
     this.order = this.list.order;
   }
 
+  /**
+   *
+   * @param entries Don't need to be in list order.
+   * @param order
+   * @returns
+   */
   static from<T>(
-    lexPosMap: { [lexPos: LexPosition]: T },
+    entries: Iterable<[lexPos: LexPosition, value: T]>,
     order?: Order
   ): LexList<T> {
     const lexList = new LexList<T>(order);
-    for (const [lexPos, value] of lexPosMap) {
+    for (const [lexPos, value] of entries) {
       lexList.set(lexPos, value);
     }
     return lexList;
@@ -283,7 +289,7 @@ export class LexList<T> {
   }
 
   /**
-   * Returns an iterator of [pos, value, index] tuples for every
+   * Returns an iterator of [pos, value] tuples for every
    * value in the list, in list order.
    *
    * Args as in Array.slice.
@@ -291,9 +297,9 @@ export class LexList<T> {
   *entries(
     start?: number,
     end?: number
-  ): IterableIterator<[lexPos: LexPosition, value: T, index: number]> {
-    for (const [pos, value, index] of this.list.entries(start, end)) {
-      yield [this.order.lex(pos), value, index];
+  ): IterableIterator<[lexPos: LexPosition, value: T]> {
+    for (const [pos, value] of this.list.entries(start, end)) {
+      yield [this.order.lex(pos), value];
     }
   }
 
