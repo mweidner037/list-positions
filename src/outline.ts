@@ -14,14 +14,9 @@ export type OutlineSavedState = {
   };
 };
 
-function saveArray(arr: SparseArray<number>): number[] {
+function cloneArray(arr: SparseArray<number>): number[] {
   // Defensive copy
   return arr.slice();
-}
-
-function loadArray(savedArr: number[]): number[] {
-  // Defensive copy
-  return savedArr.slice();
 }
 
 /**
@@ -283,7 +278,7 @@ export class Outline {
    * guarantees.
    */
   save(): OutlineSavedState {
-    return this.itemList.save(saveArray);
+    return this.itemList.save(cloneArray);
   }
 
   /**
@@ -299,6 +294,6 @@ export class Outline {
    * [[save]] call.
    */
   load(savedState: OutlineSavedState): void {
-    this.itemList.load(savedState, loadArray);
+    this.itemList.load(savedState, cloneArray);
   }
 }

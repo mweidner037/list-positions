@@ -1,59 +1,27 @@
 import { ItemList } from "./internal/item_list";
 import { ArrayItemManager, SparseArray } from "./internal/sparse_array";
-import { Node, NodeDesc } from "./node";
+import { NodeDesc } from "./node";
 import { Order } from "./order";
 import { MIN_POSITION, Position, positionEquals } from "./position";
 
 /**
- * TODO: Explain format (obvious triple-map rep). JSON ordering guarantees.
+ * TODO: Explain format (double-map to alternating present values, deleted
+ * counts, starting with present (maybe [])). JSON ordering guarantees.
  */
 export type ListSavedState<T> = {
   [creatorID: string]: {
-    [timestamp: number]: {
-      [valueIndex: number]: T;
-    };
+    [timestamp: number]: (T[] | number)[];
   };
 };
 
-function saveArray<T>(arr: SparseArray<T[]>): { [valueIndex: number]: T } {
-  const savedArr: { [valueIndex: number]: T } = {};
-  let index = 0;
+function cloneArray<T>(arr: SparseArray<T[]>): (T[] | number)[] {
+  // Defensive deep copy
+  const copy = new Array<T[] | number>(arr.length);
   for (let i = 0; i < arr.length; i++) {
-    if (i % 2 === 0) {
-      for (const value of arr[i] as T[]) {
-        savedArr[index] = value;
-        index++;
-      }
-    } else index += arr[i] as number;
+    if (i % 2 === 0) copy[i] = (arr[i] as T[]).slice();
+    else copy[i] = arr[i];
   }
-  return savedArr;
-}
-
-function loadArray<T>(savedArr: { [valueIndex: number]: T }): SparseArray<T[]> {
-  const arr: SparseArray<T[]> = [[]];
-  let nextIndex = 0;
-  // Since savedArr's keys are nonnegative integers, this loop visits them
-  // in numeric order.
-  for (const [indexStr, value] of Object.entries(savedArr)) {
-    const index = Number.parseInt(indexStr);
-    if (isNaN(index)) {
-      // We were passed an array-like object but with extra properties.
-      // Break on the first such property, which appears after all valueIndex keys.
-      break;
-    }
-    if (index === nextIndex) {
-      // Append to previous T[].
-      (arr[arr.length - 1] as T[]).push(value);
-    } else {
-      // Indicate deleted values in between.
-      arr.push(index - nextIndex, [value]);
-    }
-    nextIndex = index + 1;
-  }
-
-  // If savedArr was empty, return [] instead of [[]].
-  if (arr.length === 1 && (arr[0] as T[]).length === 0) return [];
-  else return arr;
+  return copy;
 }
 
 /**
@@ -144,12 +112,25 @@ export class List<T> {
   }
 
   /**
-   * Deletes the value at index.
+   * Deletes `count` values starting at `index`.
    *
-   * @throws If index is not in `[0, this.length)`.
+   * @throws If index...index+count-1 are not in `[0, this.length)`.
    */
-  deleteAt(index: number): void {
-    this.delete(this.positionAt(index));
+  deleteAt(index: number, count = 1): void {
+    if (count === 0) return;
+    // Do bounds checks first, so if it is out of bounds, we do nothing.
+    if (index < 0 || index + count - 1 >= this.length) {
+      throw new Error(
+        `deleteAt args out of bounds: index=${index}, count=${count}, length=${this.length}`
+      );
+    }
+
+    const toDelete = new Array<Position>(count);
+    for (let i = 0; i < count; i++) {
+      toDelete[i] = this.positionAt(index + i);
+    }
+    // OPT: batch delta updates, like for same-node update.
+    for (const pos of toDelete) this.itemList.delete(pos, 1);
   }
 
   /**
@@ -161,21 +142,28 @@ export class List<T> {
     this.itemList.clear();
   }
 
+  insert(
+    prevPos: Position,
+    value: T
+  ): [pos: Position, createdNodeDesc: NodeDesc | null];
   /**
    *
    * @param prevPos
    * @param values
-   * @returns { first value's new position, createdNodeDesc if created by Order }.
+   * @returns [ first value's new position, createdNodeDesc if created by Order ].
    * If values.length > 1, their positions start at pos using the same Node
    * with increasing valueIndex.
-   * If values.length = 0, a new position is created but the List state is not
-   * changed - can use this instead of calling Order.createPosition directly.
+   * @throws If count = 0 (doesn't know what to return).
    * @throws If prevPos is order.maxPosition.
    */
   insert(
     prevPos: Position,
     ...values: T[]
-  ): { startPos: Position; createdNodeDesc: NodeDesc | null } {
+  ): [startPos: Position, createdNodeDesc: NodeDesc | null];
+  insert(
+    prevPos: Position,
+    ...values: T[]
+  ): [startPos: Position, createdNodeDesc: NodeDesc | null] {
     return this.itemList.insert(prevPos, values);
   }
 
@@ -188,8 +176,16 @@ export class List<T> {
    */
   insertAt(
     index: number,
+    value: T
+  ): [pos: Position, createdNodeDesc: NodeDesc | null];
+  insertAt(
+    index: number,
     ...values: T[]
-  ): { startPos: Position; createdNodeDesc: NodeDesc | null } {
+  ): [startPos: Position, createdNodeDesc: NodeDesc | null];
+  insertAt(
+    index: number,
+    ...values: T[]
+  ): [startPos: Position, createdNodeDesc: NodeDesc | null] {
     return this.itemList.insertAt(index, values);
   }
 
@@ -344,29 +340,6 @@ export class List<T> {
   // Save & Load
   // ----------
 
-  saveOneNode(node: Node): {
-    [valueIndex: number]: T;
-  } {
-    const arr = this.itemList.saveOneNode(node);
-    if (arr === undefined) return {};
-    return saveArray(arr);
-  }
-
-  /**
-   * Overwrites all of node's existing values - so non-present keys become
-   * deleted, even if they come after the last present key.
-   *
-   * Note that values might not be contiguous in the list.
-   */
-  loadOneNode(
-    node: Node,
-    nodeSavedState: {
-      [valueIndex: number]: T;
-    }
-  ): void {
-    this.itemList.loadOneNode(node, loadArray(nodeSavedState));
-  }
-
   /**
    * Returns saved state describing the current state of this LocalList,
    * including its values.
@@ -379,7 +352,7 @@ export class List<T> {
    * guarantees.
    */
   save(): ListSavedState<T> {
-    return this.itemList.save(saveArray);
+    return this.itemList.save(cloneArray);
   }
 
   /**
@@ -391,17 +364,12 @@ export class List<T> {
    *
    * Overwrites whole state - not state-based merge.
    *
+   * Need to load NodeDesc meta into Order first (not part of saved state).
+   *
    * @param savedState Saved state from a List's
    * [[save]] call.
    */
   load(savedState: ListSavedState<T>): void {
-    this.itemList.load(savedState, loadArray);
+    this.itemList.load(savedState, cloneArray);
   }
-
-  // TODO: for saving your own map node->values, will want iterator that returns:
-  // - all *nontrivial* Nodes (nodes with values) with saveOneNode state
-  // - way to load a bunch of Nodes and update the caches at the end like load() does.
-  // Then do we even need save/load? I guess convenient for quickly dispatching a state.
-  // (Also: maybe saveOneNode/loadOneNode -> getNode/setNode? Doesn't have to loading related,
-  // except for the overwrite behavior.)
 }

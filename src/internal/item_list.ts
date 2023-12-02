@@ -537,6 +537,7 @@ export class ItemList<I, T> {
   // Save & Load
   // ----------
 
+  // TODO: delete, or change to nodeSet/nodeGet
   saveOneNode(node: Node): SparseArray<I> | undefined {
     return this.state.get(node)?.values;
   }
