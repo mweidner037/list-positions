@@ -1,4 +1,4 @@
-import { Node, NodeDesc } from "../node";
+import { Node } from "../node";
 import { Order } from "../order";
 import { MAX_POSITION, MIN_POSITION, Position } from "../position";
 import { ItemManager, SparseArray, SparseArrayManager } from "./sparse_array";
@@ -179,7 +179,7 @@ export class ItemList<I, T> {
    *
    * @param prevPos
    * @param values
-   * @returns { first value's new position, createdNodeDesc if created by Order }.
+   * @returns [ first value's new position, createdNode if created by Order ].
    * If values.length > 1, their positions start at pos using the same Node
    * with increasing valueIndex.
    * If values.length = 0, a new position is created but the List state is not
@@ -189,7 +189,7 @@ export class ItemList<I, T> {
   insert(
     prevPos: Position,
     item: I
-  ): { startPos: Position; createdNodeDesc: NodeDesc | null } {
+  ): [startPos: Position, createdNode: Node | null] {
     // TODO: way to do it without getting index?
     const nextIndex = this.indexOfPosition(prevPos, "left") + 1;
     const nextPos = this.positionAt(nextIndex);
@@ -198,7 +198,7 @@ export class ItemList<I, T> {
       nextPos,
       this.itemMan.length(item)
     );
-    this.set(ret.startPos, item);
+    this.set(ret[0], item);
     return ret;
   }
 
@@ -212,7 +212,7 @@ export class ItemList<I, T> {
   insertAt(
     index: number,
     item: I
-  ): { startPos: Position; createdNodeDesc: NodeDesc | null } {
+  ): [startPos: Position, createdNode: Node | null] {
     const prevPos = index === 0 ? MIN_POSITION : this.positionAt(index - 1);
     const nextPos =
       index === this.length ? MAX_POSITION : this.positionAt(index);
@@ -221,7 +221,7 @@ export class ItemList<I, T> {
       nextPos,
       this.itemMan.length(item)
     );
-    this.set(ret.startPos, item);
+    this.set(ret[0], item);
     return ret;
   }
 

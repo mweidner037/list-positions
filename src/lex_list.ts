@@ -113,11 +113,7 @@ export class LexList<T> {
    *
    * @param prevPos
    * @param values
-   * @returns { first value's new position, createdNodeDesc if created by Order }.
-   * If values.length > 1, their positions start at pos using the same Node
-   * with increasing valueIndex.
-   * If values.length = 0, a new position is created but the List state is not
-   * changed - can use this instead of calling Order.createPosition directly.
+   * @returns Array of created LexPositions.
    * @throws If prevPos is order.maxPosition.
    */
   insert(prevLexPos: LexPosition, ...values: T[]): LexPosition[] {

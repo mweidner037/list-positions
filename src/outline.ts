@@ -1,6 +1,6 @@
 import { ItemList } from "./internal/item_list";
 import { NumberItemManager, SparseArray } from "./internal/sparse_array";
-import { NodeDesc } from "./node";
+import { Node } from "./node";
 import { Order } from "./order";
 import { MIN_POSITION, Position, positionEquals } from "./position";
 
@@ -128,7 +128,7 @@ export class Outline {
     this.itemList.clear();
   }
 
-  insert(prevPos: Position): [pos: Position, createdNodeDesc: NodeDesc | null];
+  insert(prevPos: Position): [pos: Position, createdNode: Node | null];
   /**
    *
    * @param index
@@ -137,15 +137,15 @@ export class Outline {
   insert(
     prevPos: Position,
     count: number
-  ): [startPos: Position, createdNodeDesc: NodeDesc | null];
+  ): [startPos: Position, createdNode: NodeDesc | null];
   insert(
     prevPos: Position,
     count = 1
-  ): [startPos: Position, createdNodeDesc: NodeDesc | null] {
+  ): [startPos: Position, createdNode: NodeDesc | null] {
     return this.itemList.insert(prevPos, count);
   }
 
-  insertAt(index: number): [pos: Position, createdNodeDesc: NodeDesc | null];
+  insertAt(index: number): [pos: Position, createdNode: Node | null];
   /**
    *
    * @param index
@@ -154,11 +154,11 @@ export class Outline {
   insertAt(
     index: number,
     count: number
-  ): [startPos: Position, createdNodeDesc: NodeDesc | null];
+  ): [startPos: Position, createdNode: Node | null];
   insertAt(
     index: number,
     count = 1
-  ): [startPos: Position, createdNodeDesc: NodeDesc | null] {
+  ): [startPos: Position, createdNode: Node | null] {
     return this.itemList.insertAt(index, count);
   }
 

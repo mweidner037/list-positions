@@ -210,13 +210,9 @@ export class Order {
     return compareSiblingNodes(aAnc, bAnc);
   };
 
-  desc(node: Node): NodeDesc {
+  desc(node: Node): NodeDesc {}
 
-  }
-  
-  summary(node: Node): string {
-
-  }
+  summary(node: Node): string {}
 
   // ----------
   // Mutators
@@ -224,10 +220,10 @@ export class Order {
 
   /**
    * Set this to be notified when we locally create a new Node in createPosition.
-   * createdNodeDesc (which is also returned by createPosition & List.insert) must be broadcast to
-   * other replicas before they can use the new Position.
+   * The NodeDesc for createdNode (which is also returned by createPosition & List.insert)
+   * must be broadcast to other replicas before they can use the new Position.
    */
-  onCreateNode: ((createdNodeDesc: NodeDesc) => void) | undefined = undefined;
+  onCreateNode: ((createdNode: Node) => void) | undefined = undefined;
 
   receive(nodeDescs: Iterable<NodeDesc>): void {
     // 1. Pick out the new (non-redundant) nodes in nodeDescs.
@@ -367,9 +363,7 @@ export class Order {
     return node;
   }
 
-  receiveSummary(summary: string): Node {
-    
-  }
+  receiveSummary(summary: string): Node {}
 
   /**
    * @param prevPos
@@ -379,12 +373,18 @@ export class Order {
    */
   createPositions(
     prevPos: Position,
+    nextPos: Position
+  ): [pos: Position, createdNode: Node | null];
+  createPositions(
+    prevPos: Position,
+    nextPos: Position,
+    count: number
+  ): [startPos: Position, createdNode: Node | null];
+  createPositions(
+    prevPos: Position,
     nextPos: Position,
     count = 1
-  ): {
-    startPos: Position;
-    createdNodeDesc: NodeDesc | null;
-  } {
+  ): [startPos: Position, createdNode: Node | null] {
     // Also validates the positions.
     if (this.compare(prevPos, nextPos) >= 0) {
       throw new Error(
@@ -435,7 +435,7 @@ export class Order {
           valueIndex: prevNode.createdCounter!,
         };
         prevNode.createdCounter! += count;
-        return { startPos, createdNodeDesc: null };
+        return [startPos, null];
       }
 
       newNodeParent = prevNode;
@@ -456,7 +456,7 @@ export class Order {
         valueIndex: conflict.createdCounter!,
       };
       conflict.createdCounter! += count;
-      return { startPos, createdNodeDesc: null };
+      return [startPos, null];
     }
 
     const createdNodeDesc: NodeDesc = {
@@ -467,16 +467,23 @@ export class Order {
     };
     this.counter++;
 
-    const node = this.newNode(createdNodeDesc);
-    node.createdCounter = count;
+    const createdNode = this.newNode(createdNodeDesc);
+    createdNode.createdCounter = count;
     if (newNodeParent.ourChildren === undefined) {
       newNodeParent.ourChildren = new Map();
     }
-    newNodeParent.ourChildren.set(createdNodeDesc.offset, node);
+    newNodeParent.ourChildren.set(createdNodeDesc.offset, createdNode);
 
-    this.onCreateNode?.(createdNodeDesc);
+    this.onCreateNode?.(createdNode);
 
-    return { startPos: { ...node.id(), valueIndex: 0 }, createdNodeDesc };
+    return [
+      {
+        creatorID: createdNode.creatorID,
+        counter: createdNode.counter,
+        valueIndex: 0,
+      },
+      createdNode,
+    ];
   }
 
   /**

@@ -1,6 +1,6 @@
 import { ItemList } from "./internal/item_list";
 import { ArrayItemManager, SparseArray } from "./internal/sparse_array";
-import { NodeDesc } from "./node";
+import { Node } from "./node";
 import { Order } from "./order";
 import { MIN_POSITION, Position, positionEquals } from "./position";
 
@@ -160,12 +160,12 @@ export class List<T> {
   insert(
     prevPos: Position,
     value: T
-  ): [pos: Position, createdNodeDesc: NodeDesc | null];
+  ): [pos: Position, createdNode: Node| null];
   /**
    *
    * @param prevPos
    * @param values
-   * @returns [ first value's new position, createdNodeDesc if created by Order ].
+   * @returns [ first value's new position, createdNode if created by Order ].
    * If values.length > 1, their positions start at pos using the same Node
    * with increasing valueIndex.
    * @throws If count = 0 (doesn't know what to return).
@@ -174,11 +174,11 @@ export class List<T> {
   insert(
     prevPos: Position,
     ...values: T[]
-  ): [startPos: Position, createdNodeDesc: NodeDesc | null];
+  ): [startPos: Position, createdNode: Node | null];
   insert(
     prevPos: Position,
     ...values: T[]
-  ): [startPos: Position, createdNodeDesc: NodeDesc | null] {
+  ): [startPos: Position, createdNode: Node | null] {
     return this.itemList.insert(prevPos, values);
   }
 
@@ -192,15 +192,15 @@ export class List<T> {
   insertAt(
     index: number,
     value: T
-  ): [pos: Position, createdNodeDesc: NodeDesc | null];
+  ): [pos: Position, createdNode: Node | null];
   insertAt(
     index: number,
     ...values: T[]
-  ): [startPos: Position, createdNodeDesc: NodeDesc | null];
+  ): [startPos: Position, createdNode: Node | null];
   insertAt(
     index: number,
     ...values: T[]
-  ): [startPos: Position, createdNodeDesc: NodeDesc | null] {
+  ): [startPos: Position, createdNode: Node | null] {
     return this.itemList.insertAt(index, values);
   }
 
