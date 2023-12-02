@@ -41,15 +41,14 @@ export class LexList<T> {
     this.order = this.list.order;
   }
 
-  /**
-   * Use with save()'d state. (Rename vars to savedState?)
-   */
   static from<T>(
     lexPosMap: { [lexPos: LexPosition]: T },
     order?: Order
   ): LexList<T> {
     const lexList = new LexList<T>(order);
-    lexList.load(lexPosMap);
+    for (const [lexPos, value] of lexPosMap) {
+      lexList.set(lexPos, value);
+    }
     return lexList;
   }
 
@@ -87,12 +86,12 @@ export class LexList<T> {
   }
 
   /**
-   * Deletes the value at index.
+   * Deletes `count` values starting at `index`.
    *
-   * @throws If index is not in `[0, this.length)`.
+   * @throws If index...index+count-1 are not in `[0, this.length)`.
    */
-  deleteAt(index: number): void {
-    this.list.deleteAt(index);
+  deleteAt(index: number, count = 1): void {
+    this.list.deleteAt(index, count);
   }
 
   /**
@@ -116,7 +115,7 @@ export class LexList<T> {
    * @throws If prevPos is order.maxPosition.
    */
   insert(prevLexPos: LexPosition, ...values: T[]): LexPosition[] {
-    const { startPos } = this.list.insert(
+    const [startPos] = this.list.insert(
       this.order.unlex(prevLexPos),
       ...values
     );
@@ -131,7 +130,7 @@ export class LexList<T> {
    * @throws If index is this.length and our last value is at order.maxPosition.
    */
   insertAt(index: number, ...values: T[]): LexPosition[] {
-    const { startPos } = this.list.insertAt(index, ...values);
+    const [startPos] = this.list.insertAt(index, ...values);
     return this.lexAll(startPos, values.length);
   }
 
@@ -278,7 +277,7 @@ export class LexList<T> {
    *
    * Args as in Array.slice.
    */
-  *lexPositions(start?: number, end?: number): IterableIterator<LexPosition> {
+  *positions(start?: number, end?: number): IterableIterator<LexPosition> {
     for (const pos of this.list.positions(start, end))
       yield this.order.lex(pos);
   }
@@ -298,40 +297,6 @@ export class LexList<T> {
     }
   }
 
-  // ----------
-  // Save & Load
-  // ----------
-
-  /**
-   * Returns saved state describing the current state of this LocalList,
-   * including its values.
-   *
-   * The saved state may later be passed to [[load]]
-   * on a new instance of LocalList, to reconstruct the
-   * same list state.
-   *
-   * Only saves values, not Order. "Natural" format; order
-   * guarantees (list order).
-   */
-  save(): { [lexPos: LexPosition]: T } {
-    const lexPosMap: { [lexPos: LexPosition]: T } = {};
-    for (const [lexPos, value] of this.entries()) lexPosMap[lexPos] = value;
-    return lexPosMap;
-  }
-
-  /**
-   * Loads saved state. The saved state must be from
-   * a call to [[save]] on a LocalList whose `source`
-   * constructor argument was a replica of this's
-   * `source`, so that we can understand the
-   * saved state's Positions.
-   *
-   * Overwrites whole state - not state-based merge.
-   *
-   * @param savedState Saved state from a List's
-   * [[save]] call.
-   */
-  load(lexPosMap: { [lexPos: LexPosition]: T }): void {
-    // TODO
-  }
+  // TODO: save & load distinct from entries?
+  // E.g. opt rep using LexNodes.
 }
