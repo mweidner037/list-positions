@@ -627,6 +627,26 @@ export class Order {
   }
 
   /**
+   * Expands output of Order.createPositions, List.insert, etc. into an array
+   * of Positions.
+   * 
+   * @param startPos 
+   * @param count 
+   * @returns 
+   */
+  static expandPositions(startPos: Position, count: number): Position[] {
+    const ans = new Array<Position>(count);
+    for (let i = 0; i < count; i++) {
+      ans[i] = {
+        creatorID: startPos.creatorID,
+        counter: startPos.counter,
+        valueIndex: startPos.valueIndex + i
+      }
+    }
+    return ans;
+  }
+
+  /**
    * [Compare function](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/sort#comparefn)
    * for **sibling** Nodes in an Order, i.e., Nodes with the same parentNode.
    *
