@@ -1,6 +1,6 @@
 import { ItemList } from "./internal/item_list";
 import { NumberItemManager, SparseArray } from "./internal/sparse_array";
-import { Node, NodeDesc } from "./node";
+import { NodeDesc } from "./node";
 import { Order } from "./order";
 import { MIN_POSITION, Position, positionEquals } from "./position";
 
@@ -50,8 +50,6 @@ export class Outline {
     this.itemList = new ItemList(this.order, new NumberItemManager());
   }
 
-  // TODO: way to convert to/from regular arrays { lexPos: value }[] (Gurgen suggestion).
-
   // ----------
   // Mutators
   // ----------
@@ -71,7 +69,7 @@ export class Outline {
    * @param startPos
    * @param sameNodeValues
    */
-  set(startPos: Position, count: number): void;
+  set(startPos: Position, sameNodeCount: number): void;
   set(startPos: Position, count = 1): void {
     // TODO: return existing.save()? Likewise in delete, setAt?, deleteAt?
     this.itemList.set(startPos, count);
@@ -91,12 +89,25 @@ export class Outline {
   }
 
   /**
-   * Deletes the value at index.
+   * Deletes `count` values starting at `index`.
    *
-   * @throws If index is not in `[0, this.length)`.
+   * @throws If index...index+count-1 are not in `[0, this.length)`.
    */
-  deleteAt(index: number): void {
-    this.delete(this.positionAt(index));
+  deleteAt(index: number, count = 1): void {
+    if (count === 0) return;
+    // Do bounds checks first, so if it is out of bounds, we do nothing.
+    if (index < 0 || index + count - 1 >= this.length) {
+      throw new Error(
+        `deleteAt args out of bounds: index=${index}, count=${count}, length=${this.length}`
+      );
+    }
+
+    const toDelete = new Array<Position>(count);
+    for (let i = 0; i < count; i++) {
+      toDelete[i] = this.positionAt(index + i);
+    }
+    // OPT: batch delta updates, like for same-node update.
+    for (const pos of toDelete) this.itemList.delete(pos, 1);
   }
 
   /**
@@ -108,35 +119,37 @@ export class Outline {
     this.itemList.clear();
   }
 
+  insert(prevPos: Position): [pos: Position, createdNodeDesc: NodeDesc | null];
   /**
    *
-   * @param prevPos
-   * @param values
-   * @returns { first value's new position, createdNodeDesc if created by Order }.
-   * If values.length > 1, their positions start at pos using the same Node
-   * with increasing valueIndex.
-   * If values.length = 0, a new position is created but the List state is not
-   * changed - can use this instead of calling Order.createPosition directly.
-   * @throws If prevPos is order.maxPosition.
+   * @param index
+   * @throws If count = 0 (doesn't know what to return).
    */
   insert(
     prevPos: Position,
     count: number
-  ): { startPos: Position; createdNodeDesc: NodeDesc | null } {
+  ): [startPos: Position, createdNodeDesc: NodeDesc | null];
+  insert(
+    prevPos: Position,
+    count = 1
+  ): [startPos: Position, createdNodeDesc: NodeDesc | null] {
     return this.itemList.insert(prevPos, count);
   }
 
+  insertAt(index: number): [pos: Position, createdNodeDesc: NodeDesc | null];
   /**
    *
    * @param index
-   * @param values
-   * @returns
-   * @throws If index is this.length and our last value is at order.maxPosition.
+   * @throws If count = 0 (doesn't know what to return).
    */
   insertAt(
     index: number,
     count: number
-  ): { startPos: Position; createdNodeDesc: NodeDesc | null } {
+  ): [startPos: Position, createdNodeDesc: NodeDesc | null];
+  insertAt(
+    index: number,
+    count = 1
+  ): [startPos: Position, createdNodeDesc: NodeDesc | null] {
     return this.itemList.insertAt(index, count);
   }
 
@@ -186,13 +199,6 @@ export class Outline {
   }
 
   /**
-   * The length of the list.
-   */
-  get length() {
-    return this.itemList.length;
-  }
-
-  /**
    * Returns the cursor at `index` within the list.
    * That is, the cursor is between the list elements at `index - 1` and `index`.
    *
@@ -213,10 +219,17 @@ export class Outline {
    *
    * Inverts cursorAt.
    */
-  indexOf(cursor: Position): number {
+  indexOfCursor(cursor: Position): number {
     return positionEquals(cursor, MIN_POSITION)
       ? 0
       : this.indexOfPosition(cursor, "left") + 1;
+  }
+
+  /**
+   * The length of the list.
+   */
+  get length() {
+    return this.itemList.length;
   }
 
   // ----------
@@ -224,11 +237,10 @@ export class Outline {
   // ----------
 
   /**
-   * Returns an iterator of [pos, index] tuples for every
-   * value in the list, in list order.
+   * Returns an iterator for present positions, in list order.
    */
-  [Symbol.iterator](): IterableIterator<[pos: Position, index: number]> {
-    return this.entries();
+  [Symbol.iterator](): IterableIterator<Position> {
+    return this.positions();
   }
 
   /**
@@ -258,22 +270,6 @@ export class Outline {
   // ----------
   // Save & Load
   // ----------
-
-  saveOneNode(node: Node): number[] {
-    const arr = this.itemList.saveOneNode(node);
-    if (arr === undefined) return [];
-    return saveArray(arr);
-  }
-
-  /**
-   * Overwrites all of node's existing values - so non-present keys become
-   * deleted, even if they come after the last present key.
-   *
-   * Note that values might not be contiguous in the list.
-   */
-  loadOneNode(node: Node, nodeSavedState: number[]): void {
-    this.itemList.loadOneNode(node, loadArray(nodeSavedState));
-  }
 
   /**
    * Returns saved state describing the current state of this LocalList,

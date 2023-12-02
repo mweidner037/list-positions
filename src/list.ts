@@ -285,7 +285,7 @@ export class List<T> {
    *
    * Inverts cursorAt.
    */
-  indexOf(cursor: Position): number {
+  indexOfCursor(cursor: Position): number {
     return positionEquals(cursor, MIN_POSITION)
       ? 0
       : this.indexOfPosition(cursor, "left") + 1;

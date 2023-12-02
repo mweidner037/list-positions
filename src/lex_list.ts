@@ -240,7 +240,7 @@ export class LexList<T> {
    *
    * Inverts cursorAt.
    */
-  indexOf(cursor: LexPosition): number {
+  indexOfCursor(cursor: LexPosition): number {
     return cursor === MIN_LEX_POSITION
       ? 0
       : this.indexOfPosition(cursor, "left") + 1;
