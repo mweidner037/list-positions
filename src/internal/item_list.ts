@@ -384,8 +384,7 @@ export class ItemList<I, T> {
           // The position is among node's values, between child and the
           // previous child-with-data.
           return {
-            creatorID: current.creatorID,
-            counter: current.counter,
+            nodeID: current.id,
             valueIndex: this.arrayMan.findPresentIndex(
               currentData.values,
               nextValueIndex,
@@ -475,8 +474,7 @@ export class ItemList<I, T> {
         if (index >= start) {
           yield [
             {
-              creatorID: node.creatorID,
-              counter: node.counter,
+              nodeID: node.id,
               valueIndex,
             },
             value,
@@ -563,38 +561,15 @@ export class ItemList<I, T> {
    * on a new instance of LocalList, to reconstruct the
    * same list state.
    *
-   * Only saves values, not Order. "Natural" format; order
-   * guarantees.
+   * Only saves values, not Order. nodeID order not guaranteed;
+   * can sort if you care.
    */
-  save<S>(saveArray: (arr: SparseArray<I>) => S): {
-    [creatorID: string]: { [counter: number]: S };
-  } {
-    const savedStatePre: {
-      [creatorID: string]: { [counter: number]: S };
-    } = {};
+  save<S>(saveArray: (arr: SparseArray<I>) => S): { [nodeID: string]: S } {
+    const savedState: { [nodeID: string]: S } = {};
     for (const [node, data] of this.state) {
-      if (this.arrayMan.isEmpty(data.values)) continue;
-
-      let byCreator = savedStatePre[node.creatorID];
-      if (byCreator === undefined) {
-        byCreator = {};
-        savedStatePre[node.creatorID] = byCreator;
+      if (!this.arrayMan.isEmpty(data.values)) {
+        savedState[node.id] = saveArray(data.values);
       }
-
-      byCreator[node.counter] = saveArray(data.values);
-    }
-
-    // Make a (shallow) copy of savedStatePre that touches all
-    // creatorIDs in lexicographic order, to ensure consistent JSON
-    // serialization order for identical states. (JSON field order is: non-negative
-    // integers in numeric order, then string keys in creation order.)
-    const sortedCreatorIDs = Object.keys(savedStatePre);
-    sortedCreatorIDs.sort();
-    const savedState: {
-      [creatorID: string]: { [counter: number]: S };
-    } = {};
-    for (const creatorID of sortedCreatorIDs) {
-      savedState[creatorID] = savedStatePre[creatorID];
     }
     return savedState;
   }
@@ -612,34 +587,21 @@ export class ItemList<I, T> {
    * [[save]] call.
    */
   load<S>(
-    savedState: {
-      [creatorID: string]: { [counter: number]: S };
-    },
+    savedState: { [nodeID: string]: S },
     loadArray: (savedArr: S) => SparseArray<I>
   ): void {
     this.clear();
 
-    for (const [creatorID, byCreator] of Object.entries(savedState)) {
-      for (const [timestampStr, savedArr] of Object.entries(byCreator)) {
-        const timestamp = Number.parseInt(timestampStr);
-        if (isNaN(timestamp)) {
-          throw new Error(
-            `Non-integer timestamp in ListSavedState: ${timestampStr}`
-          );
-        }
-        const node = this.order.getNode(creatorID, timestamp);
-        if (node === undefined) {
-          throw new Error(
-            `List.load savedState references missing OrderNode: ${JSON.stringify({
-              creatorID,
-              timestamp,
-            })}. You must call Order.receive/receiveSavedState before referencing an OrderNode.`
-          );
-        }
-        // TODO: wait until end to compute all parentValuesBefores, totals.
-        // To avoid ?? complexity.
-        this.loadOneNode(node, loadArray(savedArr));
+    for (const [nodeID, savedArr] of Object.entries(savedState)) {
+      const node = this.order.getNode(nodeID);
+      if (node === undefined) {
+        throw new Error(
+          `List.load savedState references missing OrderNode: id="${nodeID}". You must call Order.receive before referencing an OrderNode.`
+        );
       }
+      // TODO: wait until end to compute all parentValuesBefores, totals.
+      // To avoid ?? complexity.
+      this.loadOneNode(node, loadArray(savedArr));
     }
   }
 }

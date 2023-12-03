@@ -9,9 +9,7 @@ import { Position } from "./position";
  * counts, starting with present (maybe 0)). JSON ordering guarantees.
  */
 export type OutlineSavedState = {
-  [creatorID: string]: {
-    [timestamp: number]: number[];
-  };
+  [nodeID: string]: number[];
 };
 
 function cloneArray(arr: SparseArray<number>): number[] {

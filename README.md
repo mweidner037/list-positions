@@ -136,11 +136,11 @@ type Position = {
 };
 ```
 
-The pair `{ creatorID, timestamp }` identifies a **node** in a shared tree. Your Order must receive a **[NodeMeta](#types-nodemeta) ("node description")** for this node before you can use the Position in `List.set`, `Order.compare`, etc. Otherwise, you will get an error `"Position references missing OrderNode: <...>. You must call Order.receive/receiveSavedState before referencing an OrderNode."`.
+The pair `{ creatorID, timestamp }` identifies a **node** in a shared tree. Your Order must receive a **[NodeMeta](#types-nodemeta) ("node description")** for this node before you can use the Position in `List.set`, `Order.compare`, etc. Otherwise, you will get an error `"Position references missing OrderNode: <...>. You must call Order.receive before referencing an OrderNode."`.
 
 > Exception: The root node `{ creatorID: "ROOT", timestamp: 0 }` is always valid. Its only Positions are `Order.minPosition` and `Order.maxPosition`.
 
-Use `Order.save` and `Order.receiveSavedState` to share all of an Order's NodeMetas:
+Use TODO `Order.save` and `Order.receiveSavedState` to share all of an Order's NodeMetas:
 
 ```ts
 // Before exiting:
@@ -181,9 +181,9 @@ type NodeMeta = {
 };
 ```
 
-It is okay if an Order receives the same NodeMeta multiple times, or if different instances receive NodeMetas in different orders. However, before receiving a NodeMeta, its parent Position must itself be valid: the Order must have already received the parent's NodeMeta (or the parent is part of the same `Order.receive`/`Order.receiveSavedState` call). Otherwise, you will get an error `"Received NodeMeta <...>, but we have not yet received a NodeMeta for its parent node <...>."`.
+It is okay if an Order receives the same NodeMeta multiple times, or if different instances receive NodeMetas in different orders. However, before receiving a NodeMeta, its parent Position must itself be valid: the Order must have already received the parent's NodeMeta (or the parent is part of the same `Order.receive` call). Otherwise, you will get an error `"Received NodeMeta <...>, but we have not yet received a NodeMeta for its parent node <...>."`.
 
-> You can think of an Order's state as a Grow-Only Set of NodeMetas. `Order.save` and `Order.receiveSavedState` form a [state-based CRDT](https://en.wikipedia.org/wiki/Conflict-free_replicated_data_type#State-based_CRDTs), while `Order.onCreateNode` and `Order.receive` form an [op-based CRDT](https://en.wikipedia.org/wiki/Conflict-free_replicated_data_type#Operation-based_CRDTs). You can also implement your own sync strategies - e.g., two peers compare their largest timestamps for each creatorID and only exchange the ones they're missing.
+> You can think of an Order's state as a Grow-Only Set of NodeMetas. TODO `Order.save` and `Order.receiveSavedState` form a [state-based CRDT](https://en.wikipedia.org/wiki/Conflict-free_replicated_data_type#State-based_CRDTs), while `Order.onCreateNode` and `Order.receive` form an [op-based CRDT](https://en.wikipedia.org/wiki/Conflict-free_replicated_data_type#Operation-based_CRDTs). You can also implement your own sync strategies - e.g., two peers compare their largest timestamps for each creatorID and only exchange the ones they're missing.
 
 ### Storage and Collaboration
 
@@ -198,7 +198,7 @@ Fundamentally, a List's state is a map `Position -> value`. Some ways to store t
 Likewise, an Order's state is fundamentally an array of NodeMetas. Some ways to store this state:
 
 - A database table with columns `creatorID: string; timestamp: uint; parentCreatorID: string, parentTimestamp: uint, parentValueIndex: uint`.
-- A double-layered map `creatorID -> (timestamp -> Position)`. The methods `Order.save()` and `Order.receiveSavedState` use this representation.
+- A double-layered map `creatorID -> (timestamp -> Position)`. TODO: only w/ default nodeIDs. Instead/also: discuss array of NodeMetas vs map id -> rest.
 
 Tips:
 

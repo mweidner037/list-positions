@@ -152,8 +152,7 @@ export class LexList<T> {
     const lexPositions = new Array<LexPosition>(count);
     for (let i = 0; i < count; i++) {
       lexPositions[i] = this.order.lex({
-        creatorID: startPos.creatorID,
-        counter: startPos.counter,
+        nodeID: startPos.nodeID,
         valueIndex: startPos.valueIndex + i,
       });
     }

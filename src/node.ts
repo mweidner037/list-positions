@@ -1,11 +1,6 @@
-export type NodeID = {
-  readonly creatorID: string;
-  readonly counter: number;
-};
-
 /**
  * Metadata for an OrderNode. You must supply a node's NodeMeta to
- * Order.receive/receiveSavedState before you can reference that node
+ * Order.receive before you can reference that node
  * in Positions.
  *
  * Notes:
@@ -14,9 +9,8 @@ export type NodeID = {
  * @see Order.equalsNodeMeta
  */
 export type NodeMeta = {
-  readonly creatorID: string;
-  readonly counter: number;
-  readonly parentID: NodeID;
+  readonly id: string;
+  readonly parentID: string
   /**
    * 0: left child of (parent, 0).
    * 1: right child of (parent, 0).
@@ -41,8 +35,7 @@ export type NodeMeta = {
  */
 export interface OrderNode {
   // TODO: class property docs.
-  readonly creatorID: string;
-  readonly counter: number;
+  readonly id: string;
   /** null for the root. */
   readonly parent: OrderNode | null;
   /** Unspecified for the root. */
@@ -54,9 +47,6 @@ export interface OrderNode {
    * The valueIndex of the next Position after this node in our parent. Possibly 0.
    */
   readonly nextValueIndex: number;
-
-  // TODO: getter instead of function?
-  id(): NodeID;
   /**
    * Returns this node's NodeMeta.
    *

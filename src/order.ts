@@ -1,21 +1,6 @@
-import { NodeMap } from "./internal/node_map";
-import { NodeID, NodeMeta, OrderNode } from "./node";
+import { NodeMeta, OrderNode } from "./node";
+import { NodeIDs } from "./node_ids";
 import { LexPosition, Position } from "./position";
-import { ReplicaIDs } from "./util/replica_ids";
-
-/**
- * JSON saved state for an Order, representing all of its Nodes.
- *
- * Maps (creatorID, timestamp) -> rest of NodeMeta. Excludes rootNode.
- */
-export type OrderSavedState = {
-  [creatorID: string]: {
-    [counter: number]: {
-      parentID: NodeID;
-      offset: number;
-    };
-  };
-};
 
 class NodeInternal implements OrderNode {
   readonly depth: number;
@@ -39,8 +24,7 @@ class NodeInternal implements OrderNode {
   ourChildren?: Map<number, NodeInternal>;
 
   constructor(
-    readonly creatorID: string,
-    readonly counter: number,
+    readonly id: string,
     readonly parent: NodeInternal | null,
     readonly offset: number
   ) {
@@ -59,18 +43,13 @@ class NodeInternal implements OrderNode {
     return this.children![index];
   }
 
-  id(): NodeID {
-    return { creatorID: this.creatorID, counter: this.counter };
-  }
-
   meta(): NodeMeta {
     if (this.parent === null) {
       throw new Error("Cannot call meta() on the root OrderNode");
     }
     return {
-      creatorID: this.creatorID,
-      counter: this.counter,
-      parentID: this.parent.id(),
+      id: this.id,
+      parentID: this.parent.id,
       offset: this.offset,
     };
   }
@@ -78,42 +57,41 @@ class NodeInternal implements OrderNode {
   toString() {
     // Similar to NodeMeta, but valid for rootNode as well.
     return JSON.stringify({
-      creatorID: this.creatorID,
-      timestamp: this.counter,
-      parentID: this.parent === null ? null : this.parent.id(),
+      id: this.id,
+      parentID: this.parent === null ? null : this.parent.id,
       offset: this.offset,
     });
   }
 }
 
 export class Order {
-  readonly replicaID: string;
-  private counter = 0;
+  private readonly newNodeID: () => string;
 
   readonly rootNode: OrderNode;
 
   /**
-   * Maps from NodeID to the *unique* corresponding NodeInternal.
+   * Maps from node ID to the *unique* corresponding NodeInternal.
    */
-  private readonly tree = new NodeMap<NodeInternal>();
+  private readonly tree = new Map<string, NodeInternal>();
 
-  constructor(options?: { replicaID?: string }) {
-    if (options?.replicaID !== undefined) {
-      ReplicaIDs.validate(options.replicaID);
-    }
-    this.replicaID = options?.replicaID ?? ReplicaIDs.random();
+  /**
+   *
+   * @param options.newNodeID Function that returns a globally unique new
+   * node ID, used for our createdNode.id's. Default: TODO.
+   */
+  constructor(options?: { newNodeID?: () => string }) {
+    this.newNodeID = options?.newNodeID ?? NodeIDs.usingReplicaID();
 
-    this.rootNode = new NodeInternal(ReplicaIDs.ROOT, 0, null, 0);
-    this.tree.set(this.rootNode, this.rootNode);
+    this.rootNode = new NodeInternal(NodeIDs.ROOT, null, 0);
+    this.tree.set(this.rootNode.id, this.rootNode);
   }
 
   // ----------
   // Accessors
   // ----------
 
-  // TODO: NodeID/NodeMeta version?
-  getNode(creatorID: string, timestamp: number): OrderNode | undefined {
-    return this.tree.get2(creatorID, timestamp);
+  getNode(nodeID: string): OrderNode | undefined {
+    return this.tree.get(nodeID);
   }
 
   /**
@@ -127,7 +105,7 @@ export class Order {
         )}`
       );
     }
-    const node = this.tree.get(pos);
+    const node = this.tree.get(pos.nodeID);
     if (
       node === this.rootNode &&
       !(pos.valueIndex === 0 || pos.valueIndex === 1)
@@ -142,7 +120,7 @@ export class Order {
       throw new Error(
         `Position references missing OrderNode: ${JSON.stringify(
           pos
-        )}. You must call Order.receive/receiveSavedState before referencing an OrderNode.`
+        )}. You must call Order.receive before referencing an OrderNode.`
       );
     }
     return node;
@@ -189,9 +167,7 @@ export class Order {
 
     // Now aAnc and bAnc are distinct siblings. Use sibling order.
     return Order.compareSiblingNodes(aAnc, bAnc);
-  }
-
-  summary(node: OrderNode): string {}
+  };
 
   // ----------
   // Mutators
@@ -209,18 +185,19 @@ export class Order {
     // For the redundant ones, check that their parents match.
     // Redundancy also applies to duplicates within nodeMetas.
 
-    // New NodeMetas, stored as the identity map.
-    const createdNodeMetas = new NodeMap<NodeMeta>();
+    // New NodeMetas, keyed by id.
+    const createdNodeMetas = new Map<string, NodeMeta>();
 
     for (const nodeMeta of nodeMetas) {
-      if (nodeMeta.creatorID === ReplicaIDs.ROOT) {
+      if (nodeMeta.id === NodeIDs.ROOT) {
         throw new Error(
           `Received NodeMeta describing the root node: ${JSON.stringify(
             nodeMeta
           )}`
         );
       }
-      const existing = this.tree.get(nodeMeta);
+      NodeIDs.validate(nodeMeta.id);
+      const existing = this.tree.get(nodeMeta.id);
       if (existing !== undefined) {
         if (!Order.equalsNodeMeta(nodeMeta, existing.meta())) {
           throw new Error(
@@ -230,7 +207,7 @@ export class Order {
           );
         }
       } else {
-        const otherNew = createdNodeMetas.get(nodeMeta);
+        const otherNew = createdNodeMetas.get(nodeMeta.id);
         if (otherNew !== undefined) {
           if (!Order.equalsNodeMeta(nodeMeta, otherNew)) {
             throw new Error(
@@ -239,7 +216,7 @@ export class Order {
               )}, second=${JSON.stringify(nodeMeta)}`
             );
           }
-        } else createdNodeMetas.set(nodeMeta, nodeMeta);
+        } else createdNodeMetas.set(nodeMeta.id, nodeMeta);
       }
     }
 
@@ -247,8 +224,8 @@ export class Order {
     // follows its parent (or its parent already exists).
     const toProcess: NodeMeta[] = [];
     // New NodeMetas that are waiting on a parent in createdNodeMetas, keyed by
-    // that parent.
-    const pendingChildren = new NodeMap<NodeMeta[]>();
+    // that parent's id.
+    const pendingChildren = new Map<string, NodeMeta[]>();
 
     for (const nodeMeta of createdNodeMetas.values()) {
       if (this.tree.get(nodeMeta.parentID) !== undefined) {
@@ -267,18 +244,18 @@ export class Order {
     // For each node in toProcess, if it has pending children, append those.
     // That way they'll be processed after the node, including by this loop.
     for (const nodeMeta of toProcess) {
-      const children = pendingChildren.get(nodeMeta);
+      const children = pendingChildren.get(nodeMeta.id);
       if (children !== undefined) {
         toProcess.push(...children);
         // Delete so we can later check whether all pendingChildren were
         // moved to toProcess.
-        pendingChildren.delete(nodeMeta);
+        pendingChildren.delete(nodeMeta.id);
       }
     }
 
     // Check that all pendingChildren were moved to toProcess.
-    if (!pendingChildren.isEmpty()) {
-      const someParent = pendingChildren.someKey();
+    if (pendingChildren.size !== 0) {
+      const someParent = pendingChildren.keys().next().value as string;
       const somePendingChild = pendingChildren.get(someParent)![0];
       // someParent was never added to toProcess.
       if (createdNodeMetas.get(someParent) === undefined) {
@@ -318,13 +295,8 @@ export class Order {
         )} passed validation checks, but its parent node was not found.`
       );
     }
-    const node = new NodeInternal(
-      nodeMeta.creatorID,
-      nodeMeta.counter,
-      parentNode,
-      nodeMeta.offset
-    );
-    this.tree.set(node, node);
+    const node = new NodeInternal(nodeMeta.id, parentNode, nodeMeta.offset);
+    this.tree.set(node.id, node);
 
     // Add node to parentNode._children.
     if (parentNode.children === undefined) parentNode.children = [node];
@@ -341,8 +313,6 @@ export class Order {
 
     return node;
   }
-
-  receiveSummary(summary: string): OrderNode {}
 
   /**
    * @param prevPos
@@ -403,17 +373,17 @@ export class Order {
 
     if (!this.isDescendant(nextPos, prevPos)) {
       // Make a right child of prevPos.
-      const prevNode = this.tree.get(prevPos)!;
-      if (prevPos.creatorID === this.replicaID) {
-        // Use the next Position in prevPos's node.
+      const prevNode = this.tree.get(prevPos.nodeID)!;
+      if (prevNode.createdCounter !== undefined) {
+        // We created prevNode. Use its next Position.
         // It's okay if nextValueIndex is not prevPos.valueIndex + 1:
         // pos will still be < nextPos, and going farther along prevNode
         // amounts to following the Exception above.
         const startPos: Position = {
-          ...prevNode.id(),
-          valueIndex: prevNode.createdCounter!,
+          nodeID: prevNode.id,
+          valueIndex: prevNode.createdCounter,
         };
-        prevNode.createdCounter! += count;
+        prevNode.createdCounter += count;
         return [startPos, null];
       }
 
@@ -421,7 +391,7 @@ export class Order {
       newNodeOffset = 2 * prevPos.valueIndex + 1;
     } else {
       // Make a left child of nextPos.
-      newNodeParent = this.tree.get(nextPos)!;
+      newNodeParent = this.tree.get(nextPos.nodeID)!;
       newNodeOffset = 2 * prevPos.valueIndex;
     }
 
@@ -431,7 +401,7 @@ export class Order {
     const conflict = newNodeParent.ourChildren?.get(newNodeOffset);
     if (conflict !== undefined) {
       const startPos: Position = {
-        ...conflict.id(),
+        nodeID: conflict.id,
         valueIndex: conflict.createdCounter!,
       };
       conflict.createdCounter! += count;
@@ -439,12 +409,10 @@ export class Order {
     }
 
     const createdNodeMeta: NodeMeta = {
-      creatorID: this.replicaID,
-      counter: this.counter,
-      parentID: newNodeParent.id(),
+      id: this.newNodeID(),
+      parentID: newNodeParent.id,
       offset: newNodeOffset,
     };
-    this.counter++;
 
     const createdNode = this.newNode(createdNodeMeta);
     createdNode.createdCounter = count;
@@ -457,8 +425,7 @@ export class Order {
 
     return [
       {
-        creatorID: createdNode.creatorID,
-        counter: createdNode.counter,
+        nodeID: createdNode.id,
         valueIndex: 0,
       },
       createdNode,
@@ -470,8 +437,8 @@ export class Order {
    * in which a node's Positions form a rightward chain.
    */
   private isDescendant(a: Position, b: Position): boolean {
-    const aNode = this.tree.get(a)!;
-    const bNode = this.tree.get(b)!;
+    const aNode = this.tree.get(a.nodeID)!;
+    const bNode = this.tree.get(b.nodeID)!;
 
     let aAnc = aNode;
     // The greatest valueIndex that `a` descends from (left or right) in aAnc.
@@ -499,66 +466,15 @@ export class Order {
 
   /**
    * Unlike nodes(), excludes rootNode. Otherwise same order.
+   *
+   * Useful for saving; pass the result to Order.receive to load/merge.
+   * Can also turn into map (id -> { parentID, offset }).
    */
   *nodeMetas(): IterableIterator<NodeMeta> {
     for (const node of this.tree.values()) {
       if (node === this.rootNode) continue;
       yield node.meta();
     }
-  }
-
-  // ----------
-  // Save & Load
-  // ----------
-
-  save(): OrderSavedState {
-    const savedState: OrderSavedState = {};
-    // Touch all creatorIDs in lexicographic order, to ensure consistent JSON
-    // serialization order for identical states. (JSON field order is: non-negative
-    // integers in numeric order, then string keys in creation order.)
-    const creatorIDs: string[] = [];
-    for (const creatorID of this.tree.state.keys()) {
-      if (creatorID !== ReplicaIDs.ROOT) creatorIDs.push(creatorID);
-    }
-
-    const sortedCreatorIDs = [...creatorIDs];
-    sortedCreatorIDs.sort();
-    for (const creatorID of sortedCreatorIDs) savedState[creatorID] = {};
-
-    // Nodes
-    for (const [creatorID, byCreator] of this.tree.state) {
-      if (creatorID === ReplicaIDs.ROOT) continue;
-      for (const [timestamp, node] of byCreator) {
-        savedState[creatorID][timestamp] = {
-          parentID: node.parent!.id(),
-          offset: node.offset,
-        };
-      }
-    }
-
-    return savedState;
-  }
-
-  /**
-   * Receives all of the nodes described by savedState - merge op (not overwrite).
-   */
-  receiveSavedState(savedState: OrderSavedState): void {
-    // Opt: Pass custom iterator instead of array, to avoid 2x memory when
-    // merging nearly-identical states.
-    const nodeMetas: NodeMeta[] = [];
-    for (const [creatorID, byCreator] of Object.entries(savedState)) {
-      for (const [timestampStr, { parentID, offset }] of Object.entries(
-        byCreator
-      )) {
-        nodeMetas.push({
-          creatorID,
-          counter: Number.parseInt(timestampStr),
-          parentID,
-          offset,
-        });
-      }
-    }
-    this.receive(nodeMetas);
   }
 
   // ----------
@@ -574,13 +490,11 @@ export class Order {
   // ----------
 
   static readonly MIN_POSITION: Position = {
-    creatorID: ReplicaIDs.ROOT,
-    counter: 0,
+    nodeID: NodeIDs.ROOT,
     valueIndex: 0,
   };
   static readonly MAX_POSITION: Position = {
-    creatorID: ReplicaIDs.ROOT,
-    counter: 0,
+    nodeID: NodeIDs.ROOT,
     valueIndex: 1,
   };
 
@@ -591,24 +505,14 @@ export class Order {
    * Returns whether two Positions are equal, i.e., they have equal contents.
    */
   static equalsPosition(a: Position, b: Position): boolean {
-    return (
-      a.creatorID === b.creatorID &&
-      a.counter === b.counter &&
-      a.valueIndex === b.valueIndex
-    );
+    return a.nodeID === b.nodeID && a.valueIndex === b.valueIndex;
   }
 
   /**
    * Returns whether two NodeMetas are equal, i.e., they have equal contents.
    */
   static equalsNodeMeta(a: NodeMeta, b: NodeMeta): boolean {
-    return (
-      a.creatorID === b.creatorID &&
-      a.counter === b.counter &&
-      a.parentID.creatorID === b.parentID.creatorID &&
-      a.parentID.counter === b.parentID.counter &&
-      a.offset === b.offset
-    );
+    return a.id === b.id && a.parentID === b.parentID && a.offset === b.offset;
   }
 
   /**
@@ -623,8 +527,7 @@ export class Order {
     const ans = new Array<Position>(count);
     for (let i = 0; i < count; i++) {
       ans[i] = {
-        creatorID: startPos.creatorID,
-        counter: startPos.counter,
+        nodeID: startPos.nodeID,
         valueIndex: startPos.valueIndex + i,
       };
     }
@@ -646,16 +549,12 @@ export class Order {
       );
     }
 
-    // Sibling sort order: first by offset, then by creatorID, then by counter.
-    // TODO: ensure counter sort matches LexPosition. Sort by stringified int (in right base)?
+    // Sibling sort order: first by offset, then by id.
     if (a.offset !== b.offset) {
       return a.offset - b.offset;
     }
-    if (a.creatorID !== b.creatorID) {
-      return a.creatorID > b.creatorID ? 1 : -1;
-    }
-    if (a.counter !== b.counter) {
-      return a.counter - b.counter;
+    if (a.id !== b.id) {
+      return a.id > b.id ? 1 : -1;
     }
     return 0;
   }

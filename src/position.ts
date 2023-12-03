@@ -19,17 +19,9 @@
  */
 export type Position = {
   /**
-   * The Position's OrderNode's creatorID.
+   * The Position's OrderNode's id.
    */
-  readonly creatorID: string;
-  /**
-   * The Position's OrderNode's counter,
-   * which is a nonnegative integer.
-   *
-   * For a given creatorID, counters are assigned sequentially, although
-   * any given replica may be missing some intermediate counters.
-   */
-  readonly counter: number;
+  readonly nodeID: string;
   /**
    * The index of this Position among its OrderNode's values, which is a
    * nonnegative integer.
