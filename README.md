@@ -136,7 +136,7 @@ type Position = {
 };
 ```
 
-The pair `{ creatorID, timestamp }` identifies a **node** in a shared tree. Your Order must receive a **[NodeDesc](#types-nodedesc) ("node description")** for this node before you can use the Position in `List.set`, `Order.compare`, etc. Otherwise, you will get an error `"Position references missing Node: <...>. You must call Order.receive/receiveSavedState before referencing a Node."`.
+The pair `{ creatorID, timestamp }` identifies a **node** in a shared tree. Your Order must receive a **[NodeDesc](#types-nodedesc) ("node description")** for this node before you can use the Position in `List.set`, `Order.compare`, etc. Otherwise, you will get an error `"Position references missing OrderNode: <...>. You must call Order.receive/receiveSavedState before referencing an OrderNode."`.
 
 > Exception: The root node `{ creatorID: "ROOT", timestamp: 0 }` is always valid. Its only Positions are `Order.minPosition` and `Order.maxPosition`.
 

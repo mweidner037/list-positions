@@ -1,5 +1,5 @@
 import { NodeMap } from "./internal/node_map";
-import { Node, NodeDesc, NodeID } from "./node";
+import { NodeDesc, NodeID, OrderNode } from "./node";
 import { LexPosition, Position } from "./position";
 import { ReplicaIDs } from "./util/replica_ids";
 
@@ -17,7 +17,7 @@ export type OrderSavedState = {
   };
 };
 
-class NodeInternal implements Node {
+class NodeInternal implements OrderNode {
   readonly depth: number;
 
   /**
@@ -55,7 +55,7 @@ class NodeInternal implements Node {
     return this.children?.length ?? 0;
   }
 
-  getChild(index: number): Node {
+  getChild(index: number): OrderNode {
     return this.children![index];
   }
 
@@ -65,7 +65,7 @@ class NodeInternal implements Node {
 
   desc(): NodeDesc {
     if (this.parent === null) {
-      throw new Error("Cannot call desc() on the root Node");
+      throw new Error("Cannot call desc() on the root OrderNode");
     }
     return {
       creatorID: this.creatorID,
@@ -90,10 +90,10 @@ export class Order {
   readonly replicaID: string;
   private counter = 0;
 
-  readonly rootNode: Node;
+  readonly rootNode: OrderNode;
 
   /**
-   * Maps from a Node's desc to that Node.
+   * Maps from a node's desc to that node.
    */
   private readonly tree = new NodeMap<NodeInternal>();
 
@@ -112,14 +112,14 @@ export class Order {
   // ----------
 
   // TODO: NodeID/NodeDesc version?
-  getNode(creatorID: string, timestamp: number): Node | undefined {
+  getNode(creatorID: string, timestamp: number): OrderNode | undefined {
     return this.tree.get2(creatorID, timestamp);
   }
 
   /**
    * Also validates pos (minPosition/maxPosition okay).
    */
-  getNodeFor(pos: Position): Node {
+  getNodeFor(pos: Position): OrderNode {
     if (!Number.isInteger(pos.valueIndex) || pos.valueIndex < 0) {
       throw new Error(
         `Position.valueIndex is not a nonnegative integer: ${JSON.stringify(
@@ -140,9 +140,9 @@ export class Order {
     }
     if (node === undefined) {
       throw new Error(
-        `Position references missing Node: ${JSON.stringify(
+        `Position references missing OrderNode: ${JSON.stringify(
           pos
-        )}. You must call Order.receive/receiveSavedState before referencing a Node.`
+        )}. You must call Order.receive/receiveSavedState before referencing an OrderNode.`
       );
     }
     return node;
@@ -179,7 +179,7 @@ export class Order {
     }
 
     // Now aAnc and bAnc are distinct nodes at the same depth.
-    // Walk up the tree in lockstep until we find a common Node parent.
+    // Walk up the tree in lockstep until we find a common node parent.
     while (aAnc.parent !== bAnc.parent) {
       // parentNode is non-null because we would reach a common parent
       // (rootNode) before reaching aAnc = bAnc = rootNode.
@@ -191,20 +191,20 @@ export class Order {
     return Order.compareSiblingNodes(aAnc, bAnc);
   };
 
-  desc(node: Node): NodeDesc {}
+  desc(node: OrderNode): NodeDesc {}
 
-  summary(node: Node): string {}
+  summary(node: OrderNode): string {}
 
   // ----------
   // Mutators
   // ----------
 
   /**
-   * Set this to be notified when we locally create a new Node in createPosition.
+   * Set this to be notified when we locally create a new OrderNode in createPosition.
    * The NodeDesc for createdNode (which is also returned by createPosition & List.insert)
    * must be broadcast to other replicas before they can use the new Position.
    */
-  onCreateNode: ((createdNode: Node) => void) | undefined = undefined;
+  onCreateNode: ((createdNode: OrderNode) => void) | undefined = undefined;
 
   receive(nodeDescs: Iterable<NodeDesc>): void {
     // 1. Pick out the new (non-redundant) nodes in nodeDescs.
@@ -344,7 +344,7 @@ export class Order {
     return node;
   }
 
-  receiveSummary(summary: string): Node {}
+  receiveSummary(summary: string): OrderNode {}
 
   /**
    * @param prevPos
@@ -355,17 +355,17 @@ export class Order {
   createPositions(
     prevPos: Position,
     nextPos: Position
-  ): [pos: Position, createdNode: Node | null];
+  ): [pos: Position, createdNode: OrderNode | null];
   createPositions(
     prevPos: Position,
     nextPos: Position,
     count: number
-  ): [startPos: Position, createdNode: Node | null];
+  ): [startPos: Position, createdNode: OrderNode | null];
   createPositions(
     prevPos: Position,
     nextPos: Position,
     count = 1
-  ): [startPos: Position, createdNode: Node | null] {
+  ): [startPos: Position, createdNode: OrderNode | null] {
     // Also validates the positions.
     if (this.compare(prevPos, nextPos) >= 0) {
       throw new Error(
@@ -378,7 +378,7 @@ export class Order {
 
     /* 
       Unlike in the Fugue paper, we don't track all tombstones (in particular,
-      the max valueIndex for each Node).
+      the max valueIndex for each OrderNode).
       Instead, we use the provided nextPos as the rightOrigin, and apply the rule:
       
       1. If nextPos is a *not* descendant of prevPos, make a right child of prevPos.
@@ -407,7 +407,7 @@ export class Order {
       // Make a right child of prevPos.
       const prevNode = this.tree.get(prevPos)!;
       if (prevPos.creatorID === this.replicaID) {
-        // Use the next Position in prevPos's Node.
+        // Use the next Position in prevPos's node.
         // It's okay if nextValueIndex is not prevPos.valueIndex + 1:
         // pos will still be < nextPos, and going farther along prevNode
         // amounts to following the Exception above.
@@ -469,7 +469,7 @@ export class Order {
 
   /**
    * @returns True if `a` is a descendant of `b` in the *Position* tree,
-   * in which a Node's Positions form a rightward chain.
+   * in which a node's Positions form a rightward chain.
    */
   private isDescendant(a: Position, b: Position): boolean {
     const aNode = this.tree.get(a)!;
@@ -495,7 +495,7 @@ export class Order {
    * No particular order on creatorID or timestamps (in part., timestamps
    * may be out of order).
    */
-  nodes(): IterableIterator<Node> {
+  nodes(): IterableIterator<OrderNode> {
     return this.tree.values();
   }
 
@@ -616,10 +616,10 @@ export class Order {
   /**
    * Expands output of Order.createPositions, List.insert, etc. into an array
    * of Positions.
-   * 
-   * @param startPos 
-   * @param count 
-   * @returns 
+   *
+   * @param startPos
+   * @param count
+   * @returns
    */
   static expandPositions(startPos: Position, count: number): Position[] {
     const ans = new Array<Position>(count);
@@ -627,8 +627,8 @@ export class Order {
       ans[i] = {
         creatorID: startPos.creatorID,
         counter: startPos.counter,
-        valueIndex: startPos.valueIndex + i
-      }
+        valueIndex: startPos.valueIndex + i,
+      };
     }
     return ans;
   }
@@ -639,9 +639,9 @@ export class Order {
    *
    * You do not need to call this function unless you are doing something advanced.
    * To compare Positions, instead use `Order.compare` or a List. To iterate over
-   * a Node's children in order, use `Node.children()`.
+   * an OrderNode's children in order, use TODO.
    */
-  static compareSiblingNodes(a: Node, b: Node): number {
+  static compareSiblingNodes(a: OrderNode, b: OrderNode): number {
     if (a.parent !== b.parent) {
       throw new Error(
         `nodeSiblingCompare can only compare Nodes with the same parentNode, not a=${a}, b=${b}`

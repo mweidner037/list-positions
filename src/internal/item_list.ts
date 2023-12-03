@@ -1,10 +1,10 @@
-import { Node } from "../node";
+import { OrderNode } from "../node";
 import { Order } from "../order";
 import { Position } from "../position";
 import { ItemManager, SparseArray, SparseArrayManager } from "./sparse_array";
 
 /**
- * List data associated to a Node.
+ * List data associated to an OrderNode.
  */
 type NodeData<I> = {
   /**
@@ -34,11 +34,11 @@ export class ItemList<I, T> {
   private readonly arrayMan: SparseArrayManager<I, T>;
 
   /**
-   * Map from Node to its data (total & values).
+   * Map from OrderNode to its data (total & values).
    *
    * Always omits entries with total = 0.
    */
-  private state = new Map<Node, NodeData<I>>();
+  private state = new Map<OrderNode, NodeData<I>>();
 
   constructor(readonly order: Order, readonly itemMan: ItemManager<I, T>) {
     this.arrayMan = new SparseArrayManager(this.itemMan);
@@ -105,7 +105,7 @@ export class ItemList<I, T> {
     return existing;
   }
 
-  private getOrCreateData(node: Node): NodeData<I> {
+  private getOrCreateData(node: OrderNode): NodeData<I> {
     let data = this.state.get(node);
     if (data === undefined) {
       let parentValuesBefore = 0;
@@ -129,14 +129,14 @@ export class ItemList<I, T> {
    *
    * @param delta The change in the number of present values at node.
    */
-  private onUpdate(node: Node, delta: number): void {
+  private onUpdate(node: OrderNode, delta: number): void {
     // Invalidate caches.
     if (this.cachedIndexNode !== node) this.cachedIndexNode = null;
 
     // Update total for node and its ancestors.
     if (delta !== 0) {
       for (
-        let current: Node | null = node;
+        let current: OrderNode | null = node;
         current !== null;
         current = current.parent
       ) {
@@ -180,7 +180,7 @@ export class ItemList<I, T> {
    * @param prevPos
    * @param values
    * @returns [ first value's new position, createdNode if created by Order ].
-   * If item.length > 1, their positions start at pos using the same Node
+   * If item.length > 1, their positions start at pos using the same OrderNode
    * with increasing valueIndex.
    * @throws If prevPos is order.maxPosition.
    * @throws If item.length = 0 (doesn't know what to return)
@@ -188,7 +188,7 @@ export class ItemList<I, T> {
   insert(
     prevPos: Position,
     item: I
-  ): [startPos: Position, createdNode: Node | null] {
+  ): [startPos: Position, createdNode: OrderNode | null] {
     // TODO: way to do it without getting index?
     const nextIndex = this.indexOfPosition(prevPos, "left") + 1;
     const nextPos = this.positionAt(nextIndex);
@@ -212,7 +212,7 @@ export class ItemList<I, T> {
   insertAt(
     index: number,
     item: I
-  ): [startPos: Position, createdNode: Node | null] {
+  ): [startPos: Position, createdNode: OrderNode | null] {
     const prevPos =
       index === 0 ? Order.MIN_POSITION : this.positionAt(index - 1);
     const nextPos =
@@ -263,7 +263,7 @@ export class ItemList<I, T> {
    * count of node's present values before it]
    */
   private getInNode(
-    node: Node,
+    node: OrderNode,
     valueIndex: number
   ): [value: T | undefined, isPresent: boolean, nodeValuesBefore: number] {
     const data = this.state.get(node);
@@ -271,7 +271,7 @@ export class ItemList<I, T> {
     return this.arrayMan.getInfo(data.values, valueIndex);
   }
 
-  private cachedIndexNode: Node | null = null;
+  private cachedIndexNode: OrderNode | null = null;
   private cachedIndex = -1;
 
   /**
@@ -314,7 +314,7 @@ export class ItemList<I, T> {
     if (this.cachedIndexNode === node) {
       // Shortcut: We already computed beforeNode and it has not changed.
       // Use its cached value to prevent re-walking up the tree when
-      // our caller loops over the same Node's Positions.
+      // our caller loops over the same node's Positions.
       // TODO: test
       beforeNode = this.cachedIndex;
     } else {
@@ -335,7 +335,7 @@ export class ItemList<I, T> {
           beforeNode += this.total(child);
         }
       }
-      // Cache beforeNode for future calls to indexOfPosition at Node.
+      // Cache beforeNode for future calls to indexOfPosition at node.
       // That lets us avoid re-walking up the tree when this method is called
       // in a loop over node's Positions.
       this.cachedIndexNode = node;
@@ -423,7 +423,7 @@ export class ItemList<I, T> {
    * Returns the total number of present values at this
    * node and its descendants.
    */
-  private total(node: Node): number {
+  private total(node: OrderNode): number {
     return this.state.get(node)?.total ?? 0;
   }
 
@@ -538,7 +538,7 @@ export class ItemList<I, T> {
   // ----------
 
   // TODO: delete, or change to nodeSet/nodeGet
-  saveOneNode(node: Node): SparseArray<I> | undefined {
+  saveOneNode(node: OrderNode): SparseArray<I> | undefined {
     return this.state.get(node)?.values;
   }
 
@@ -548,7 +548,7 @@ export class ItemList<I, T> {
    *
    * Note that values might not be contiguous in the list.
    */
-  loadOneNode(node: Node, values: SparseArray<I>): void {
+  loadOneNode(node: OrderNode, values: SparseArray<I>): void {
     const data = this.getOrCreateData(node);
     const existingCount = this.arrayMan.size(data.values);
     data.values = values;
@@ -630,10 +630,10 @@ export class ItemList<I, T> {
         const node = this.order.getNode(creatorID, timestamp);
         if (node === undefined) {
           throw new Error(
-            `List.load savedState references missing Node: ${JSON.stringify({
+            `List.load savedState references missing OrderNode: ${JSON.stringify({
               creatorID,
               timestamp,
-            })}. You must call Order.addNodeDescs before referencing a Node.`
+            })}. You must call Order.receive/receiveSavedState before referencing an OrderNode.`
           );
         }
         // TODO: wait until end to compute all parentValuesBefores, totals.

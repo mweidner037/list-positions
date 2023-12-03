@@ -1,6 +1,6 @@
 import { ItemList } from "./internal/item_list";
 import { ArrayItemManager, SparseArray } from "./internal/sparse_array";
-import { Node } from "./node";
+import { OrderNode } from "./node";
 import { Order } from "./order";
 import { Position } from "./position";
 
@@ -93,7 +93,7 @@ export class List<T> {
    * TODO
    *
    * If multiple values are given, they are set starting at startPos
-   * in the same Node. Note these might not be contiguous anymore,
+   * in the same OrderNode. Note these might not be contiguous anymore,
    * unless they are new (no causally-future Positions set yet).
    * @param startPos
    * @param sameNodeValues
@@ -160,13 +160,13 @@ export class List<T> {
   insert(
     prevPos: Position,
     value: T
-  ): [pos: Position, createdNode: Node | null];
+  ): [pos: Position, createdNode: OrderNode | null];
   /**
    *
    * @param prevPos
    * @param values
    * @returns [ first value's new position, createdNode if created by Order ].
-   * If values.length > 1, their positions start at pos using the same Node
+   * If values.length > 1, their positions start at pos using the same OrderNode
    * with increasing valueIndex.
    * @throws If prevPos is order.maxPosition.
    * @throws If values.length = 0 (doesn't know what to return)
@@ -174,11 +174,11 @@ export class List<T> {
   insert(
     prevPos: Position,
     ...values: T[]
-  ): [startPos: Position, createdNode: Node | null];
+  ): [startPos: Position, createdNode: OrderNode | null];
   insert(
     prevPos: Position,
     ...values: T[]
-  ): [startPos: Position, createdNode: Node | null] {
+  ): [startPos: Position, createdNode: OrderNode | null] {
     return this.itemList.insert(prevPos, values);
   }
 
@@ -189,15 +189,18 @@ export class List<T> {
    * @returns
    * @throws If index is this.length and our last value is at order.maxPosition.
    */
-  insertAt(index: number, value: T): [pos: Position, createdNode: Node | null];
+  insertAt(
+    index: number,
+    value: T
+  ): [pos: Position, createdNode: OrderNode | null];
   insertAt(
     index: number,
     ...values: T[]
-  ): [startPos: Position, createdNode: Node | null];
+  ): [startPos: Position, createdNode: OrderNode | null];
   insertAt(
     index: number,
     ...values: T[]
-  ): [startPos: Position, createdNode: Node | null] {
+  ): [startPos: Position, createdNode: OrderNode | null] {
     return this.itemList.insertAt(index, values);
   }
 

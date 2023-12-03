@@ -2,7 +2,7 @@
 // node --inspect memory.js
 // When it says "Ready", inspect with Chrome and take a heap snapshot.
 // This program investigates the memory usage of various sparse-array representations
-// for a Node's values in a List, using synthetic sparse arrays instead of the real text trace.
+// for an OrderNode's values in a List, using synthetic sparse arrays instead of the real text trace.
 
 const altArrays = [];
 const dualArrays = [];

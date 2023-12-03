@@ -9,20 +9,21 @@
  * and supply it with some metadata. You can then use those Positions in a List
  * on top of that Order, or call `Order.compare` to order them directly.
  *
- * Internally, the pair `{ creatorID, timestamp }` identifies a Node in Order's internal tree,
- * while `valueIndex` identifies a specific value belonging to that Node.
- * The "metadata" you must supply to Order is a NodeDesc for the node
+ * Internally, the pair `{ creatorID, timestamp }` identifies an OrderNode
+ * in Order's internal tree, while `valueIndex` identifies a specific value
+ * belonging to that OrderNode.
+ * The "metadata" you must supply to Order is a NodeDesc for the node with NodeID
  * `{ creatorID, timestamp }`.
  *
  * @see Order.equalsPosition
  */
 export type Position = {
   /**
-   * The Position's Node's creatorID.
+   * The Position's OrderNode's creatorID.
    */
   readonly creatorID: string;
   /**
-   * The Position's Node's counter,
+   * The Position's OrderNode's counter,
    * which is a nonnegative integer.
    *
    * For a given creatorID, counters are assigned sequentially, although
@@ -30,10 +31,11 @@ export type Position = {
    */
   readonly counter: number;
   /**
-   * The index of this Position among its Node's values, which is a
+   * The index of this Position among its OrderNode's values, which is a
    * nonnegative integer.
    *
-   * A given Node's Positions are created with `valueIndex`s in counting order (0, 1, 2, ...).
+   * A given OrderNode's Positions are created with `valueIndex`s in counting
+   * order (0, 1, 2, ...).
    * Those Positions are in list order, and they are initially contiguous in
    * the list, but later insertions may get between them.
    */

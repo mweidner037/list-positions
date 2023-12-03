@@ -1,6 +1,6 @@
 import { ItemList } from "./internal/item_list";
 import { NumberItemManager, SparseArray } from "./internal/sparse_array";
-import { Node } from "./node";
+import { OrderNode } from "./node";
 import { Order } from "./order";
 import { Position } from "./position";
 
@@ -73,7 +73,7 @@ export class Outline {
    * TODO
    *
    * If multiple values are given, they are set starting at startPos
-   * in the same Node. Note these might not be contiguous anymore,
+   * in the same OrderNode. Note these might not be contiguous anymore,
    * unless they are new (no causally-future Positions set yet).
    * @param startPos
    * @param sameNodeValues
@@ -128,7 +128,7 @@ export class Outline {
     this.itemList.clear();
   }
 
-  insert(prevPos: Position): [pos: Position, createdNode: Node | null];
+  insert(prevPos: Position): [pos: Position, createdNode: OrderNode | null];
   /**
    *
    * @param index
@@ -137,15 +137,15 @@ export class Outline {
   insert(
     prevPos: Position,
     count: number
-  ): [startPos: Position, createdNode: Node | null];
+  ): [startPos: Position, createdNode: OrderNode | null];
   insert(
     prevPos: Position,
     count = 1
-  ): [startPos: Position, createdNode: Node | null] {
+  ): [startPos: Position, createdNode: OrderNode | null] {
     return this.itemList.insert(prevPos, count);
   }
 
-  insertAt(index: number): [pos: Position, createdNode: Node | null];
+  insertAt(index: number): [pos: Position, createdNode: OrderNode | null];
   /**
    *
    * @param index
@@ -154,11 +154,11 @@ export class Outline {
   insertAt(
     index: number,
     count: number
-  ): [startPos: Position, createdNode: Node | null];
+  ): [startPos: Position, createdNode: OrderNode | null];
   insertAt(
     index: number,
     count = 1
-  ): [startPos: Position, createdNode: Node | null] {
+  ): [startPos: Position, createdNode: OrderNode | null] {
     return this.itemList.insertAt(index, count);
   }
 

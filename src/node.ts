@@ -5,7 +5,7 @@ export type NodeID = {
 
 /**
  * TODO
- * Serializable form of a Node, used for collaboration.
+ * Serializable form of an OrderNode, used for collaboration.
  *
  * Notes:
  * - `Order.rootNode` does not have a NodeDesc, because it does not have a `parent`.
@@ -34,30 +34,30 @@ export type NodeDesc = {
  * You do not need to work with Nodes unless you are doing something advanced.
  * Instead, work with Positions directly, using a List or `Order.compare`.
  *
- * To obtain an Order's unique instance of a Node, call `Order.getNode` or `Order.getNodeFor`.
+ * To obtain an Order's unique instance of an OrderNode, call `Order.getNode` or `Order.getNodeFor`.
  *
  * Note: Unlike Position and NodeDesc, Nodes are **not** JSON-serializable.
  */
-export interface Node {
+export interface OrderNode {
   // TODO: class property docs.
   readonly creatorID: string;
   readonly counter: number;
   /** null for the root. */
-  readonly parent: Node | null;
+  readonly parent: OrderNode | null;
   /** Unspecified for the root. */
   readonly offset: number;
   /** 0 for the root. */
   readonly depth: number;
 
   /**
-   * The valueIndex of the next Position after Node in our parent. Possibly 0.
+   * The valueIndex of the next Position after this node in our parent. Possibly 0.
    */
   readonly nextValueIndex: number;
 
   // TODO: getter instead of function?
   id(): NodeID;
   /**
-   * Returns this Node's NodeDesc.
+   * Returns this node's NodeDesc.
    *
    * Errors if this is the rootNode.
    *
@@ -66,7 +66,7 @@ export interface Node {
   desc(): NodeDesc;
 
   readonly childrenLength: number;
-  getChild(index: number): Node;
+  getChild(index: number): OrderNode;
 
   toString(): string;
 }
