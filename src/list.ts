@@ -1,5 +1,5 @@
 import { ItemList } from "./internal/item_list";
-import { ArrayItemManager, SparseArray } from "./internal/sparse_array";
+import { ArrayItemManager, SparseItems } from "./internal/sparse_items";
 import { OrderNode } from "./node";
 import { Order } from "./order";
 import { Position } from "./position";
@@ -12,7 +12,7 @@ export type ListSavedState<T> = {
   [nodeID: string]: (T[] | number)[];
 };
 
-function cloneArray<T>(arr: SparseArray<T[]>): (T[] | number)[] {
+function cloneArray<T>(arr: SparseItems<T[]>): (T[] | number)[] {
   // Defensive deep copy
   const copy = new Array<T[] | number>(arr.length);
   for (let i = 0; i < arr.length; i++) {

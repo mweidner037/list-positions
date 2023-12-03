@@ -1,7 +1,7 @@
 import { OrderNode } from "../node";
 import { Order } from "../order";
 import { Position } from "../position";
-import { ItemManager, SparseArray, SparseArrayManager } from "./sparse_array";
+import { ItemManager, SparseItems, SparseItemsManager } from "./sparse_items";
 
 /**
  * List data associated to an OrderNode.
@@ -27,11 +27,11 @@ type NodeData<I> = {
    * TODO: omit before use, with ?? arrMan.empty()? Or could add null as value to SparseArray
    * (8 bytes vs new array).
    */
-  values: SparseArray<I>;
+  values: SparseItems<I>;
 };
 
 export class ItemList<I, T> {
-  private readonly arrayMan: SparseArrayManager<I, T>;
+  private readonly arrayMan: SparseItemsManager<I, T>;
 
   /**
    * Map from OrderNode to its data (total & values).
@@ -41,7 +41,7 @@ export class ItemList<I, T> {
   private state = new Map<OrderNode, NodeData<I>>();
 
   constructor(readonly order: Order, readonly itemMan: ItemManager<I, T>) {
-    this.arrayMan = new SparseArrayManager(this.itemMan);
+    this.arrayMan = new SparseItemsManager(this.itemMan);
   }
 
   // ----------
@@ -51,7 +51,7 @@ export class ItemList<I, T> {
   /**
    * @returns Replaced values
    */
-  set(startPos: Position, item: I): SparseArray<I> {
+  set(startPos: Position, item: I): SparseItems<I> {
     // Validate startPos even if length = 0.
     const node = this.order.getNodeFor(startPos);
     const length = this.itemMan.length(item);
@@ -78,7 +78,7 @@ export class ItemList<I, T> {
   /**
    * @returns Replaced values
    */
-  delete(startPos: Position, count: number): SparseArray<I> {
+  delete(startPos: Position, count: number): SparseItems<I> {
     // Validate startPos even if count = 0.
     const node = this.order.getNodeFor(startPos);
     if (count === 0) return this.arrayMan.new();
@@ -536,7 +536,7 @@ export class ItemList<I, T> {
   // ----------
 
   // TODO: delete, or change to nodeSet/nodeGet
-  saveOneNode(node: OrderNode): SparseArray<I> | undefined {
+  saveOneNode(node: OrderNode): SparseItems<I> | undefined {
     return this.state.get(node)?.values;
   }
 
@@ -546,7 +546,7 @@ export class ItemList<I, T> {
    *
    * Note that values might not be contiguous in the list.
    */
-  loadOneNode(node: OrderNode, values: SparseArray<I>): void {
+  loadOneNode(node: OrderNode, values: SparseItems<I>): void {
     const data = this.getOrCreateData(node);
     const existingCount = this.arrayMan.size(data.values);
     data.values = values;
@@ -564,7 +564,7 @@ export class ItemList<I, T> {
    * Only saves values, not Order. nodeID order not guaranteed;
    * can sort if you care.
    */
-  save<S>(saveArray: (arr: SparseArray<I>) => S): { [nodeID: string]: S } {
+  save<S>(saveArray: (arr: SparseItems<I>) => S): { [nodeID: string]: S } {
     const savedState: { [nodeID: string]: S } = {};
     for (const [node, data] of this.state) {
       if (!this.arrayMan.isEmpty(data.values)) {
@@ -588,7 +588,7 @@ export class ItemList<I, T> {
    */
   load<S>(
     savedState: { [nodeID: string]: S },
-    loadArray: (savedArr: S) => SparseArray<I>
+    loadArray: (savedArr: S) => SparseItems<I>
   ): void {
     this.clear();
 

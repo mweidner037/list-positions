@@ -53,6 +53,9 @@ export const NodeIDs = {
     };
   },
 
+  /**
+   * Don't use as newNodeID - call usingReplicaID instead.
+   */
   newReplicaID(rng?: seedrandom.prng): string {
     const arr = new Array<string>(REPLICA_ID_LENGTH);
     if (rng === undefined) {

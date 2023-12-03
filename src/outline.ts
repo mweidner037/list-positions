@@ -1,5 +1,5 @@
 import { ItemList } from "./internal/item_list";
-import { NumberItemManager, SparseArray } from "./internal/sparse_array";
+import { NumberItemManager, SparseItems } from "./internal/sparse_items";
 import { OrderNode } from "./node";
 import { Order } from "./order";
 import { Position } from "./position";
@@ -12,7 +12,7 @@ export type OutlineSavedState = {
   [nodeID: string]: number[];
 };
 
-function cloneArray(arr: SparseArray<number>): number[] {
+function cloneArray(arr: SparseItems<number>): number[] {
   // Defensive copy
   return arr.slice();
 }
