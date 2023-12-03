@@ -3,19 +3,6 @@ import { Node, NodeDesc, NodeID } from "./node";
 import { LexPosition, Position } from "./position";
 import { ReplicaIDs } from "./util/replica_ids";
 
-export type Item = {
-  readonly node: Node;
-  readonly startValueIndex: number;
-  /**
-   * The exclusive end of the item's valueIndex range.
-   *
-   * undefined to include all further Positions at this Node (unbounded valueIndex).
-   *
-   * Either way, (startValueIndex, endValueIndex) form slice() args.
-   */
-  readonly endValueIndex: number | undefined;
-};
-
 /**
  * JSON saved state for an Order, representing all of its Nodes.
  *

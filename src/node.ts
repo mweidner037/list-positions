@@ -12,7 +12,9 @@ export type NodeID = {
  *
  * @see Order.equalsNodeDesc
  */
-export type NodeDesc = NodeID & {
+export type NodeDesc = {
+  readonly creatorID: string;
+  readonly counter: number;
   readonly parentID: NodeID;
   /**
    * 0: left child of (parent, 0).
