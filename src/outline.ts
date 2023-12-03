@@ -78,7 +78,7 @@ export class Outline {
    * @param startPos
    * @param sameNodeValues
    */
-  set(startPos: Position, sameNodeCount: number): void;
+  set(startPos: Position, sameNodeCount?: number): void;
   set(startPos: Position, count = 1): void {
     // TODO: return existing.save()? Likewise in delete, setAt?, deleteAt?
     this.itemList.set(startPos, count);
@@ -92,7 +92,7 @@ export class Outline {
    * it was initially present.
    */
   delete(pos: Position): void;
-  delete(startPos: Position, sameNodeCount: number): void;
+  delete(startPos: Position, sameNodeCount?: number): void;
   delete(startPos: Position, count = 1): void {
     this.itemList.delete(startPos, count);
   }
@@ -136,7 +136,7 @@ export class Outline {
    */
   insert(
     prevPos: Position,
-    count: number
+    count?: number
   ): [startPos: Position, createdNode: OrderNode | null];
   insert(
     prevPos: Position,
@@ -153,7 +153,7 @@ export class Outline {
    */
   insertAt(
     index: number,
-    count: number
+    count?: number
   ): [startPos: Position, createdNode: OrderNode | null];
   insertAt(
     index: number,

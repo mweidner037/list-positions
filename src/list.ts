@@ -121,7 +121,7 @@ export class List<T> {
    * it was initially present.
    */
   delete(pos: Position): void;
-  delete(startPos: Position, sameNodeCount: number): void;
+  delete(startPos: Position, sameNodeCount?: number): void;
   delete(startPos: Position, count = 1): void {
     this.itemList.delete(startPos, count);
   }

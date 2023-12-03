@@ -1,7 +1,6 @@
 import { List } from "./list";
 import { Order } from "./order";
 import { LexPosition, Position } from "./position";
-import { LexUtils } from "./util/lex_utils";
 
 /**
  * A local (non-collaborative) data structure mapping [[Position]]s to
@@ -139,14 +138,24 @@ export class LexList<T> {
   }
 
   private lexAll(startPos: Position, count: number): LexPosition[] {
-    // Use nodeSummary as opt over calling order.lex on each Position.
-    const nodeSummary = this.order.summary(this.order.getNodeFor(startPos));
+    // TODO: Use nodeSummary as opt over calling order.lex on each Position.
+    // const nodeSummary = this.order.summary(this.order.getNodeFor(startPos));
+    // const lexPositions = new Array<LexPosition>(count);
+    // for (let i = 0; i < count; i++) {
+    //   lexPositions[i] = LexUtils.fromSummary(
+    //     nodeSummary,
+    //     startPos.valueIndex + i
+    //   );
+    // }
+    // return lexPositions;
+
     const lexPositions = new Array<LexPosition>(count);
     for (let i = 0; i < count; i++) {
-      lexPositions[i] = LexUtils.fromSummary(
-        nodeSummary,
-        startPos.valueIndex + i
-      );
+      lexPositions[i] = this.order.lex({
+        creatorID: startPos.creatorID,
+        counter: startPos.counter,
+        valueIndex: startPos.valueIndex + i,
+      });
     }
     return lexPositions;
   }
