@@ -149,7 +149,7 @@ export class Order {
   }
 
   // Bind as variable instead of class method, in case callers forget.
-  readonly compare = (a: Position, b: Position): number => {
+  compare = (a: Position, b: Position): number => {
     const aNode = this.getNodeFor(a);
     const bNode = this.getNodeFor(b);
 

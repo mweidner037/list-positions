@@ -1,10 +1,8 @@
-import { NodeDesc, NodeID, OrderNode } from "../node";
-import { Position } from "../position";
+import { NodeID } from "../node";
 
-// TODO: export (move out of internal)? So you can use it for dep management.
 /**
  * A map from NodeIDs to values. You can also pass
- * other node-related types that extend NodeID.
+ * other node-related types that include NodeID's fields, including Position.
  *
  * We can't use Map for this because we want by-value equality for object keys.
  */
@@ -14,7 +12,7 @@ export class NodeMap<T> {
    */
   readonly state = new Map<string, Map<number, T>>();
 
-  get(node: NodeID | OrderNode | NodeDesc | Position): T | undefined {
+  get(node: NodeID): T | undefined {
     return this.state.get(node.creatorID)?.get(node.counter);
   }
 
@@ -25,7 +23,7 @@ export class NodeMap<T> {
     return this.state.get(creatorID)?.get(counter);
   }
 
-  set(node: NodeID | OrderNode | NodeDesc | Position, value: T): void {
+  set(node: NodeID, value: T): void {
     let byCreator = this.state.get(node.creatorID);
     if (byCreator === undefined) {
       byCreator = new Map();
@@ -34,7 +32,7 @@ export class NodeMap<T> {
     byCreator.set(node.counter, value);
   }
 
-  delete(node: NodeID | OrderNode | NodeDesc | Position): boolean {
+  delete(node: NodeID): boolean {
     const byCreator = this.state.get(node.creatorID);
     if (byCreator === undefined) return false;
     const had = byCreator.delete(node.counter);

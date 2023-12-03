@@ -1,26 +1,20 @@
 import * as crypto from "crypto";
 import type seedrandom from "seedrandom";
 
-// TODO: back to "IDs"? Since readme doesn't mention concept of "replicas" - just "instances" of Order.
-
 /**
  * Utitilies for generating `Order.replicaID`s.
  */
-export class ReplicaIDs {
-  private constructor() {
-    // Not instantiable.
-  }
-
+export const ReplicaIDs = {
   /**
    * Reserved for the special root node's creatorID.
    */
-  static readonly ROOT = "ROOT";
+  ROOT: "ROOT",
 
   /**
    * Default characters used for generating replicaIDs: the alphanumeric chars.
    */
-  static readonly DEFAULT_CHARS: string =
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+  DEFAULT_CHARS:
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789" as string,
 
   // Rationale for value 8:
   // Each character of the ID gives us ~6 bits of entropy,
@@ -33,7 +27,7 @@ export class ReplicaIDs {
   /**
    * The default length of a replicaID, in characters.
    */
-  static readonly DEFAULT_LENGTH: number = 8;
+  DEFAULT_LENGTH: 8 as number,
 
   /**
    * Returns a cryptographically random replicaID made of alphanumeric characters.
@@ -44,7 +38,7 @@ export class ReplicaIDs {
    * If specified, only the first 256 elements are used, and you achieve
    * about `log_2(chars.length)` bits of entropy per `length`.
    */
-  static random(options?: { length?: number; chars?: string }): string {
+  random(options?: { length?: number; chars?: string }): string {
     const length = options?.length ?? this.DEFAULT_LENGTH;
     const chars = options?.chars ?? this.DEFAULT_CHARS;
 
@@ -75,7 +69,7 @@ export class ReplicaIDs {
       arr[i] = chars[randomValues[i] % chars.length];
     }
     return arr.join("");
-  }
+  },
 
   /**
    * Returns a psuedorandom replicaID made of alphanumeric characters,
@@ -90,7 +84,7 @@ export class ReplicaIDs {
    * If specified, only the first 256 elements are used, and you achieve
    * about `log_2(chars.length)` bits of entropy per `length`.
    */
-  static pseudoRandom(
+  pseudoRandom(
     rng: seedrandom.prng,
     options?: { length?: number; chars?: string }
   ): string {
@@ -104,18 +98,18 @@ export class ReplicaIDs {
       arr[i] = chars[Math.floor(rng() * 256) % chars.length];
     }
     return arr.join("");
-  }
+  },
 
   /**
    * Throws an error if replicaID is invalid.
    *
    * The only invalid replicaID is `ReplicaIDs.ROOT = "ROOT"`, which is reserved.
    */
-  static validate(replicaID: string): void {
+  validate(replicaID: string): void {
     if (replicaID === this.ROOT) {
       throw new Error(
         `Invalid replicaID: "${this.ROOT}" (ReplicaIDs.ROOT) is reserved.`
       );
     }
-  }
-}
+  },
+} as const;
