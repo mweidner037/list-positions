@@ -122,7 +122,7 @@ for (const [pos, value] of suggestedText.entries()) {
 console.log([...bodyText.values()].join("")); // Prints "Animal: cat"
 ```
 
-### Shared Metadata: NodeDescs
+### Shared Metadata: NodeMetas
 
 Multiple instances of Order can use the same Positions, including instances on different devices (collaboration) or at different times (loaded from storage). However, you need to share some metadata first.
 
@@ -136,11 +136,11 @@ type Position = {
 };
 ```
 
-The pair `{ creatorID, timestamp }` identifies a **node** in a shared tree. Your Order must receive a **[NodeDesc](#types-nodedesc) ("node description")** for this node before you can use the Position in `List.set`, `Order.compare`, etc. Otherwise, you will get an error `"Position references missing OrderNode: <...>. You must call Order.receive/receiveSavedState before referencing an OrderNode."`.
+The pair `{ creatorID, timestamp }` identifies a **node** in a shared tree. Your Order must receive a **[NodeMeta](#types-nodemeta) ("node description")** for this node before you can use the Position in `List.set`, `Order.compare`, etc. Otherwise, you will get an error `"Position references missing OrderNode: <...>. You must call Order.receive/receiveSavedState before referencing an OrderNode."`.
 
 > Exception: The root node `{ creatorID: "ROOT", timestamp: 0 }` is always valid. Its only Positions are `Order.minPosition` and `Order.maxPosition`.
 
-Use `Order.save` and `Order.receiveSavedState` to share all of an Order's NodeDescs:
+Use `Order.save` and `Order.receiveSavedState` to share all of an Order's NodeMetas:
 
 ```ts
 // Before exiting:
@@ -155,8 +155,8 @@ Use `Order.onCreateNode` and `Order.receive` to share a new node's description w
 
 ```ts
 // Just after creating order:
-order.onCreateNode = (createdNodeDesc: NodeDesc) => {
-  const msg = JSON.stringify(createdNodeDesc);
+order.onCreateNode = (createdNodeMeta: NodeMeta) => {
+  const msg = JSON.stringify(createdNodeMeta);
   // Broadcast msg to all collaborators...
 };
 
@@ -166,13 +166,13 @@ function onBroadcastReceive(msg: string) {
 
 // Alternative to order.onCreatedNode:
 // Methods that might create a node (List.insertAt, List.insert,
-// Order.createPosition) also return its `createdNodeDesc` (or null).
+// Order.createPosition) also return its `createdNodeMeta` (or null).
 ```
 
-Internally, a [NodeDesc](#struct-nodedesc) indicates a node's **parent Position**:
+Internally, a [NodeMeta](#struct-nodemeta) indicates a node's **parent Position**:
 
 ```ts
-type NodeDesc = {
+type NodeMeta = {
   // Node ID, matching the node's Positions.
   readonly creatorID: string;
   readonly timestamp: number;
@@ -181,9 +181,9 @@ type NodeDesc = {
 };
 ```
 
-It is okay if an Order receives the same NodeDesc multiple times, or if different instances receive NodeDescs in different orders. However, before receiving a NodeDesc, its parent Position must itself be valid: the Order must have already received the parent's NodeDesc (or the parent is part of the same `Order.receive`/`Order.receiveSavedState` call). Otherwise, you will get an error `"Received NodeDesc <...>, but we have not yet received a NodeDesc for its parent node <...>."`.
+It is okay if an Order receives the same NodeMeta multiple times, or if different instances receive NodeMetas in different orders. However, before receiving a NodeMeta, its parent Position must itself be valid: the Order must have already received the parent's NodeMeta (or the parent is part of the same `Order.receive`/`Order.receiveSavedState` call). Otherwise, you will get an error `"Received NodeMeta <...>, but we have not yet received a NodeMeta for its parent node <...>."`.
 
-> You can think of an Order's state as a Grow-Only Set of NodeDescs. `Order.save` and `Order.receiveSavedState` form a [state-based CRDT](https://en.wikipedia.org/wiki/Conflict-free_replicated_data_type#State-based_CRDTs), while `Order.onCreateNode` and `Order.receive` form an [op-based CRDT](https://en.wikipedia.org/wiki/Conflict-free_replicated_data_type#Operation-based_CRDTs). You can also implement your own sync strategies - e.g., two peers compare their largest timestamps for each creatorID and only exchange the ones they're missing.
+> You can think of an Order's state as a Grow-Only Set of NodeMetas. `Order.save` and `Order.receiveSavedState` form a [state-based CRDT](https://en.wikipedia.org/wiki/Conflict-free_replicated_data_type#State-based_CRDTs), while `Order.onCreateNode` and `Order.receive` form an [op-based CRDT](https://en.wikipedia.org/wiki/Conflict-free_replicated_data_type#Operation-based_CRDTs). You can also implement your own sync strategies - e.g., two peers compare their largest timestamps for each creatorID and only exchange the ones they're missing.
 
 ### Storage and Collaboration
 
@@ -195,7 +195,7 @@ Fundamentally, a List's state is a map `Position -> value`. Some ways to store t
 - More efficiently, a database table with columns `creatorID: string; timestamp: uint; values: (T | null)[]`. Here you represent all of a node's values in a single array, indexed by `valueIndex`.
 - A triple-layered map `creatorID -> (timestamp -> (valueIndex -> value))`. The methods `List.save()` and `List.load()` use this representation. <!-- TODO: link, at least to ListSavedState type? -->
 
-Likewise, an Order's state is fundamentally an array of NodeDescs. Some ways to store this state:
+Likewise, an Order's state is fundamentally an array of NodeMetas. Some ways to store this state:
 
 - A database table with columns `creatorID: string; timestamp: uint; parentCreatorID: string, parentTimestamp: uint, parentValueIndex: uint`.
 - A double-layered map `creatorID -> (timestamp -> Position)`. The methods `Order.save()` and `Order.receiveSavedState` use this representation.
@@ -204,15 +204,15 @@ Tips:
 
 - `valueIndex` is an array index assigned consecutively (0, 1, 2, ...). This lets you store all of a node's values in a single array, although note that the array may have holes (from deleted values).
 - `timestamp` is a non-negative integer that increases over time, but it is **not** assigned consecutively - there may be gaps.
-- Each `creatorID` corresponds to a specific instance of Order: that instance's [replicaID](#TODO). So you can expect to see the same `creatorID`s repeated many times. In particular, a NodeDesc's `creatorID` is usually the same as its `parent.creatorID`.
-- You can improve over Position and NodeDesc's JSON encodings using [protobufs](https://www.npmjs.com/package/protobufjs) or similar.
+- Each `creatorID` corresponds to a specific instance of Order: that instance's [replicaID](#TODO). So you can expect to see the same `creatorID`s repeated many times. In particular, a NodeMeta's `creatorID` is usually the same as its `parent.creatorID`.
+- You can improve over Position and NodeMeta's JSON encodings using [protobufs](https://www.npmjs.com/package/protobufjs) or similar.
 
 ### Advanced
 
 By understanding Order's underlying tree structure, you can:
 
 - Create Positions on a non-JS backend, without importing this library, or without loading the entire list.
-- Lazy-load only the NodeDescs that you need, e.g., when viewing part of a large text document.
+- Lazy-load only the NodeMetas that you need, e.g., when viewing part of a large text document.
 - Stitch together total orders that were created separately but should be displayed in sequence, e.g., after merging independent blocks of text.
 
 See the [Advanced Guide](./advanced.md). TODO
@@ -220,7 +220,8 @@ See the [Advanced Guide](./advanced.md). TODO
 ## API
 
 TODO
-<!-- 
+
+<!--
 - [Class `PositionSource`](#class-positionsource)
 - [Function `findPosition`](#function-findposition)
 - [Class `Cursors`](#class-cursors)

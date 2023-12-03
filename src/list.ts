@@ -65,7 +65,7 @@ export class List<T> {
   /**
    *
    * @param entries Don't need to be in list order.
-   * @param order Mandatory to remind you to load its NodeDescs first.
+   * @param order Mandatory to remind you to load its NodeMetas first.
    * @returns
    */
   static from<T>(
@@ -379,7 +379,7 @@ export class List<T> {
    *
    * Overwrites whole state - not state-based merge.
    *
-   * Need to load NodeDesc meta into Order first (not part of saved state).
+   * Need to load NodeMeta meta into Order first (not part of saved state).
    *
    * @param savedState Saved state from a List's
    * [[save]] call.

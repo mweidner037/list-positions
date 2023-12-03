@@ -12,7 +12,7 @@
  * Internally, the pair `{ creatorID, timestamp }` identifies an OrderNode
  * in Order's internal tree, while `valueIndex` identifies a specific value
  * belonging to that OrderNode.
- * The "metadata" you must supply to Order is a NodeDesc for the node with NodeID
+ * The "metadata" you must supply to Order is a NodeMeta for the node with NodeID
  * `{ creatorID, timestamp }`.
  *
  * @see Order.equalsPosition

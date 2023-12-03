@@ -4,15 +4,16 @@ export type NodeID = {
 };
 
 /**
- * TODO
- * Serializable form of an OrderNode, used for collaboration.
+ * Metadata for an OrderNode. You must supply a node's NodeMeta to
+ * Order.receive/receiveSavedState before you can reference that node
+ * in Positions.
  *
  * Notes:
- * - `Order.rootNode` does not have a NodeDesc, because it does not have a `parent`.
+ * - `Order.rootNode` does not have a NodeMeta, because it does not have a `parent`.
  *
- * @see Order.equalsNodeDesc
+ * @see Order.equalsNodeMeta
  */
-export type NodeDesc = {
+export type NodeMeta = {
   readonly creatorID: string;
   readonly counter: number;
   readonly parentID: NodeID;
@@ -36,7 +37,7 @@ export type NodeDesc = {
  *
  * To obtain an Order's unique instance of an OrderNode, call `Order.getNode` or `Order.getNodeFor`.
  *
- * Note: Unlike Position and NodeDesc, Nodes are **not** JSON-serializable.
+ * Note: Unlike Position and NodeMeta, Nodes are **not** JSON-serializable.
  */
 export interface OrderNode {
   // TODO: class property docs.
@@ -57,13 +58,13 @@ export interface OrderNode {
   // TODO: getter instead of function?
   id(): NodeID;
   /**
-   * Returns this node's NodeDesc.
+   * Returns this node's NodeMeta.
    *
    * Errors if this is the rootNode.
    *
    * TODO: should be on Order instead?
    */
-  desc(): NodeDesc;
+  meta(): NodeMeta;
 
   readonly childrenLength: number;
   getChild(index: number): OrderNode;

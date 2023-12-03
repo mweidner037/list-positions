@@ -1,12 +1,12 @@
 import { NodeMap } from "./internal/node_map";
-import { NodeDesc, NodeID, OrderNode } from "./node";
+import { NodeID, NodeMeta, OrderNode } from "./node";
 import { LexPosition, Position } from "./position";
 import { ReplicaIDs } from "./util/replica_ids";
 
 /**
  * JSON saved state for an Order, representing all of its Nodes.
  *
- * Maps (creatorID, timestamp) -> rest of NodeDesc. Excludes rootNode.
+ * Maps (creatorID, timestamp) -> rest of NodeMeta. Excludes rootNode.
  */
 export type OrderSavedState = {
   [creatorID: string]: {
@@ -63,9 +63,9 @@ class NodeInternal implements OrderNode {
     return { creatorID: this.creatorID, counter: this.counter };
   }
 
-  desc(): NodeDesc {
+  meta(): NodeMeta {
     if (this.parent === null) {
-      throw new Error("Cannot call desc() on the root OrderNode");
+      throw new Error("Cannot call meta() on the root OrderNode");
     }
     return {
       creatorID: this.creatorID,
@@ -76,7 +76,7 @@ class NodeInternal implements OrderNode {
   }
 
   toString() {
-    // Similar to NodeDesc, but valid for rootNode as well.
+    // Similar to NodeMeta, but valid for rootNode as well.
     return JSON.stringify({
       creatorID: this.creatorID,
       timestamp: this.counter,
@@ -93,7 +93,7 @@ export class Order {
   readonly rootNode: OrderNode;
 
   /**
-   * Maps from a node's desc to that node.
+   * Maps from NodeID to the *unique* corresponding NodeInternal.
    */
   private readonly tree = new NodeMap<NodeInternal>();
 
@@ -111,7 +111,7 @@ export class Order {
   // Accessors
   // ----------
 
-  // TODO: NodeID/NodeDesc version?
+  // TODO: NodeID/NodeMeta version?
   getNode(creatorID: string, timestamp: number): OrderNode | undefined {
     return this.tree.get2(creatorID, timestamp);
   }
@@ -189,9 +189,7 @@ export class Order {
 
     // Now aAnc and bAnc are distinct siblings. Use sibling order.
     return Order.compareSiblingNodes(aAnc, bAnc);
-  };
-
-  desc(node: OrderNode): NodeDesc {}
+  }
 
   summary(node: OrderNode): string {}
 
@@ -201,80 +199,80 @@ export class Order {
 
   /**
    * Set this to be notified when we locally create a new OrderNode in createPosition.
-   * The NodeDesc for createdNode (which is also returned by createPosition & List.insert)
+   * The NodeMeta for createdNode (which is also returned by createPosition & List.insert)
    * must be broadcast to other replicas before they can use the new Position.
    */
   onCreateNode: ((createdNode: OrderNode) => void) | undefined = undefined;
 
-  receive(nodeDescs: Iterable<NodeDesc>): void {
-    // 1. Pick out the new (non-redundant) nodes in nodeDescs.
+  receive(nodeMetas: Iterable<NodeMeta>): void {
+    // 1. Pick out the new (non-redundant) nodes in nodeMetas.
     // For the redundant ones, check that their parents match.
-    // Redundancy also applies to duplicates within nodeDescs.
+    // Redundancy also applies to duplicates within nodeMetas.
 
-    // New NodeDescs, stored as the identity map.
-    const createdNodeDescs = new NodeMap<NodeDesc>();
+    // New NodeMetas, stored as the identity map.
+    const createdNodeMetas = new NodeMap<NodeMeta>();
 
-    for (const nodeDesc of nodeDescs) {
-      if (nodeDesc.creatorID === ReplicaIDs.ROOT) {
+    for (const nodeMeta of nodeMetas) {
+      if (nodeMeta.creatorID === ReplicaIDs.ROOT) {
         throw new Error(
-          `Received NodeDesc describing the root node: ${JSON.stringify(
-            nodeDesc
+          `Received NodeMeta describing the root node: ${JSON.stringify(
+            nodeMeta
           )}`
         );
       }
-      const existing = this.tree.get(nodeDesc);
+      const existing = this.tree.get(nodeMeta);
       if (existing !== undefined) {
-        if (!Order.equalsNodeDesc(nodeDesc, existing.desc())) {
+        if (!Order.equalsNodeMeta(nodeMeta, existing.meta())) {
           throw new Error(
-            `Received NodeDesc describing an existing node but with different metadata: received=${JSON.stringify(
-              nodeDesc
-            )}, existing=${JSON.stringify(existing.desc())}`
+            `Received NodeMeta describing an existing node but with different metadata: received=${JSON.stringify(
+              nodeMeta
+            )}, existing=${JSON.stringify(existing.meta())}`
           );
         }
       } else {
-        const otherNew = createdNodeDescs.get(nodeDesc);
+        const otherNew = createdNodeMetas.get(nodeMeta);
         if (otherNew !== undefined) {
-          if (!Order.equalsNodeDesc(nodeDesc, otherNew)) {
+          if (!Order.equalsNodeMeta(nodeMeta, otherNew)) {
             throw new Error(
-              `Received two NodeDescs for the same node with different parents: first=${JSON.stringify(
+              `Received two NodeMetas for the same node with different parents: first=${JSON.stringify(
                 otherNew
-              )}, second=${JSON.stringify(nodeDesc)}`
+              )}, second=${JSON.stringify(nodeMeta)}`
             );
           }
-        } else createdNodeDescs.set(nodeDesc, nodeDesc);
+        } else createdNodeMetas.set(nodeMeta, nodeMeta);
       }
     }
 
-    // 2. Sort createdNodeDescs into a valid processing order, in which each node
+    // 2. Sort createdNodeMetas into a valid processing order, in which each node
     // follows its parent (or its parent already exists).
-    const toProcess: NodeDesc[] = [];
-    // New NodeDescs that are waiting on a parent in createdNodeDescs, keyed by
+    const toProcess: NodeMeta[] = [];
+    // New NodeMetas that are waiting on a parent in createdNodeMetas, keyed by
     // that parent.
-    const pendingChildren = new NodeMap<NodeDesc[]>();
+    const pendingChildren = new NodeMap<NodeMeta[]>();
 
-    for (const nodeDesc of createdNodeDescs.values()) {
-      if (this.tree.get(nodeDesc.parentID) !== undefined) {
+    for (const nodeMeta of createdNodeMetas.values()) {
+      if (this.tree.get(nodeMeta.parentID) !== undefined) {
         // Parent already exists - ready to process.
-        toProcess.push(nodeDesc);
+        toProcess.push(nodeMeta);
       } else {
-        // Parent should be in createdNodeDescs. Store in pendingChildren for now.
-        let siblings = pendingChildren.get(nodeDesc.parentID);
+        // Parent should be in createdNodeMetas. Store in pendingChildren for now.
+        let siblings = pendingChildren.get(nodeMeta.parentID);
         if (siblings === undefined) {
           siblings = [];
-          pendingChildren.set(nodeDesc.parentID, siblings);
+          pendingChildren.set(nodeMeta.parentID, siblings);
         }
-        siblings.push(nodeDesc);
+        siblings.push(nodeMeta);
       }
     }
     // For each node in toProcess, if it has pending children, append those.
     // That way they'll be processed after the node, including by this loop.
-    for (const nodeDesc of toProcess) {
-      const children = pendingChildren.get(nodeDesc);
+    for (const nodeMeta of toProcess) {
+      const children = pendingChildren.get(nodeMeta);
       if (children !== undefined) {
         toProcess.push(...children);
         // Delete so we can later check whether all pendingChildren were
         // moved to toProcess.
-        pendingChildren.delete(nodeDesc);
+        pendingChildren.delete(nodeMeta);
       }
     }
 
@@ -283,20 +281,20 @@ export class Order {
       const someParent = pendingChildren.someKey();
       const somePendingChild = pendingChildren.get(someParent)![0];
       // someParent was never added to toProcess.
-      if (createdNodeDescs.get(someParent) === undefined) {
-        // someParent is not already known and not in nodeDescs.
+      if (createdNodeMetas.get(someParent) === undefined) {
+        // someParent is not already known and not in nodeMetas.
         throw new Error(
-          `Received NodeDesc ${JSON.stringify(
+          `Received NodeMeta ${JSON.stringify(
             somePendingChild
-          )}, but we have not yet received a NodeDesc for its parent node ${JSON.stringify(
+          )}, but we have not yet received a NodeMeta for its parent node ${JSON.stringify(
             someParent
           )}`
         );
       } else {
-        // someParent is indeed in nodeDescs, but never reached. It must be
+        // someParent is indeed in nodeMetas, but never reached. It must be
         // part of a cycle.
         throw new Error(
-          `Failed to process nodeDescs due to a cycle involving ${JSON.stringify(
+          `Failed to process nodeMetas due to a cycle involving ${JSON.stringify(
             somePendingChild
           )}`
         );
@@ -304,27 +302,27 @@ export class Order {
     }
 
     // Finally, we are guaranteed that:
-    // - All NodeDescs in toProcess are new and valid.
+    // - All NodeMetas in toProcess are new and valid.
     // - They are in a valid order (a node's parent will be known by the time
     // it is reached).
 
-    for (const nodeDesc of toProcess) this.newNode(nodeDesc);
+    for (const nodeMeta of toProcess) this.newNode(nodeMeta);
   }
 
-  private newNode(nodeDesc: NodeDesc): NodeInternal {
-    const parentNode = this.tree.get(nodeDesc.parentID);
+  private newNode(nodeMeta: NodeMeta): NodeInternal {
+    const parentNode = this.tree.get(nodeMeta.parentID);
     if (parentNode === undefined) {
       throw new Error(
-        `Internal error: NodeDesc ${JSON.stringify(
-          nodeDesc
+        `Internal error: NodeMeta ${JSON.stringify(
+          nodeMeta
         )} passed validation checks, but its parent node was not found.`
       );
     }
     const node = new NodeInternal(
-      nodeDesc.creatorID,
-      nodeDesc.counter,
+      nodeMeta.creatorID,
+      nodeMeta.counter,
       parentNode,
-      nodeDesc.offset
+      nodeMeta.offset
     );
     this.tree.set(node, node);
 
@@ -440,7 +438,7 @@ export class Order {
       return [startPos, null];
     }
 
-    const createdNodeDesc: NodeDesc = {
+    const createdNodeMeta: NodeMeta = {
       creatorID: this.replicaID,
       counter: this.counter,
       parentID: newNodeParent.id(),
@@ -448,12 +446,12 @@ export class Order {
     };
     this.counter++;
 
-    const createdNode = this.newNode(createdNodeDesc);
+    const createdNode = this.newNode(createdNodeMeta);
     createdNode.createdCounter = count;
     if (newNodeParent.ourChildren === undefined) {
       newNodeParent.ourChildren = new Map();
     }
-    newNodeParent.ourChildren.set(createdNodeDesc.offset, createdNode);
+    newNodeParent.ourChildren.set(createdNodeMeta.offset, createdNode);
 
     this.onCreateNode?.(createdNode);
 
@@ -502,10 +500,10 @@ export class Order {
   /**
    * Unlike nodes(), excludes rootNode. Otherwise same order.
    */
-  *nodeDescs(): IterableIterator<NodeDesc> {
+  *nodeMetas(): IterableIterator<NodeMeta> {
     for (const node of this.tree.values()) {
       if (node === this.rootNode) continue;
-      yield node.desc();
+      yield node.meta();
     }
   }
 
@@ -547,12 +545,12 @@ export class Order {
   receiveSavedState(savedState: OrderSavedState): void {
     // Opt: Pass custom iterator instead of array, to avoid 2x memory when
     // merging nearly-identical states.
-    const nodeDescs: NodeDesc[] = [];
+    const nodeMetas: NodeMeta[] = [];
     for (const [creatorID, byCreator] of Object.entries(savedState)) {
       for (const [timestampStr, { parentID, offset }] of Object.entries(
         byCreator
       )) {
-        nodeDescs.push({
+        nodeMetas.push({
           creatorID,
           counter: Number.parseInt(timestampStr),
           parentID,
@@ -560,7 +558,7 @@ export class Order {
         });
       }
     }
-    this.receive(nodeDescs);
+    this.receive(nodeMetas);
   }
 
   // ----------
@@ -601,9 +599,9 @@ export class Order {
   }
 
   /**
-   * Returns whether two NodeDescs are equal, i.e., they have equal contents.
+   * Returns whether two NodeMetas are equal, i.e., they have equal contents.
    */
-  static equalsNodeDesc(a: NodeDesc, b: NodeDesc): boolean {
+  static equalsNodeMeta(a: NodeMeta, b: NodeMeta): boolean {
     return (
       a.creatorID === b.creatorID &&
       a.counter === b.counter &&

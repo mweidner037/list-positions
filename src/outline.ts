@@ -48,7 +48,7 @@ export class Outline {
   /**
    *
    * @param positions Don't need to be in list order.
-   * @param order Mandatory to remind you to load its NodeDescs first.
+   * @param order Mandatory to remind you to load its NodeMetas first.
    * @returns
    */
   static from(positions: Iterable<Position>, order: Order): Outline {
