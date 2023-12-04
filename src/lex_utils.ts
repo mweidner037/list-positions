@@ -9,7 +9,11 @@ export const LexUtils = {
   combinePos(nodePrefix: string, valueIndex: number): LexPosition {
     if (nodePrefix === "") {
       // Root node.
-      return valueIndex === 0 ? this.MIN_LEX_POSITION : this.MAX_LEX_POSITION;
+      if (valueIndex === 0) return this.MIN_LEX_POSITION;
+      if (valueIndex === 1) return this.MAX_LEX_POSITION;
+      throw new Error(
+        `Position uses rootNode but is not minPosition or maxPosition (valueIndex 0 or 1): valueIndex=${valueIndex}`
+      );
     }
     return nodePrefix + "," + encodeValueIndex(valueIndex);
   },
@@ -74,6 +78,14 @@ export const LexUtils = {
       parentID = id;
     }
     return metas;
+  },
+
+  nodeIDFor(nodePrefix: string): string {
+    if (nodePrefix === "") return NodeIDs.ROOT;
+
+    const lastComma = nodePrefix.lastIndexOf(",");
+    // Works even if lastComma == -1 (child of root).
+    return nodePrefix.slice(lastComma + 1);
   },
 } as const;
 

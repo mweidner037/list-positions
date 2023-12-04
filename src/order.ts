@@ -132,9 +132,7 @@ export class Order {
       !(pos.valueIndex === 0 || pos.valueIndex === 1)
     ) {
       throw new Error(
-        `Position uses rootNode but is not minPosition or maxPosition (valueIndex 0 or 1): ${JSON.stringify(
-          pos
-        )}`
+        `Position uses rootNode but is not minPosition or maxPosition (valueIndex 0 or 1): valueIndex=${pos.valueIndex}`
       );
     }
     if (node === undefined) {
@@ -145,22 +143,6 @@ export class Order {
       );
     }
     return node;
-  }
-
-  // TODO: better name for this and getNodeFor.
-  // Maybe receivePrefix, to emphasize that it's a mutator?
-  getNodeForPrefix(lexPrefix: string): OrderNode {
-    if (lexPrefix === "") return this.rootNode;
-
-    const lastComma = lexPrefix.lastIndexOf(",");
-    // Works even if lastComma == -1 (child of root).
-    const nodeID = lexPrefix.slice(lastComma + 1);
-    if (!this.tree.has(nodeID)) {
-      // Receive the node, by receiving all of its dependencies.
-      this.receive(LexUtils.splitNodePrefix(lexPrefix));
-    }
-    // Else we already know it. For efficiency, skip consistency checking.
-    return this.tree.get(nodeID)!;
   }
 
   // Bind as variable instead of class method, in case callers forget.
@@ -520,14 +502,20 @@ export class Order {
 
   lex(pos: Position): LexPosition {
     const node = this.getNodeFor(pos);
+    // OPT: construct it directly with a tree walk and single join.
     return LexUtils.combinePos(node.lexPrefix(), pos.valueIndex);
   }
 
   unlex(lexPos: LexPosition): Position {
-    const [nodePrefix, valueIndex] = LexUtils.splitPos(lexPos);
-    // Ensure the node is received.
-    const node = this.getNodeForPrefix(nodePrefix);
-    return { nodeID: node.id, valueIndex };
+    const [lexPrefix, valueIndex] = LexUtils.splitPos(lexPos);
+    const nodeID = LexUtils.nodeIDFor(lexPrefix);
+    if (!this.tree.has(nodeID)) {
+      // Receive the node.
+      this.receive(LexUtils.splitNodePrefix(lexPrefix));
+    }
+    // Else we skip checking agreement with the existing node, for efficiency.
+
+    return { nodeID, valueIndex };
   }
 
   // ----------
