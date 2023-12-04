@@ -1,4 +1,4 @@
-import { LexUtils } from "./internal/lex_utils";
+import { LexUtils } from "./lex_utils";
 import { NodeMeta, OrderNode } from "./node";
 import { NodeIDs } from "./node_ids";
 import { LexPosition, Position } from "./position";
@@ -53,6 +53,26 @@ class NodeInternal implements OrderNode {
       parentID: this.parent.id,
       offset: this.offset,
     };
+  }
+
+  dependencies(): OrderNode[] {
+    const ans: OrderNode[] = [];
+    for (
+      // eslint-disable-next-line @typescript-eslint/no-this-alias
+      let currentNode: OrderNode = this;
+      currentNode.parent !== null;
+      currentNode = currentNode.parent
+    ) {
+      ans.push(currentNode);
+    }
+    ans.reverse();
+    return ans;
+  }
+
+  lexPrefix(): string {
+    return LexUtils.combineNodePrefix(
+      this.dependencies().map((node) => node.meta())
+    );
   }
 
   toString() {
@@ -125,6 +145,22 @@ export class Order {
       );
     }
     return node;
+  }
+
+  // TODO: better name for this and getNodeFor.
+  // Maybe receivePrefix, to emphasize that it's a mutator?
+  getNodeForPrefix(lexPrefix: string): OrderNode {
+    if (lexPrefix === "") return this.rootNode;
+
+    const lastComma = lexPrefix.lastIndexOf(",");
+    // Works even if lastComma == -1 (child of root).
+    const nodeID = lexPrefix.slice(lastComma + 1);
+    if (!this.tree.has(nodeID)) {
+      // Receive the node, by receiving all of its dependencies.
+      this.receive(LexUtils.splitNodePrefix(lexPrefix));
+    }
+    // Else we already know it. For efficiency, skip consistency checking.
+    return this.tree.get(nodeID)!;
   }
 
   // Bind as variable instead of class method, in case callers forget.
@@ -484,71 +520,14 @@ export class Order {
 
   lex(pos: Position): LexPosition {
     const node = this.getNodeFor(pos);
-    if (node === this.rootNode) {
-      if (pos.valueIndex === 0) return Order.MIN_LEX_POSITION;
-      else return Order.MAX_LEX_POSITION;
-    } else {
-      // Encode (parent node, child node's offset) pairs for all parent nodes
-      // in the exclusive range (node, root).
-      const parts: string[] = [];
-      for (
-        let childNode = node;
-        childNode.parent !== this.rootNode;
-        childNode = childNode.parent!
-      ) {
-        parts.push(
-          childNode.parent!.id + "." + LexUtils.encodeOffset(childNode.offset)
-        );
-      }
-      // Reverse the parts so the root-side is the front.
-      parts.reverse();
-      // Add a final part for the actual Position, encoding its node and valueIndex.
-      parts.push(pos.nodeID + "." + LexUtils.encodeValueIndex(pos.valueIndex));
-      // Combine with "," separators.
-      return parts.join(",");
-    }
+    return LexUtils.combinePos(node.lexPrefix(), pos.valueIndex);
   }
 
   unlex(lexPos: LexPosition): Position {
-    if (lexPos === Order.MIN_LEX_POSITION) return Order.MIN_POSITION;
-    if (lexPos === Order.MAX_LEX_POSITION) return Order.MAX_POSITION;
-
-    // For simplicity, we don't make an effort to validate formatting or
-    // agreement with existing NodeMetas.
-
-    const lastPart = lexPos.slice(lexPos.lastIndexOf(",") + 1);
-    const lastPartDot = lastPart.indexOf(".");
-    const nodeID = lastPart.slice(0, lastPartDot);
-    const valueIndex = LexUtils.decodeValueIndex(
-      lastPart.slice(lastPartDot + 1)
-    );
-
-    if (!this.tree.has(nodeID)) {
-      // Create an OrderNode using the description in lexPos, so that the
-      // returned Position is valid.
-      const parts = lexPos.split(",");
-      let prevNode = this.rootNode;
-      let prevEncodedOffset = "";
-      for (let i = 0; i < parts.length; i++) {
-        const part = parts[i];
-        const dot = part.indexOf(".");
-        const partNodeID = part.slice(0, dot);
-        let partNode = this.tree.get(partNodeID);
-        if (partNode === undefined) {
-          // Need to create it.
-          partNode = this.newNode({
-            id: partNodeID,
-            parentID: prevNode.id,
-            // Special case for root (offset is always 0).
-            offset: i === 0 ? 0 : LexUtils.decodeOffset(prevEncodedOffset),
-          });
-        }
-        prevNode = partNode;
-        prevEncodedOffset = part.slice(dot + 1);
-      }
-    }
-
-    return { nodeID, valueIndex };
+    const [nodePrefix, valueIndex] = LexUtils.splitPos(lexPos);
+    // Ensure the node is received.
+    const node = this.getNodeForPrefix(nodePrefix);
+    return { nodeID: node.id, valueIndex };
   }
 
   // ----------
@@ -564,8 +543,8 @@ export class Order {
     valueIndex: 1,
   };
 
-  static readonly MIN_LEX_POSITION: LexPosition = "";
-  static readonly MAX_LEX_POSITION: LexPosition = "~";
+  static readonly MIN_LEX_POSITION: LexPosition = LexUtils.MIN_LEX_POSITION;
+  static readonly MAX_LEX_POSITION: LexPosition = LexUtils.MAX_LEX_POSITION;
 
   /**
    * Returns whether two Positions are equal, i.e., they have equal contents.
@@ -620,7 +599,8 @@ export class Order {
       return a.offset - b.offset;
     }
     if (a.id !== b.id) {
-      return a.id > b.id ? 1 : -1;
+      // Need to add the comma to match how LexPositions are sorted.
+      return a.id + "," > b.id + "," ? 1 : -1;
     }
     return 0;
   }

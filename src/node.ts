@@ -10,7 +10,7 @@
  */
 export type NodeMeta = {
   readonly id: string;
-  readonly parentID: string
+  readonly parentID: string;
   /**
    * 0: left child of (parent, 0).
    * 1: right child of (parent, 0).
@@ -51,10 +51,23 @@ export interface OrderNode {
    * Returns this node's NodeMeta.
    *
    * Errors if this is the rootNode.
-   *
-   * TODO: should be on Order instead?
    */
   meta(): NodeMeta;
+
+  /**
+   * Returns an array of all non-root OrderNodes that this depends on
+   * (including itself if non-root), in order from the root downwards.
+   *
+   * Passing `this.dependencies().map(node => node.meta())` to `Order.receive` is
+   * sufficient to use this OrderNode's Positions.
+   */
+  dependencies(): OrderNode[];
+
+  /**
+   * Prefix of Positions & descendants. Use LexUtils.combinePos to
+   * get LexPositions.
+   */
+  lexPrefix(): string;
 
   readonly childrenLength: number;
   getChild(index: number): OrderNode;

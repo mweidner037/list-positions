@@ -42,3 +42,4 @@ export type Position = {
  * indie of an Order, e.g. DB "ORDER BY" column; see LexUtils.
  */
 export type LexPosition = string;
+

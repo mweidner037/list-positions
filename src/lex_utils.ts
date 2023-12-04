@@ -1,22 +1,99 @@
+import type { NodeMeta } from "./node";
+import { NodeIDs } from "./node_ids";
+import type { LexPosition } from "./position";
+
 export const LexUtils = {
-  encodeOffset(offset: number): string {
-    return sequence(offset).toString(BASE);
+  MIN_LEX_POSITION: "" as LexPosition,
+  MAX_LEX_POSITION: "~" as LexPosition,
+
+  combinePos(nodePrefix: string, valueIndex: number): LexPosition {
+    if (nodePrefix === "") {
+      // Root node.
+      return valueIndex === 0 ? this.MIN_LEX_POSITION : this.MAX_LEX_POSITION;
+    }
+    return nodePrefix + "," + encodeValueIndex(valueIndex);
   },
 
-  decodeOffset(encoded: string): number {
-    const seq = Number.parseInt(encoded, BASE);
-    return sequenceInv(seq);
+  splitPos(lexPos: LexPosition): [nodePrefix: string, valueIndex: number] {
+    if (lexPos === this.MIN_LEX_POSITION) return ["", 0];
+    if (lexPos === this.MAX_LEX_POSITION) return ["", 0];
+    const lastComma = lexPos.lastIndexOf(",");
+    return [
+      lexPos.slice(0, lastComma),
+      decodeValueIndex(lexPos.slice(lastComma + 1)),
+    ];
   },
 
-  encodeValueIndex(valueIndex: number): string {
-    return this.encodeOffset(2 * valueIndex + 1);
+  combineNodePrefix(metas: NodeMeta[]): string {
+    if (metas.length === 0) return "";
+    const parts = new Array<string>(metas.length);
+
+    if (metas[0].parentID !== NodeIDs.ROOT) {
+      throw new Error(
+        `Invalid tree path: does not start with root child (${JSON.stringify(
+          metas[0]
+        )}))`
+      );
+    }
+    parts[0] = metas[0].id;
+
+    for (let i = 1; i < metas.length; i++) {
+      if (metas[i].parentID !== metas[i - 1].id) {
+        throw new Error(
+          `Invalid tree path: metas[${i}] is not a child of metas[${
+            i - 1
+          }] (${JSON.stringify(metas[i])}, ${JSON.stringify(metas[i - 1])})`
+        );
+      }
+      parts[i] = encodeOffset(metas[i].offset) + "." + metas[i].id;
+    }
+
+    return parts.join(",");
   },
 
-  decodeValueIndex(encoded: string): number {
-    // (offset - 1) / 2
-    return this.decodeOffset(encoded) >> 1;
+  splitNodePrefix(nodePrefix: string): NodeMeta[] {
+    const parts = nodePrefix.split(",");
+    if (parts.length === 0) return [];
+
+    const metas: NodeMeta[] = [];
+    // First part is child of the root; no offset.
+    metas.push({
+      id: parts[0],
+      parentID: NodeIDs.ROOT,
+      offset: 0,
+    });
+    // Middle parts are offset,nodeID.
+    let parentID = parts[0];
+    for (let i = 1; i < parts.length; i++) {
+      const [encodedOffset, id] = parts[i].split(".");
+      metas.push({
+        id,
+        parentID,
+        offset: decodeOffset(encodedOffset),
+      });
+      parentID = id;
+    }
+    return metas;
   },
 } as const;
+
+function encodeOffset(offset: number): string {
+  return sequence(offset).toString(BASE);
+}
+
+function decodeOffset(encoded: string): number {
+  const seq = Number.parseInt(encoded, BASE);
+  return sequenceInv(seq);
+}
+
+function encodeValueIndex(valueIndex: number): string {
+  return encodeOffset(2 * valueIndex + 1);
+}
+
+function decodeValueIndex(encoded: string): number {
+  // (offset - 1) / 2
+  return decodeOffset(encoded) >> 1;
+}
 
 /**
  * These functions deal with a special sequence that has
