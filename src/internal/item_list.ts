@@ -24,7 +24,7 @@ type NodeData<I> = {
    *
    * Always trimmed - length is meaningless.
    *
-   * TODO: omit before use, with ?? arrMan.empty()? Or could add null as value to SparseArray
+   * OPT: omit before use, with ?? arrMan.empty()? Or could add null as value to SparseArray
    * (8 bytes vs new array).
    */
   values: SparseItems<I>;
@@ -358,9 +358,6 @@ export class ItemList<I, T> {
 
   /**
    * Returns the position currently at index.
-   *
-   * Won't return minPosition or maxPosition. TODO: actually, will if they're
-   * part of the list - check that code is compatible.
    */
   positionAt(index: number): Position {
     if (index < 0 || index >= this.length) {
@@ -535,24 +532,6 @@ export class ItemList<I, T> {
   // Save & Load
   // ----------
 
-  // TODO: delete, or change to nodeSet/nodeGet
-  saveOneNode(node: OrderNode): SparseItems<I> | undefined {
-    return this.state.get(node)?.values;
-  }
-
-  /**
-   * Overwrites all of node's existing values - so non-present keys become
-   * deleted, even if they come after the last present key.
-   *
-   * Note that values might not be contiguous in the list.
-   */
-  loadOneNode(node: OrderNode, values: SparseItems<I>): void {
-    const data = this.getOrCreateData(node);
-    const existingCount = this.arrayMan.size(data.values);
-    data.values = values;
-    this.onUpdate(node, this.arrayMan.size(values) - existingCount);
-  }
-
   /**
    * Returns saved state describing the current state of this LocalList,
    * including its values.
@@ -601,7 +580,11 @@ export class ItemList<I, T> {
       }
       // TODO: wait until end to compute all parentValuesBefores, totals.
       // To avoid ?? complexity.
-      this.loadOneNode(node, loadArray(savedArr));
+      const values = loadArray(savedArr);
+      const data = this.getOrCreateData(node);
+      const existingCount = this.arrayMan.size(data.values);
+      data.values = values;
+      this.onUpdate(node, this.arrayMan.size(values) - existingCount);
     }
   }
 }

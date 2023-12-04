@@ -103,7 +103,7 @@ export class Order {
   /**
    *
    * @param options.newNodeID Function that returns a globally unique new
-   * node ID, used for our createdNode.id's. Default: TODO.
+   * node ID, used for our createdNode.id's. Default: `NodeIDs.usingReplicaID()`.
    */
   constructor(options?: { newNodeID?: () => string }) {
     this.newNodeID = options?.newNodeID ?? NodeIDs.usingReplicaID();
@@ -600,7 +600,7 @@ export class Order {
    *
    * You do not need to call this function unless you are doing something advanced.
    * To compare Positions, instead use `Order.compare` or a List. To iterate over
-   * an OrderNode's children in order, use TODO.
+   * an OrderNode's children in order, use its childrenLength and getChild methods.
    */
   static compareSiblingNodes(a: OrderNode, b: OrderNode): number {
     if (a.parent !== b.parent) {

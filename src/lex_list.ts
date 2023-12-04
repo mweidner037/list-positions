@@ -220,9 +220,6 @@ export class LexList<T> {
 
   /**
    * Returns the position currently at index.
-   *
-   * Won't return minPosition or maxPosition. TODO: actually, will if they're
-   * part of the list - check that code is compatible.
    */
   positionAt(index: number): LexPosition {
     return this.order.lex(this.list.positionAt(index));
