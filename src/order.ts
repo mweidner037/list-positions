@@ -1,3 +1,4 @@
+import { LexUtils } from "./internal/lex_utils";
 import { NodeMeta, OrderNode } from "./node";
 import { NodeIDs } from "./node_ids";
 import { LexPosition, Position } from "./position";
@@ -481,9 +482,74 @@ export class Order {
   // LexPosition
   // ----------
 
-  lex(pos: Position): LexPosition {}
+  lex(pos: Position): LexPosition {
+    const node = this.getNodeFor(pos);
+    if (node === this.rootNode) {
+      if (pos.valueIndex === 0) return Order.MIN_LEX_POSITION;
+      else return Order.MAX_LEX_POSITION;
+    } else {
+      // Encode (parent node, child node's offset) pairs for all parent nodes
+      // in the exclusive range (node, root).
+      const parts: string[] = [];
+      for (
+        let childNode = node;
+        childNode.parent !== this.rootNode;
+        childNode = childNode.parent!
+      ) {
+        parts.push(
+          childNode.parent!.id + "." + LexUtils.encodeOffset(childNode.offset)
+        );
+      }
+      // Reverse the parts so the root-side is the front.
+      parts.reverse();
+      // Add a final part for the actual Position, encoding its node and valueIndex.
+      parts.push(pos.nodeID + "." + LexUtils.encodeValueIndex(pos.valueIndex));
+      // Combine with "," separators.
+      return parts.join(",");
+    }
+  }
 
-  unlex(lexPos: LexPosition): Position {}
+  unlex(lexPos: LexPosition): Position {
+    if (lexPos === Order.MIN_LEX_POSITION) return Order.MIN_POSITION;
+    if (lexPos === Order.MAX_LEX_POSITION) return Order.MAX_POSITION;
+
+    // For simplicity, we don't make an effort to validate formatting or
+    // agreement with existing NodeMetas.
+
+    const lastPart = lexPos.slice(lexPos.lastIndexOf(",") + 1);
+    const lastPartDot = lastPart.indexOf(".");
+    const nodeID = lastPart.slice(0, lastPartDot);
+    const valueIndex = LexUtils.decodeValueIndex(
+      lastPart.slice(lastPartDot + 1)
+    );
+
+    if (!this.tree.has(nodeID)) {
+      // Create an OrderNode using the description in lexPos, so that the
+      // returned Position is valid.
+      const parts = lexPos.split(",");
+      let prevNode = this.rootNode;
+      let prevEncodedOffset = "";
+      for (let i = 0; i < parts.length; i++) {
+        const part = parts[i];
+        const dot = part.indexOf(".");
+        const partNodeID = part.slice(0, dot);
+        let partNode = this.tree.get(partNodeID);
+        if (partNode === undefined) {
+          // Need to create it.
+          partNode = this.newNode({
+            id: partNodeID,
+            parentID: prevNode.id,
+            // Special case for root (offset is always 0).
+            offset: i === 0 ? 0 : LexUtils.decodeOffset(prevEncodedOffset),
+          });
+        }
+        prevNode = partNode;
+        prevEncodedOffset = part.slice(dot + 1);
+      }
+    }
+
+    return { nodeID, valueIndex };
+  }
 
   // ----------
   // Static utilities
@@ -498,8 +564,8 @@ export class Order {
     valueIndex: 1,
   };
 
-  static readonly MIN_LEX_POSITION: LexPosition = "TODO";
-  static readonly MAX_LEX_POSITION: LexPosition = "TODO";
+  static readonly MIN_LEX_POSITION: LexPosition = "";
+  static readonly MAX_LEX_POSITION: LexPosition = "~";
 
   /**
    * Returns whether two Positions are equal, i.e., they have equal contents.
