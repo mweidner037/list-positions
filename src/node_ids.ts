@@ -20,6 +20,8 @@ const REPLICA_ID_CHARS =
  */
 const REPLICA_ID_LENGTH = 8;
 
+const COUNTER_BASE = 36;
+
 /**
  * Utilities for Node IDs.
  */
@@ -32,22 +34,39 @@ export const NodeIDs = {
   /**
    * Throws an error if nodeID is invalid.
    *
-   * The only invalid replicaID is `ReplicaIDs.ROOT = "ROOT"`, which is reserved.
-   * TODO: also ,.~ for LexPosition stuff.
+   * Rules:
+   * - Not NodeIDs.ROOT = "ROOT".
+   * - Must not contain "." or ",".
+   * - Must be lexicographically less than "~" (needed for Order.MAX_LEX_POSITION to work).
    */
   validate(nodeID: string): void {
     if (nodeID === this.ROOT) {
       throw new Error(
-        `Invalid nodeID: "${this.ROOT}" (NodeIDs.ROOT) is reserved.`
+        `Invalid nodeID or replicaID: "${this.ROOT}" (NodeIDs.ROOT) is reserved.`
+      );
+    }
+    if (nodeID.indexOf(".") !== -1 || nodeID.indexOf(",") !== -1) {
+      throw new Error(
+        `Invalid nodeID or replicaID "${nodeID}": must not contain "." or ",".`
+      );
+    }
+    if (!(nodeID < "~")) {
+      throw new Error(
+        `Invalid nodeID or replicaID "${nodeID}": must be lexicographically less than "~".`
       );
     }
   },
 
   usingReplicaID(replicaID?: string): () => string {
+    if (replicaID !== undefined) {
+      // Validate replicaID. It must follow the same rules as node IDs.
+      this.validate(replicaID);
+    }
     const theReplicaID = replicaID ?? this.newReplicaID();
+
     let counter = 0;
     return function () {
-      const nodeID = theReplicaID + "_" + counter.toString(36);
+      const nodeID = theReplicaID + "_" + counter.toString(COUNTER_BASE);
       counter++;
       return nodeID;
     };
@@ -55,12 +74,22 @@ export const NodeIDs = {
 
   /**
    * Don't use as newNodeID - call usingReplicaID instead.
+   *
+   * @param options.chars Get approx log_2(chars.length) entropy per length.
+   * Only first 256 values are used.
    */
-  newReplicaID(rng?: seedrandom.prng): string {
-    const arr = new Array<string>(REPLICA_ID_LENGTH);
-    if (rng === undefined) {
+  newReplicaID(options?: {
+    rng?: seedrandom.prng;
+    chars?: string;
+    length?: number;
+  }): string {
+    const chars = options?.chars ?? REPLICA_ID_CHARS;
+    const length = options?.length ?? REPLICA_ID_LENGTH;
+
+    const arr = new Array<string>(length);
+    if (options?.rng === undefined) {
       // Random replicaID.
-      let randomValues = new Uint8Array(REPLICA_ID_LENGTH);
+      let randomValues = new Uint8Array(length);
       if (typeof window === "undefined") {
         // Use Node crypto library.
         // We use eval("require") to prevent Webpack from attempting
@@ -72,26 +101,47 @@ export const NodeIDs = {
         const cryptoReal = <typeof crypto>(
           (<typeof require>eval("require"))("crypto")
         );
-        const randomBuffer = cryptoReal.randomBytes(REPLICA_ID_LENGTH);
+        const randomBuffer = cryptoReal.randomBytes(length);
         randomValues = new Uint8Array(randomBuffer);
       } else {
         // Use browser crypto library.
         window.crypto.getRandomValues(randomValues);
       }
       for (let i = 0; i < randomValues.length; i++) {
-        // This is biased b/c REPLICA_ID_CHARS.length does not divide 256,
-        // but it still gives almost 6 bits of entropy.
-        arr[i] = REPLICA_ID_CHARS[randomValues[i] % REPLICA_ID_CHARS.length];
+        // This can be biased if chars.length does not divide 256, but
+        // it still gives at least floor(log_2(chars.length)) bits of entropy.
+        arr[i] = chars[randomValues[i] % chars.length];
       }
     } else {
       // Pseudo-random replicaID.
-      for (let i = 0; i < REPLICA_ID_LENGTH; i++) {
+      for (let i = 0; i < length; i++) {
         // Although we could pick chars without bias, we instead use the
         // same bias as `random`, for consistency.
-        arr[i] =
-          REPLICA_ID_CHARS[Math.floor(rng() * 256) % REPLICA_ID_CHARS.length];
+        arr[i] = chars[Math.floor(options.rng() * 256) % chars.length];
       }
     }
     return arr.join("");
+  },
+
+  /**
+   * Parses a nodeID from NodeIDs.usingReplicaID back into its replicaID
+   * + counter. For optimized map-array representation.
+   */
+  parseFromReplicaID(nodeID: string): [replicaID: string, counter: number] {
+    const underscore = nodeID.lastIndexOf("_");
+    if (underscore === -1) {
+      throw new Error(
+        `nodeID is not from NodeIDs.usingReplicaID (missing "_"): ${nodeID}`
+      );
+    }
+
+    const counter = Number.parseInt(nodeID.slice(underscore + 1), COUNTER_BASE);
+    if (isNaN(counter)) {
+      throw new Error(
+        `nodeID is not from NodeIDs.usingReplicaID (bad counter): ${nodeID}`
+      );
+    }
+
+    return [nodeID.slice(0, underscore), counter];
   },
 } as const;

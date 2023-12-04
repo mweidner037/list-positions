@@ -437,6 +437,11 @@ export class Order {
       parentID: newNodeParent.id,
       offset: newNodeOffset,
     };
+    if (this.tree.has(createdNodeMeta.id)) {
+      throw new Error(
+        `newNodeID() returned node ID that already exists: ${createdNodeMeta.id}`
+      );
+    }
 
     const createdNode = this.newNode(createdNodeMeta);
     createdNode.createdCounter = count;
