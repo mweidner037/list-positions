@@ -56,9 +56,9 @@ export const LexUtils = {
   },
 
   splitNodePrefix(nodePrefix: string): NodeMeta[] {
-    const parts = nodePrefix.split(",");
-    if (parts.length === 0) return [];
+    if (nodePrefix === "") return [];
 
+    const parts = nodePrefix.split(",");
     const metas: NodeMeta[] = [];
     // First part is child of the root; no offset.
     metas.push({
@@ -66,14 +66,20 @@ export const LexUtils = {
       parentID: NodeIDs.ROOT,
       offset: 0,
     });
-    // Middle parts are offset,nodeID.
+    // Other parts are "offset.nodeID".
     let parentID = parts[0];
     for (let i = 1; i < parts.length; i++) {
-      const [encodedOffset, id] = parts[i].split(".");
+      const dot = parts[i].indexOf(".");
+      if (dot === -1) {
+        throw new Error(
+          `Bad nodePrefix format; did you pass a LexPosition instead? (nodePrefix="${nodePrefix}", missing "." in part ${parts[i]})`
+        );
+      }
+      const id = parts[i].slice(dot + 1);
       metas.push({
         id,
         parentID,
-        offset: decodeOffset(encodedOffset),
+        offset: decodeOffset(parts[i].slice(0, dot)),
       });
       parentID = id;
     }
@@ -84,8 +90,20 @@ export const LexUtils = {
     if (nodePrefix === "") return NodeIDs.ROOT;
 
     const lastComma = nodePrefix.lastIndexOf(",");
-    // Works even if lastComma == -1 (child of root).
-    return nodePrefix.slice(lastComma + 1);
+    if (lastComma === -1) {
+      // Child of root; prefix is just nodeID.
+      return nodePrefix;
+    } else {
+      // lastPart is "offset.nodeID".
+      const lastPart = nodePrefix.slice(lastComma + 1);
+      const dot = lastPart.indexOf(".");
+      if (dot === -1) {
+        throw new Error(
+          `Bad nodePrefix format; did you pass a LexPosition instead? (nodePrefix="${nodePrefix}", missing "." in part ${lastPart})`
+        );
+      }
+      return lastPart.slice(dot + 1);
+    }
   },
 } as const;
 
