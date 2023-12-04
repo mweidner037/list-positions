@@ -12,12 +12,12 @@ export type ListSavedState<T> = {
   [nodeID: string]: (T[] | number)[];
 };
 
-function cloneArray<T>(arr: SparseItems<T[]>): (T[] | number)[] {
+function cloneItems<T>(items: SparseItems<T[]>): (T[] | number)[] {
   // Defensive deep copy
-  const copy = new Array<T[] | number>(arr.length);
-  for (let i = 0; i < arr.length; i++) {
-    if (i % 2 === 0) copy[i] = (arr[i] as T[]).slice();
-    else copy[i] = arr[i];
+  const copy = new Array<T[] | number>(items.length);
+  for (let i = 0; i < items.length; i++) {
+    if (i % 2 === 0) copy[i] = (items[i] as T[]).slice();
+    else copy[i] = items[i];
   }
   return copy;
 }
@@ -365,7 +365,7 @@ export class List<T> {
    * guarantees.
    */
   save(): ListSavedState<T> {
-    return this.itemList.save(cloneArray);
+    return this.itemList.save(cloneItems);
   }
 
   /**
@@ -383,6 +383,6 @@ export class List<T> {
    * [[save]] call.
    */
   load(savedState: ListSavedState<T>): void {
-    this.itemList.load(savedState, cloneArray);
+    this.itemList.load(savedState, cloneItems);
   }
 }

@@ -3,6 +3,11 @@ import { NodeMeta, OrderNode } from "./node";
 import { NodeIDs } from "./node_ids";
 import { LexPosition, Position } from "./position";
 
+/**
+ * JSON serializable array. Many opt opportunities.
+ */
+export type OrderSavedState = NodeMeta[];
+
 class NodeInternal implements OrderNode {
   readonly depth: number;
 
@@ -494,6 +499,23 @@ export class Order {
       if (node === this.rootNode) continue;
       yield node.meta();
     }
+  }
+
+  // ----------
+  // Save & Load
+  // ----------
+
+  save(): OrderSavedState {
+    return [...this.nodeMetas()];
+  }
+
+  /**
+   * Merge, not overwrite.
+   *
+   * Same as receive; save/load names for discoverability.
+   */
+  load(savedState: OrderSavedState): void {
+    this.receive(savedState);
   }
 
   // ----------

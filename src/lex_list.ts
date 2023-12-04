@@ -1,6 +1,11 @@
+import { LexUtils } from "./lex_utils";
 import { List } from "./list";
 import { Order } from "./order";
 import { LexPosition, Position } from "./position";
+
+export type LexListSavedState<T> = {
+  [nodePrefix: string]: (T[] | number)[];
+};
 
 /**
  * A local (non-collaborative) data structure mapping [[Position]]s to
@@ -309,6 +314,30 @@ export class LexList<T> {
     }
   }
 
-  // TODO: save & load distinct from entries?
-  // E.g. opt rep using LexNodes.
+  // ----------
+  // Save & Load
+  // ----------
+
+  /**
+   * Same idea as [...entries()], but optimized rep.
+   */
+  save(): LexListSavedState<T> {
+    // OPT: loop over nodes directly, to avoid double-object.
+    const savedState: LexListSavedState<T> = {};
+    for (const [nodeID, values] of Object.entries(this.list.save())) {
+      savedState[this.order.getNode(nodeID)!.lexPrefix()] = values;
+    }
+    return savedState;
+  }
+
+  load(savedState: LexListSavedState<T>): void {
+    // OPT: loop over nodes directly, to avoid double-object.
+    const listSavedState: LexListSavedState<T> = {};
+    for (const [nodePrefix, values] of Object.entries(savedState)) {
+      // TODO: skip checking nodePrefix validity, for efficiency - like in unlex?
+      this.order.receive(LexUtils.splitNodePrefix(nodePrefix));
+      listSavedState[LexUtils.nodeIDFor(nodePrefix)] = values;
+    }
+    this.list.load(listSavedState);
+  }
 }

@@ -12,9 +12,9 @@ export type OutlineSavedState = {
   [nodeID: string]: number[];
 };
 
-function cloneArray(arr: SparseItems<number>): number[] {
+function cloneItems(items: SparseItems<number>): number[] {
   // Defensive copy
-  return arr.slice();
+  return items.slice();
 }
 
 /**
@@ -275,7 +275,7 @@ export class Outline {
    * guarantees.
    */
   save(): OutlineSavedState {
-    return this.itemList.save(cloneArray);
+    return this.itemList.save(cloneItems);
   }
 
   /**
@@ -291,6 +291,6 @@ export class Outline {
    * [[save]] call.
    */
   load(savedState: OutlineSavedState): void {
-    this.itemList.load(savedState, cloneArray);
+    this.itemList.load(savedState, cloneItems);
   }
 }
