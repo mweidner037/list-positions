@@ -24,14 +24,14 @@ type NodeData<I> = {
    *
    * Always trimmed - length is meaningless.
    *
-   * OPT: omit before use, with ?? arrMan.empty()? Or could add null as value to SparseArray
-   * (8 bytes vs new array).
+   * OPT: omit before use, with ?? arrMan.empty()? Or could add null
+   * as option to SparseItems type (8 bytes vs size of []).
    */
   values: SparseItems<I>;
 };
 
 export class ItemList<I, T> {
-  private readonly arrayMan: SparseItemsManager<I, T>;
+  private readonly itemsMan: SparseItemsManager<I, T>;
 
   /**
    * Map from OrderNode to its data (total & values).
@@ -41,7 +41,7 @@ export class ItemList<I, T> {
   private state = new Map<OrderNode, NodeData<I>>();
 
   constructor(readonly order: Order, readonly itemMan: ItemManager<I, T>) {
-    this.arrayMan = new SparseItemsManager(this.itemMan);
+    this.itemsMan = new SparseItemsManager(this.itemMan);
   }
 
   // ----------
@@ -55,7 +55,7 @@ export class ItemList<I, T> {
     // Validate startPos even if length = 0.
     const node = this.order.getNodeFor(startPos);
     const length = this.itemMan.length(item);
-    if (length === 0) return this.arrayMan.new();
+    if (length === 0) return this.itemsMan.new();
     if (node === this.order.rootNode && startPos.valueIndex + length - 1 > 1) {
       throw new Error(
         `Last value's Position is invalid (rootNode only allows valueIndex 0 or 1): startPos=${JSON.stringify(
@@ -65,14 +65,16 @@ export class ItemList<I, T> {
     }
 
     const data = this.getOrCreateData(node);
-    const [newArr, existing] = this.arrayMan.set(
+    const [newItems, replaced] = this.itemsMan.set(
       data.values,
       startPos.valueIndex,
       item
     );
-    data.values = this.arrayMan.trim(newArr);
-    this.onUpdate(node, length - this.arrayMan.size(existing));
-    return existing;
+    data.values = this.itemsMan.trim(newItems);
+
+    const oldSize = this.itemsMan.size(replaced);
+    if (oldSize !== length) this.onUpdate(node, length - oldSize);
+    return replaced;
   }
 
   /**
@@ -81,7 +83,7 @@ export class ItemList<I, T> {
   delete(startPos: Position, count: number): SparseItems<I> {
     // Validate startPos even if count = 0.
     const node = this.order.getNodeFor(startPos);
-    if (count === 0) return this.arrayMan.new();
+    if (count === 0) return this.itemsMan.new();
     if (node === this.order.rootNode && startPos.valueIndex + count - 1 > 1) {
       throw new Error(
         `Last value's Position is invalid (rootNode only allows valueIndex 0 or 1): startPos=${JSON.stringify(
@@ -93,16 +95,18 @@ export class ItemList<I, T> {
     const data = this.state.get(node);
     if (data === undefined) {
       // Already deleted.
-      return this.arrayMan.new(count);
+      return this.itemsMan.new(count);
     }
-    const [newArr, existing] = this.arrayMan.delete(
+    const [newItems, replaced] = this.itemsMan.delete(
       data.values,
       startPos.valueIndex,
       count
     );
-    data.values = this.arrayMan.trim(newArr);
-    this.onUpdate(node, 0 - this.arrayMan.size(existing));
-    return existing;
+    data.values = this.itemsMan.trim(newItems);
+
+    const oldSize = this.itemsMan.size(replaced);
+    if (oldSize !== 0) this.onUpdate(node, 0 - oldSize);
+    return replaced;
   }
 
   private getOrCreateData(node: OrderNode): NodeData<I> {
@@ -112,20 +116,21 @@ export class ItemList<I, T> {
       if (node.parent !== null) {
         const parentData = this.state.get(node.parent);
         if (parentData !== undefined) {
-          parentValuesBefore = this.arrayMan.getInfo(
+          parentValuesBefore = this.itemsMan.getInfo(
             parentData.values,
             node.nextValueIndex
           )[2];
         }
       }
-      data = { total: 0, parentValuesBefore, values: this.arrayMan.new() };
+      data = { total: 0, parentValuesBefore, values: this.itemsMan.new() };
       this.state.set(node, data);
     }
     return data;
   }
 
   /**
-   * Call this after updating node's values.
+   * Call when changing the outline of node's values, i.e., which
+   * valueIndexes are present.
    *
    * @param delta The change in the number of present values at node.
    */
@@ -154,8 +159,8 @@ export class ItemList<I, T> {
         const childData = this.state.get(child);
         if (childData === undefined) continue;
         // OPT: in principle can make this loop O((# runs) + (# children)) instead
-        // of O((# runs) * (# children)).
-        childData.parentValuesBefore = this.arrayMan.getInfo(
+        // of O((# runs) * (# children)), e.g., using itemsMan.split.
+        childData.parentValuesBefore = this.itemsMan.getInfo(
           nodeData.values,
           child.nextValueIndex
         )[2];
@@ -166,7 +171,7 @@ export class ItemList<I, T> {
   /**
    * Deletes every value in the list.
    *
-   * The Order is unaffected (retains all Nodes).
+   * The Order is unaffected (retains all OrderNodes).
    */
   clear() {
     this.state.clear();
@@ -189,9 +194,12 @@ export class ItemList<I, T> {
     prevPos: Position,
     item: I
   ): [startPos: Position, createdNode: OrderNode | null] {
-    // TODO: way to do it without getting index?
+    // OPT: find nextPos without getting index, at least in common cases.
     const nextIndex = this.indexOfPosition(prevPos, "left") + 1;
-    const nextPos = this.positionAt(nextIndex);
+    const nextPos =
+      nextIndex === this.length
+        ? Order.MAX_POSITION
+        : this.positionAt(nextIndex);
     const ret = this.order.createPositions(
       prevPos,
       nextPos,
@@ -231,8 +239,7 @@ export class ItemList<I, T> {
   // ----------
 
   /**
-   * Returns the value at position, or undefined if it is not currently present
-   * ([[hasPosition]] returns false).
+   * Returns the value at position, or undefined if it is not currently present.
    */
   get(pos: Position): T | undefined {
     return this.getInNode(this.order.getNodeFor(pos), pos.valueIndex)[0];
@@ -268,7 +275,7 @@ export class ItemList<I, T> {
   ): [value: T | undefined, isPresent: boolean, nodeValuesBefore: number] {
     const data = this.state.get(node);
     if (data === undefined) return [undefined, false, 0];
-    return this.arrayMan.getInfo(data.values, valueIndex);
+    return this.itemsMan.getInfo(data.values, valueIndex);
   }
 
   private cachedIndexNode: OrderNode | null = null;
@@ -277,8 +284,8 @@ export class ItemList<I, T> {
   /**
    * Returns the current index of position.
    *
-   * If position is not currently present in the list
-   * ([[hasPosition]] returns false), then the result depends on searchDir:
+   * If position is not currently present in the list,
+   * then the result depends on searchDir:
    * - "none" (default): Returns -1.
    * - "left": Returns the next index to the left of position.
    * If there are no values to the left of position,
@@ -318,7 +325,7 @@ export class ItemList<I, T> {
       // TODO: test
       beforeNode = this.cachedIndex;
     } else {
-      // Walk up the tree and add totals for ancestors' values & nodes
+      // Walk up the tree and add totals for ancestors' values & siblings
       // that come before our ancestor.
       beforeNode = 0;
       for (
@@ -363,28 +370,31 @@ export class ItemList<I, T> {
     if (index < 0 || index >= this.length) {
       throw new Error(`Index out of bounds: ${index} (length: ${this.length})`);
     }
+
     let remaining = index;
     let current = this.order.rootNode;
     // eslint-disable-next-line no-constant-condition
     while (true) {
+      // currentData is defined because current has nonzero total (contains index).
       const currentData = this.state.get(current)!;
-      let nextValueIndex = 0;
+      // prev = previous child-with-data. We remember its values.
+      let prevNextValueIndex = 0;
       let prevParentValuesBefore = 0;
       for (let i = 0; i < current.childrenLength; i++) {
         const child = current.getChild(i);
         const childData = this.state.get(child);
-        if (childData === undefined) continue;
+        if (childData === undefined) continue; // No values in child
 
         const valuesBetween =
           childData.parentValuesBefore - prevParentValuesBefore;
         if (remaining < valuesBetween) {
-          // The position is among node's values, between child and the
+          // The position is among current's values, between child and the
           // previous child-with-data.
           return {
             nodeID: current.id,
-            valueIndex: this.arrayMan.findPresentIndex(
+            valueIndex: this.itemsMan.findPresentIndex(
               currentData.values,
-              nextValueIndex,
+              prevNextValueIndex,
               remaining
             ),
           };
@@ -398,7 +408,7 @@ export class ItemList<I, T> {
           } else remaining -= childData.total;
         }
 
-        nextValueIndex = child.nextValueIndex;
+        prevNextValueIndex = child.nextValueIndex;
         prevParentValuesBefore = childData.parentValuesBefore;
       }
 
@@ -451,7 +461,7 @@ export class ItemList<I, T> {
         node: this.order.rootNode,
         data: rootData,
         nextChildIndex: 0,
-        valuesSlicer: this.arrayMan.newSlicer(rootData.values),
+        valuesSlicer: this.itemsMan.newSlicer(rootData.values),
       },
     ];
     while (stack.length !== 0) {
@@ -459,7 +469,7 @@ export class ItemList<I, T> {
       const node = top.node;
 
       // Emit node values between the previous and next child.
-      // Use rightValueIndex b/c it's an exclusive end.
+      // Use nextValueIndex b/c it's an exclusive end.
       // OPT: shortcut if we won't start by the end.
       const endValueIndex =
         top.nextChildIndex === node.childrenLength
@@ -499,7 +509,7 @@ export class ItemList<I, T> {
               node: child,
               data: childData,
               nextChildIndex: 0,
-              valuesSlicer: this.arrayMan.newSlicer(childData.values),
+              valuesSlicer: this.itemsMan.newSlicer(childData.values),
             });
           }
         }
@@ -509,7 +519,8 @@ export class ItemList<I, T> {
 
   /**
    * Normalizes the range so that start < end and they are both in bounds
-   * (possibly end=length). If the range is empty, returns null.
+   * (possibly end=length), following Array.slice.
+   * If the range is empty, returns null.
    */
   private normalizeSliceRange(
     start?: number,
@@ -543,11 +554,11 @@ export class ItemList<I, T> {
    * Only saves values, not Order. nodeID order not guaranteed;
    * can sort if you care.
    */
-  save<S>(saveArray: (arr: SparseItems<I>) => S): { [nodeID: string]: S } {
+  save<S>(saveItems: (items: SparseItems<I>) => S): { [nodeID: string]: S } {
     const savedState: { [nodeID: string]: S } = {};
     for (const [node, data] of this.state) {
-      if (!this.arrayMan.isEmpty(data.values)) {
-        savedState[node.id] = saveArray(data.values);
+      if (!this.itemsMan.isEmpty(data.values)) {
+        savedState[node.id] = saveItems(data.values);
       }
     }
     return savedState;
@@ -567,7 +578,7 @@ export class ItemList<I, T> {
    */
   load<S>(
     savedState: { [nodeID: string]: S },
-    loadArray: (savedArr: S) => SparseItems<I>
+    loadItems: (savedItems: S) => SparseItems<I>
   ): void {
     this.clear();
 
@@ -575,16 +586,19 @@ export class ItemList<I, T> {
       const node = this.order.getNode(nodeID);
       if (node === undefined) {
         throw new Error(
-          `List.load savedState references missing OrderNode: id="${nodeID}". You must call Order.receive before referencing an OrderNode.`
+          `List/Outline savedState references missing OrderNode: id="${nodeID}". You must call Order.receive before referencing an OrderNode.`
         );
       }
       // TODO: wait until end to compute all parentValuesBefores, totals.
       // To avoid ?? complexity.
-      const values = loadArray(savedArr);
-      const data = this.getOrCreateData(node);
-      const existingCount = this.arrayMan.size(data.values);
-      data.values = values;
-      this.onUpdate(node, this.arrayMan.size(values) - existingCount);
+      // Defensive trim, in case user hand-wrote the save.
+      const values = this.itemsMan.trim(loadItems(savedArr));
+      const size = this.itemsMan.size(values);
+      if (size !== 0) {
+        const data = this.getOrCreateData(node);
+        data.values = values;
+        this.onUpdate(node, this.itemsMan.size(values));
+      }
     }
   }
 }

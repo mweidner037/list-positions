@@ -207,8 +207,7 @@ export class List<T> {
   // ----------
 
   /**
-   * Returns the value at position, or undefined if it is not currently present
-   * (`has(pos)` returns false).
+   * Returns the value at position, or undefined if it is not currently present.
    */
   get(pos: Position): T | undefined {
     return this.itemList.get(pos);
@@ -236,8 +235,8 @@ export class List<T> {
   /**
    * Returns the current index of position.
    *
-   * If position is not currently present in the list
-   * ([[hasPosition]] returns false), then the result depends on searchDir:
+   * If position is not currently present in the list,
+   * then the result depends on searchDir:
    * - "none" (default): Returns -1.
    * - "left": Returns the next index to the left of position.
    * If there are no values to the left of position,

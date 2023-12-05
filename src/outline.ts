@@ -175,8 +175,8 @@ export class Outline {
   /**
    * Returns the current index of position.
    *
-   * If position is not currently present in the list
-   * ([[hasPosition]] returns false), then the result depends on searchDir:
+   * If position is not currently present in the list,
+   * then the result depends on searchDir:
    * - "none" (default): Returns -1.
    * - "left": Returns the next index to the left of position.
    * If there are no values to the left of position,

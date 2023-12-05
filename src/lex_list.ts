@@ -169,8 +169,7 @@ export class LexList<T> {
   // ----------
 
   /**
-   * Returns the value at position, or undefined if it is not currently present
-   * ([[hasPosition]] returns false).
+   * Returns the value at position, or undefined if it is not currently present.
    */
   get(lexPos: LexPosition): T | undefined {
     return this.list.get(this.order.unlex(lexPos));
@@ -198,8 +197,8 @@ export class LexList<T> {
   /**
    * Returns the current index of position.
    *
-   * If position is not currently present in the list
-   * ([[hasPosition]] returns false), then the result depends on searchDir:
+   * If position is not currently present in the list,
+   * then the result depends on searchDir:
    * - "none" (default): Returns -1.
    * - "left": Returns the next index to the left of position.
    * If there are no values to the left of position,

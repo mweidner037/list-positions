@@ -131,13 +131,13 @@ export class SparseItemsManager<I, T> {
     items: SparseItems<I>,
     startIndex: number,
     item: I
-  ): [arr: SparseItems<I>, previous: SparseItems<I>] {
-    const [before, existing, after] = this.split(
+  ): [items: SparseItems<I>, replaced: SparseItems<I>] {
+    const [before, replaced, after] = this.split(
       items,
       startIndex,
       startIndex + this.itemMan.length(item)
     );
-    return [this.merge(before, [item], after), existing];
+    return [this.merge(before, [item], after), replaced];
   }
 
   /**
@@ -150,13 +150,13 @@ export class SparseItemsManager<I, T> {
     items: SparseItems<I>,
     startIndex: number,
     count: number
-  ): [arr: SparseItems<I>, previous: SparseItems<I>] {
-    const [before, existing, after] = this.split(
+  ): [items: SparseItems<I>, replaced: SparseItems<I>] {
+    const [before, replaced, after] = this.split(
       items,
       startIndex,
       startIndex + count
     );
-    return [this.merge(before, [this.itemMan.empty(), count], after), existing];
+    return [this.merge(before, [this.itemMan.empty(), count], after), replaced];
   }
 
   /**
