@@ -534,11 +534,11 @@ export class Order {
   }
 
   unlex(lexPos: LexPosition): Position {
-    const [lexPrefix, valueIndex] = LexUtils.splitPos(lexPos);
-    const nodeID = LexUtils.nodeIDFor(lexPrefix);
+    const [nodePrefix, valueIndex] = LexUtils.splitPos(lexPos);
+    const nodeID = LexUtils.nodeIDFor(nodePrefix);
     if (!this.tree.has(nodeID)) {
       // Receive the node.
-      this.receive(LexUtils.splitNodePrefix(lexPrefix));
+      this.receive(LexUtils.splitNodePrefix(nodePrefix));
     }
     // Else we skip checking agreement with the existing node, for efficiency.
 
@@ -583,7 +583,7 @@ export class Order {
    * @param count
    * @returns
    */
-  static expandPositions(startPos: Position, count: number): Position[] {
+  static rangeToArray(startPos: Position, count: number): Position[] {
     const ans = new Array<Position>(count);
     for (let i = 0; i < count; i++) {
       ans[i] = {

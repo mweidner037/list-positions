@@ -48,7 +48,7 @@ export class LexList<T> {
   /**
    *
    * @param entries Don't need to be in list order.
-   * @param order
+   * @param order Mostly useful for filling an existing Order.
    * @returns
    */
   static from<T>(
@@ -143,23 +143,14 @@ export class LexList<T> {
   }
 
   private lexAll(startPos: Position, count: number): LexPosition[] {
-    // TODO: Use nodeSummary as opt over calling order.lex on each Position.
-    // const nodeSummary = this.order.summary(this.order.getNodeFor(startPos));
-    // const lexPositions = new Array<LexPosition>(count);
-    // for (let i = 0; i < count; i++) {
-    //   lexPositions[i] = LexUtils.fromSummary(
-    //     nodeSummary,
-    //     startPos.valueIndex + i
-    //   );
-    // }
-    // return lexPositions;
-
+    // Reuse the nodePrefix instead of calling lex on each position.
+    const nodePrefix = this.order.getNodeFor(startPos).lexPrefix();
     const lexPositions = new Array<LexPosition>(count);
     for (let i = 0; i < count; i++) {
-      lexPositions[i] = this.order.lex({
-        nodeID: startPos.nodeID,
-        valueIndex: startPos.valueIndex + i,
-      });
+      lexPositions[i] = LexUtils.combinePos(
+        nodePrefix,
+        startPos.valueIndex + i
+      );
     }
     return lexPositions;
   }
@@ -330,7 +321,6 @@ export class LexList<T> {
     // OPT: loop over nodes directly, to avoid double-object.
     const listSavedState: LexListSavedState<T> = {};
     for (const [nodePrefix, values] of Object.entries(savedState)) {
-      // TODO: skip checking nodePrefix validity, for efficiency - like in unlex?
       this.order.receive(LexUtils.splitNodePrefix(nodePrefix));
       listSavedState[LexUtils.nodeIDFor(nodePrefix)] = values;
     }

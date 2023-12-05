@@ -12,7 +12,7 @@ export type ListSavedState<T> = {
   [nodeID: string]: (T[] | number)[];
 };
 
-function cloneItems<T>(items: SparseItems<T[]>): (T[] | number)[] {
+function cloneItems<T>(items: SparseItems<T[]>): SparseItems<T[]> {
   // Defensive deep copy
   const copy = new Array<T[] | number>(items.length);
   for (let i = 0; i < items.length; i++) {
@@ -130,19 +130,10 @@ export class List<T> {
    * @throws If index...index+count-1 are not in `[0, this.length)`.
    */
   deleteAt(index: number, count = 1): void {
-    if (count === 0) return;
-    // Do bounds checks first, so if it is out of bounds, we do nothing.
-    if (index < 0 || index + count - 1 >= this.length) {
-      throw new Error(
-        `deleteAt args out of bounds: index=${index}, count=${count}, length=${this.length}`
-      );
-    }
-
     const toDelete = new Array<Position>(count);
     for (let i = 0; i < count; i++) {
       toDelete[i] = this.positionAt(index + i);
     }
-    // OPT: batch delta updates, like for same-node update.
     for (const pos of toDelete) this.itemList.delete(pos, 1);
   }
 

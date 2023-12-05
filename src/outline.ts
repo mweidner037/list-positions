@@ -1,5 +1,5 @@
 import { ItemList } from "./internal/item_list";
-import { NumberItemManager, SparseItems } from "./internal/sparse_items";
+import { NumberItemManager } from "./internal/sparse_items";
 import { OrderNode } from "./node";
 import { Order } from "./order";
 import { Position } from "./position";
@@ -12,7 +12,7 @@ export type OutlineSavedState = {
   [nodeID: string]: number[];
 };
 
-function cloneItems(items: SparseItems<number>): number[] {
+function cloneItems(items: number[]): number[] {
   // Defensive copy
   return items.slice();
 }
@@ -101,14 +101,6 @@ export class Outline {
    * @throws If index...index+count-1 are not in `[0, this.length)`.
    */
   deleteAt(index: number, count = 1): void {
-    if (count === 0) return;
-    // Do bounds checks first, so if it is out of bounds, we do nothing.
-    if (index < 0 || index + count - 1 >= this.length) {
-      throw new Error(
-        `deleteAt args out of bounds: index=${index}, count=${count}, length=${this.length}`
-      );
-    }
-
     const toDelete = new Array<Position>(count);
     for (let i = 0; i < count; i++) {
       toDelete[i] = this.positionAt(index + i);
