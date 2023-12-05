@@ -6,10 +6,14 @@ export interface ItemManager<I, T> {
   isEmpty(item: I): boolean;
 
   /**
-   * New reference to an empty item.
+   * New empty item.
    */
   empty(): I;
 
+  /**
+   * Immutable style (returns result), but may choose to modify
+   * and return one of the inputs. So don't use the inputs after calling.
+   */
   merge(a: I, b: I): I;
 
   slice(item: I, start: number, end: number): I;
@@ -69,15 +73,21 @@ export class NumberItemManager implements ItemManager<number, true> {
 }
 
 /**
- * Alternating (item, positive number = deleted). If nonempty, starts with an item
- * (possibly empty).
+ * A representation of a sparse array in which runs of present values
+ * are represented by "items" of type I (e.g. an array of the values).
+ *
+ * This representation is designed to be memory efficient and to let you
+ * quickly skip over runs of deleted values when iterating. To mutate
+ * and query, use a SparseItemsManager. (We save a bit of memory by
+ * not wrapping the literal array in a class.)
+ *
+ * The representation is an array of alternating items & positive numbers,
+ * where a number represents a run of that many deleted values.
+ * Items are always at even indices (in particular, the first entry is an
+ * item, possibly empty). Non-first items are always non-empty.
  */
 export type SparseItems<I> = (I | number)[];
 
-/**
- * Some methods in functional style (return result) but may also reuse/modify
- * inputs. So stop using the inputs after calling.
- */
 export class SparseItemsManager<I, T> {
   constructor(readonly itemMan: ItemManager<I, T>) {}
 
@@ -86,7 +96,7 @@ export class SparseItemsManager<I, T> {
   }
 
   /**
-   * Empty *and* no deleted values.
+   * No present values *and* trimmed (no deleted values; no empty first item).
    */
   isEmpty(items: SparseItems<I>): boolean {
     return items.length === 0;
@@ -112,14 +122,16 @@ export class SparseItemsManager<I, T> {
   }
 
   /**
-   * @param item May be copied by-reference, so not safe afterwards.
+   * Immutable style (returns result), but may choose to modify
+   * and return items in the input. So don't use the input after calling.
+   *
    * @returns [new SparseArray, the replaced values padded with deleted values to match item's length.]
    */
   set(
     items: SparseItems<I>,
     startIndex: number,
     item: I
-  ): [arr: SparseItems<I>, existing: SparseItems<I>] {
+  ): [arr: SparseItems<I>, previous: SparseItems<I>] {
     const [before, existing, after] = this.split(
       items,
       startIndex,
@@ -129,6 +141,9 @@ export class SparseItemsManager<I, T> {
   }
 
   /**
+   * Immutable style (returns result), but may choose to modify
+   * and return items in the input. So don't use the input after calling.
+   *
    * @returns [new SparseArray, the replaced values padded with deleted values to match item's length.]
    */
   delete(
@@ -158,6 +173,7 @@ export class SparseItemsManager<I, T> {
       const slice: SparseItems<I> = [];
       ans[i] = slice;
 
+      // Number of slots remaining before indexes[i].
       let remaining: number;
       if (i === 0) remaining = indexes[0];
       else if (i === indexes.length) {
@@ -197,9 +213,14 @@ export class SparseItemsManager<I, T> {
 
       // If arr doesn't go all the way, pad with deleted items.
       // Except, the last slice can stay empty.
-      if (i !== indexes.length) {
-        if (slice.length === 0) slice.push(this.itemMan.empty());
-        slice.push(remaining);
+      if (remaining !== 0 && i !== indexes.length) {
+        if (slice.length === 0) {
+          slice.push(this.itemMan.empty(), remaining);
+        } else if (slice.length % 2 === 1) slice.push(remaining);
+        else {
+          // Last item in slice is already deleted. Add to it.
+          (slice[slice.length - 1] as number) += remaining;
+        }
       }
     }
 
@@ -208,14 +229,18 @@ export class SparseItemsManager<I, T> {
 
   /**
    * Merges arrs into a single SparseArray, preserving lengths.
+   *
+   * Immutable style (returns result), but may choose to modify
+   * items in the inputs. So don't use the inputs after calling.
    */
   private merge(...itemss: SparseItems<I>[]): SparseItems<I> {
+    // Start so empty() so that we always have an item.
     const merged: SparseItems<I> = [this.itemMan.empty()];
     for (const items of itemss) {
       if (items.length === 0) continue;
 
       if (merged.length % 2 === 1) {
-        // Combine merged[-1] with arr[0] (both present), then push the rest.
+        // Combine merged[-1] with items[0] (both present), then push the rest.
         merged[merged.length - 1] = this.itemMan.merge(
           merged[merged.length - 1] as I,
           items[0] as I
@@ -223,12 +248,13 @@ export class SparseItemsManager<I, T> {
         merged.push(...items.slice(1));
       } else {
         if (this.itemMan.isEmpty(items[0] as I)) {
-          // Skip arr[0], combine merged[-1] with arr[1] (both deleted), then push the rest.
+          // To prevent empty items in the middle, skip items[0].
+          // Instead, combine merged[-1] with arr[1] (both deleted), then push the rest.
           if (items.length === 1) continue;
           (merged[merged.length - 1] as number) += items[1] as number;
           merged.push(...items.slice(2));
         } else {
-          // Push arr (starts present) after merged (ends deleted).
+          // Push items (starts present & non-empty) after merged (ends deleted).
           merged.push(...items);
         }
       }
@@ -239,10 +265,7 @@ export class SparseItemsManager<I, T> {
   /**
    * Returns info about the value at index in runs:
    * [value - undefined if not present, whether it's present,
-   * count of present values before it]
-   * @returns [value at position, whether position is present,
-   * number of present values within node
-   * (not descendants) strictly prior to position]
+   * count of present values strictly before it].
    */
   getInfo(
     items: SparseItems<I>,
@@ -292,9 +315,10 @@ export class SparseItemsManager<I, T> {
       const length =
         i % 2 === 0 ? this.itemMan.length(items[i] as I) : (items[i] as number);
       if (startRemaining < length) {
-        // startIndex is at run[startRemaining].
+        // Act as if startIndex is at item[startRemaining].
+        // (It may be earlier, but then countRemaining is adjusted to compensate.)
         if (i % 2 === 0) {
-          // Search the rest of arr[i].
+          // Search the rest of items[i].
           const searchedLength = length - startRemaining;
           if (countRemaining < searchedLength) {
             return ans + countRemaining;
@@ -303,15 +327,20 @@ export class SparseItemsManager<I, T> {
             ans += searchedLength;
           }
         }
+        // Record that we've passed start.
+        startRemaining = 0;
       } else startRemaining -= length;
     }
     throw new Error(
-      `Internal error: findPresentIndex result not found (startIndex=${startIndex}, count=${count}, arr=${JSON.stringify(
+      `Internal error: findPresentIndex result not found (startIndex=${startIndex}, count=${count}, items=${JSON.stringify(
         items
       )}`
     );
   }
 
+  /**
+   * Used to walk through the sparse array in slices.
+   */
   newSlicer(items: SparseItems<I>) {
     return new Slicer(this.itemMan, items);
   }
@@ -331,23 +360,34 @@ export class Slicer<I, T> {
   ) {}
 
   /**
-   * Iterator must be consumed before you call nextSlice again.
+   * Returns [index, value] pairs for present values starting after the
+   * previous slice and ending at end (exclusive).
+   * When end is null, visits all remaining present values.
    */
-  *nextSlice(end: number | null): IterableIterator<[index: number, value: T]> {
-    for (; this.itemsI < this.items.length; this.itemsI++) {
-      if (end !== null && this.index >= end) return;
+  nextSlice(end: number | null): Array<[index: number, value: T]> {
+    const slice: Array<[index: number, value: T]> = [];
+    while (this.itemsI < this.items.length) {
+      if (end !== null && this.index >= end) return slice;
       if (this.itemsI % 2 === 0) {
         const item = this.items[this.itemsI] as I;
         const length = this.itemMan.length(item);
-        for (; this.withinItem < length; this.withinItem++) {
-          if (this.index === end) return;
-          yield [this.index, this.itemMan.get(item, this.withinItem)];
+        while (this.withinItem < length) {
+          if (this.index === end) return slice;
+          slice.push([this.index, this.itemMan.get(item, this.withinItem)]);
+          // Move to the next value.
           this.index++;
+          this.withinItem++;
         }
+        // If we get here, we've exhausted item.
         this.withinItem = 0;
+        this.itemsI++;
       } else {
+        // Skip over the whole deleted run.
         this.index += this.items[this.itemsI] as number;
+        this.itemsI++;
       }
     }
+    // Ran out of present values.
+    return slice;
   }
 }
