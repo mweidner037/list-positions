@@ -187,7 +187,7 @@ export class ItemList<I, T> {
    * @returns [ first value's new position, createdNode if created by Order ].
    * If item.length > 1, their positions start at pos using the same OrderNode
    * with increasing valueIndex.
-   * @throws If prevPos is order.maxPosition.
+   * @throws If prevPos is Order.MAX_POSITION.
    * @throws If item.length = 0 (doesn't know what to return)
    */
   insert(
@@ -214,7 +214,7 @@ export class ItemList<I, T> {
    * @param index
    * @param values
    * @returns
-   * @throws If index is this.length and our last value is at order.maxPosition.
+   * @throws If index is this.length and our last value is at Order.MAX_POSITION.
    * @throws If item.length = 0 (doesn't know what to return)
    */
   insertAt(

@@ -12,7 +12,7 @@ export const LexUtils = {
       if (valueIndex === 0) return this.MIN_LEX_POSITION;
       if (valueIndex === 1) return this.MAX_LEX_POSITION;
       throw new Error(
-        `Position uses rootNode but is not minPosition or maxPosition (valueIndex 0 or 1): valueIndex=${valueIndex}`
+        `Position uses rootNode but is not MIN_POSITION or MAX_POSITION (valueIndex 0 or 1): valueIndex=${valueIndex}`
       );
     }
     return nodePrefix + "," + encodeValueIndex(valueIndex);

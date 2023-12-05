@@ -27,7 +27,7 @@ class NodeInternal implements OrderNode {
    *
    * May be undefined when empty.
    */
-  ourChildren?: Map<number, NodeInternal>;
+  createdChildren?: Map<number, NodeInternal>;
 
   constructor(
     readonly id: string,
@@ -65,6 +65,7 @@ class NodeInternal implements OrderNode {
     for (
       // eslint-disable-next-line @typescript-eslint/no-this-alias
       let currentNode: OrderNode = this;
+      // Exclude the root.
       currentNode.parent !== null;
       currentNode = currentNode.parent
     ) {
@@ -101,9 +102,16 @@ export class Order {
   private readonly tree = new Map<string, NodeInternal>();
 
   /**
+   * Set this to be notified when we locally create a new OrderNode in createPosition.
+   * The NodeMeta for createdNode (which is also returned by createPosition & List.insert etc.)
+   * must be broadcast to other replicas before they can use the new Position.
+   */
+  onCreateNode: ((createdNode: OrderNode) => void) | undefined = undefined;
+
+  /**
    *
    * @param options.newNodeID Function that returns a globally unique new
-   * node ID, used for our createdNode.id's. Default: `NodeIDs.usingReplicaID()`.
+   * node ID, used for our created node's IDs. Default: `NodeIDs.usingReplicaID()`.
    */
   constructor(options?: { newNodeID?: () => string }) {
     this.newNodeID = options?.newNodeID ?? NodeIDs.usingReplicaID();
@@ -121,7 +129,7 @@ export class Order {
   }
 
   /**
-   * Also validates pos (minPosition/maxPosition okay).
+   * Also validates pos.
    */
   getNodeFor(pos: Position): OrderNode {
     if (!Number.isInteger(pos.valueIndex) || pos.valueIndex < 0) {
@@ -132,19 +140,19 @@ export class Order {
       );
     }
     const node = this.tree.get(pos.nodeID);
-    if (
-      node === this.rootNode &&
-      !(pos.valueIndex === 0 || pos.valueIndex === 1)
-    ) {
-      throw new Error(
-        `Position uses rootNode but is not minPosition or maxPosition (valueIndex 0 or 1): valueIndex=${pos.valueIndex}`
-      );
-    }
     if (node === undefined) {
       throw new Error(
         `Position references missing OrderNode: ${JSON.stringify(
           pos
         )}. You must call Order.receive before referencing an OrderNode.`
+      );
+    }
+    if (
+      node === this.rootNode &&
+      !(pos.valueIndex === 0 || pos.valueIndex === 1)
+    ) {
+      throw new Error(
+        `Position uses rootNode but is not MIN_POSITION or MAX_POSITION (valueIndex 0 or 1): valueIndex=${pos.valueIndex}`
       );
     }
     return node;
@@ -168,7 +176,7 @@ export class Order {
           return 1;
         } else return aAnc.nextValueIndex - (b.valueIndex + 1);
       }
-      // parentNode is non-null because we are not at b's depth yet,
+      // aAnc.parent is non-null because we are at depth > bNode.depth >= 0,
       // hence aAnc is not the root.
       aAnc = aAnc.parent!;
     }
@@ -183,7 +191,7 @@ export class Order {
     // Now aAnc and bAnc are distinct nodes at the same depth.
     // Walk up the tree in lockstep until we find a common node parent.
     while (aAnc.parent !== bAnc.parent) {
-      // parentNode is non-null because we would reach a common parent
+      // parents are non-null because we would reach a common parent
       // (rootNode) before reaching aAnc = bAnc = rootNode.
       aAnc = aAnc.parent!;
       bAnc = bAnc.parent!;
@@ -197,80 +205,75 @@ export class Order {
   // Mutators
   // ----------
 
-  /**
-   * Set this to be notified when we locally create a new OrderNode in createPosition.
-   * The NodeMeta for createdNode (which is also returned by createPosition & List.insert)
-   * must be broadcast to other replicas before they can use the new Position.
-   */
-  onCreateNode: ((createdNode: OrderNode) => void) | undefined = undefined;
-
   receive(nodeMetas: Iterable<NodeMeta>): void {
     // 1. Pick out the new (non-redundant) nodes in nodeMetas.
     // For the redundant ones, check that their parents match.
     // Redundancy also applies to duplicates within nodeMetas.
 
     // New NodeMetas, keyed by id.
-    const createdNodeMetas = new Map<string, NodeMeta>();
+    const newNodeMetas = new Map<string, NodeMeta>();
 
     for (const nodeMeta of nodeMetas) {
       if (nodeMeta.id === NodeIDs.ROOT) {
         throw new Error(
           `Received NodeMeta describing the root node: ${JSON.stringify(
             nodeMeta
-          )}`
+          )}.`
         );
       }
-      NodeIDs.validate(nodeMeta.id);
       const existing = this.tree.get(nodeMeta.id);
       if (existing !== undefined) {
         if (!Order.equalsNodeMeta(nodeMeta, existing.meta())) {
           throw new Error(
             `Received NodeMeta describing an existing node but with different metadata: received=${JSON.stringify(
               nodeMeta
-            )}, existing=${JSON.stringify(existing.meta())}`
+            )}, existing=${JSON.stringify(existing.meta())}.`
           );
         }
       } else {
-        const otherNew = createdNodeMetas.get(nodeMeta.id);
+        const otherNew = newNodeMetas.get(nodeMeta.id);
         if (otherNew !== undefined) {
           if (!Order.equalsNodeMeta(nodeMeta, otherNew)) {
             throw new Error(
-              `Received two NodeMetas for the same node with different parents: first=${JSON.stringify(
+              `Received two NodeMetas for the same node but with different metadata: first=${JSON.stringify(
                 otherNew
-              )}, second=${JSON.stringify(nodeMeta)}`
+              )}, second=${JSON.stringify(nodeMeta)}.`
             );
           }
-        } else createdNodeMetas.set(nodeMeta.id, nodeMeta);
+        } else {
+          NodeIDs.validate(nodeMeta.id);
+          newNodeMetas.set(nodeMeta.id, nodeMeta);
+        }
       }
     }
 
-    // 2. Sort createdNodeMetas into a valid processing order, in which each node
+    // 2. Sort newNodeMetas into a valid processing order, in which each node
     // follows its parent (or its parent already exists).
     const toProcess: NodeMeta[] = [];
-    // New NodeMetas that are waiting on a parent in createdNodeMetas, keyed by
+    // New NodeMetas that are waiting on a parent in newNodeMetas, keyed by
     // that parent's id.
     const pendingChildren = new Map<string, NodeMeta[]>();
 
-    for (const nodeMeta of createdNodeMetas.values()) {
+    for (const nodeMeta of newNodeMetas.values()) {
       if (this.tree.get(nodeMeta.parentID) !== undefined) {
         // Parent already exists - ready to process.
         toProcess.push(nodeMeta);
       } else {
-        // Parent should be in createdNodeMetas. Store in pendingChildren for now.
-        let siblings = pendingChildren.get(nodeMeta.parentID);
-        if (siblings === undefined) {
-          siblings = [];
-          pendingChildren.set(nodeMeta.parentID, siblings);
+        // Parent should be in newNodeMetas. Store in pendingChildren for now.
+        let pendingArr = pendingChildren.get(nodeMeta.parentID);
+        if (pendingArr === undefined) {
+          pendingArr = [];
+          pendingChildren.set(nodeMeta.parentID, pendingArr);
         }
-        siblings.push(nodeMeta);
+        pendingArr.push(nodeMeta);
       }
     }
     // For each node in toProcess, if it has pending children, append those.
     // That way they'll be processed after the node, including by this loop.
     for (const nodeMeta of toProcess) {
-      const children = pendingChildren.get(nodeMeta.id);
-      if (children !== undefined) {
-        toProcess.push(...children);
+      const pendingArr = pendingChildren.get(nodeMeta.id);
+      if (pendingArr !== undefined) {
+        toProcess.push(...pendingArr);
         // Delete so we can later check whether all pendingChildren were
         // moved to toProcess.
         pendingChildren.delete(nodeMeta.id);
@@ -279,34 +282,36 @@ export class Order {
 
     // Check that all pendingChildren were moved to toProcess.
     if (pendingChildren.size !== 0) {
-      const someParent = pendingChildren.keys().next().value as string;
-      const somePendingChild = pendingChildren.get(someParent)![0];
-      // someParent was never added to toProcess.
-      if (createdNodeMetas.get(someParent) === undefined) {
-        // someParent is not already known and not in nodeMetas.
-        throw new Error(
-          `Received NodeMeta ${JSON.stringify(
-            somePendingChild
-          )}, but we have not yet received a NodeMeta for its parent node ${JSON.stringify(
-            someParent
-          )}`
-        );
-      } else {
-        // someParent is indeed in nodeMetas, but never reached. It must be
-        // part of a cycle.
-        throw new Error(
-          `Failed to process nodeMetas due to a cycle involving ${JSON.stringify(
-            somePendingChild
-          )}`
-        );
+      // Nope; find a failed nodeMeta for the error message.
+      let someFailedMeta = (
+        pendingChildren.values().next().value as NodeMeta[]
+      )[0];
+      // Walk up the tree until we find a nodeMeta with missing parent or a cycle.
+      const seenNodeIDs = new Set<string>();
+      while (newNodeMetas.has(someFailedMeta.parentID)) {
+        someFailedMeta = newNodeMetas.get(someFailedMeta.parentID)!;
+        if (seenNodeIDs.has(someFailedMeta.id)) {
+          // Found a cycle.
+          throw new Error(
+            `Failed to process nodeMetas due to a cycle involving ${JSON.stringify(
+              someFailedMeta
+            )}.`
+          );
+        }
+        seenNodeIDs.add(someFailedMeta.id);
       }
+      // someFailedMeta's parent does not exist and is not in newNodeMetas.
+      throw new Error(
+        `Received NodeMeta ${JSON.stringify(
+          someFailedMeta
+        )}, but we have not yet received a NodeMeta for its parent node.`
+      );
     }
 
     // Finally, we are guaranteed that:
-    // - All NodeMetas in toProcess are new and valid.
+    // - All NodeMetas in toProcess are new, valid, and distinct.
     // - They are in a valid order (a node's parent will be known by the time
     // it is reached).
-
     for (const nodeMeta of toProcess) this.newNode(nodeMeta);
   }
 
@@ -322,16 +327,16 @@ export class Order {
     const node = new NodeInternal(nodeMeta.id, parentNode, nodeMeta.offset);
     this.tree.set(node.id, node);
 
-    // Add node to parentNode._children.
+    // Add node to parentNode.children.
     if (parentNode.children === undefined) parentNode.children = [node];
     else {
-      // Find the index of the first sibling > node.
+      // Find the index of the first sibling > node (possibly none).
       let i = 0;
       for (; i < parentNode.children.length; i++) {
         // Break if sibling > node.
         if (Order.compareSiblingNodes(parentNode.children[i], node) > 0) break;
       }
-      // Insert node just before that sibling.
+      // Insert node just before that sibling, or at the end if none.
       parentNode.children.splice(i, 0, node);
     }
 
@@ -366,7 +371,8 @@ export class Order {
         )}, nextPos=${JSON.stringify(nextPos)}`
       );
     }
-    if (count < 1) throw new Error(`Invalid count: ${count}`);
+    if (count < 1)
+      throw new Error(`Invalid count: ${count} (must be positive)`);
 
     /* 
       Unlike in the Fugue paper, we don't track all tombstones (in particular,
@@ -380,12 +386,12 @@ export class Order {
       forward non-interleaving; and if possible, pos is also a descendant of
       nextPos, which roughly guarantees backward non-interleaving.
       
-      Exception: We don't want to create a Position with the same parent Position,
-      side, and creatorID as an existing Position - to avoid extra tiebreakers.
+      Exception: We don't want to create a Position in the same place as one of
+      our existing positions, to minimize same-side siblings.
       Instead, we become a right child of such a Position (or its right child
       if needed, etc.). As a consequence, if a user repeatedly types and deletes
-      a char at the same place, then "resurrects" all of the chars, the chars
-      be in time order (LtR).
+      a char at the same place, then "resurrects" all of the chars, the chars will
+      be in time order (LtR) and share an OrderNode.
     */
 
     // TODO: in tree structure (?): doc senderID sort different from Fugue:
@@ -416,13 +422,13 @@ export class Order {
     } else {
       // Make a left child of nextPos.
       newNodeParent = this.tree.get(nextPos.nodeID)!;
-      newNodeOffset = 2 * prevPos.valueIndex;
+      newNodeOffset = 2 * nextPos.valueIndex;
     }
 
     // Apply the Exception above: if we already created a node with the same
-    // parent and offset, append a new Position to it instead, with is its
-    // right child of a right child of ...
-    const conflict = newNodeParent.ourChildren?.get(newNodeOffset);
+    // parent and offset, append a new Position to it instead, which is its
+    // right descendant.
+    const conflict = newNodeParent.createdChildren?.get(newNodeOffset);
     if (conflict !== undefined) {
       const startPos: Position = {
         nodeID: conflict.id,
@@ -445,10 +451,10 @@ export class Order {
 
     const createdNode = this.newNode(createdNodeMeta);
     createdNode.createdCounter = count;
-    if (newNodeParent.ourChildren === undefined) {
-      newNodeParent.ourChildren = new Map();
+    if (newNodeParent.createdChildren === undefined) {
+      newNodeParent.createdChildren = new Map();
     }
-    newNodeParent.ourChildren.set(createdNodeMeta.offset, createdNode);
+    newNodeParent.createdChildren.set(createdNodeMeta.offset, createdNode);
 
     this.onCreateNode?.(createdNode);
 
@@ -472,7 +478,10 @@ export class Order {
     let aAnc = aNode;
     // The greatest valueIndex that `a` descends from (left or right) in aAnc.
     let curValueIndex = a.valueIndex;
-    if (aAnc.depth > bNode.depth) {
+    while (aAnc.depth > bNode.depth) {
+      // Integer division by 2: offset 0 is left desc of valueIndex 0,
+      // offset 1 is right desc of valueIndex 0,
+      // offset 2 is left desc of valueIndex 1, etc.
       curValueIndex = aAnc.offset >> 1;
       aAnc = aAnc.parent!;
     }
@@ -583,7 +592,7 @@ export class Order {
    * @param count
    * @returns
    */
-  static rangeToArray(startPos: Position, count: number): Position[] {
+  static startPosToArray(startPos: Position, count: number): Position[] {
     const ans = new Array<Position>(count);
     for (let i = 0; i < count; i++) {
       ans[i] = {

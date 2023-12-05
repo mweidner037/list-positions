@@ -118,7 +118,7 @@ export class LexList<T> {
    * @param prevPos
    * @param values
    * @returns Array of created LexPositions.
-   * @throws If prevPos is order.maxPosition.
+   * @throws If prevPos is Order.MAX_POSITION.
    * @throws If values.length = 0 (doesn't know what to return)
    */
   insert(prevLexPos: LexPosition, ...values: T[]): LexPosition[] {
@@ -134,7 +134,7 @@ export class LexList<T> {
    * @param index
    * @param values
    * @returns
-   * @throws If index is this.length and our last value is at order.maxPosition.
+   * @throws If index is this.length and our last value is at Order.MAX_POSITION.
    * @throws If item.length = 0 (doesn't know what to return)
    */
   insertAt(index: number, ...values: T[]): LexPosition[] {

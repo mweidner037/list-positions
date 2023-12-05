@@ -190,7 +190,7 @@ export class Outline {
   /**
    * Returns the position currently at index.
    *
-   * Won't return minPosition or maxPosition. TODO: actually, will if they're
+   * Won't return MIN_POSITION or MAX_POSITION. TODO: actually, will if they're
    * part of the list - check that code is compatible.
    */
   positionAt(index: number): Position {

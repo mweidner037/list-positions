@@ -157,7 +157,7 @@ export class List<T> {
    * @returns [ first value's new position, createdNode if created by Order ].
    * If values.length > 1, their positions start at pos using the same OrderNode
    * with increasing valueIndex.
-   * @throws If prevPos is order.maxPosition.
+   * @throws If prevPos is Order.MAX_POSITION.
    * @throws If values.length = 0 (doesn't know what to return)
    */
   insert(
@@ -176,7 +176,7 @@ export class List<T> {
    * @param index
    * @param values
    * @returns
-   * @throws If index is this.length and our last value is at order.maxPosition.
+   * @throws If index is this.length and our last value is at Order.MAX_POSITION.
    */
   insertAt(
     index: number,
@@ -249,7 +249,7 @@ export class List<T> {
   /**
    * Returns the position currently at index.
    *
-   * Won't return minPosition or maxPosition. TODO: actually, will if they're
+   * Won't return MIN_POSITION or MAX_POSITION. TODO: actually, will if they're
    * part of the list - check that code is compatible.
    */
   positionAt(index: number): Position {

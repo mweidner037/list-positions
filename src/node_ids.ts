@@ -57,6 +57,11 @@ export const NodeIDs = {
     }
   },
 
+  /**
+   * Causal dots using unique replicaID; same rules a validate().
+   *
+   * Parse with parseUsingReplicaID, e.g., for map->array rep.
+   */
   usingReplicaID(replicaID?: string): () => string {
     if (replicaID !== undefined) {
       // Validate replicaID. It must follow the same rules as node IDs.

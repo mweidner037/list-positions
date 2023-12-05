@@ -95,8 +95,8 @@ list.delete(newPos);
 You can create and compare Positions directly in the Order, without affecting its Lists:
 
 ```ts
-const { pos: otherPos } = order.createPosition(order.minPosition);
-console.log(order.compare(order.minPosition, otherPos) < 0); // Prints true
+const { pos: otherPos } = order.createPosition(Order.MIN_POSITION);
+console.log(order.compare(Order.MIN_POSITION, otherPos) < 0); // Prints true
 
 // Optionally, set the value at otherPos sometime later.
 // This "inserts" the value at the appropriate index for otherPos.
@@ -138,7 +138,7 @@ type Position = {
 
 The pair `{ creatorID, timestamp }` identifies a **node** in a shared tree. Your Order must receive a **[NodeMeta](#types-nodemeta) ("node description")** for this node before you can use the Position in `List.set`, `Order.compare`, etc. Otherwise, you will get an error `"Position references missing OrderNode: <...>. You must call Order.receive before referencing an OrderNode."`.
 
-> Exception: The root node `{ creatorID: "ROOT", timestamp: 0 }` is always valid. Its only Positions are `Order.minPosition` and `Order.maxPosition`.
+> Exception: The root node `{ creatorID: "ROOT", timestamp: 0 }` is always valid. Its only Positions are `Order.MIN_POSITION` and `Order.MAX_POSITION`.
 
 Use TODO `Order.save` and `Order.receiveSavedState` to share all of an Order's NodeMetas:
 
