@@ -1,4 +1,4 @@
-import * as crypto from "crypto";
+import type * as crypto from "crypto";
 import type seedrandom from "seedrandom";
 
 /**
@@ -127,7 +127,7 @@ export const NodeIDs = {
    * Parses a nodeID from NodeIDs.usingReplicaID back into its replicaID
    * + counter. For optimized map-array representation.
    */
-  parseFromReplicaID(nodeID: string): [replicaID: string, counter: number] {
+  parseUsingReplicaID(nodeID: string): [replicaID: string, counter: number] {
     const underscore = nodeID.lastIndexOf("_");
     if (underscore === -1) {
       throw new Error(

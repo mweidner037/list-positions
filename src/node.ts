@@ -64,7 +64,7 @@ export interface OrderNode {
   dependencies(): OrderNode[];
 
   /**
-   * Prefix of Positions & descendants. Use LexUtils.combinePos to
+   * Prefix of Positions & descendants. Can use LexUtils.combinePos to
    * get LexPositions.
    */
   lexPrefix(): string;

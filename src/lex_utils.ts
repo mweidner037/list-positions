@@ -20,8 +20,11 @@ export const LexUtils = {
 
   splitPos(lexPos: LexPosition): [nodePrefix: string, valueIndex: number] {
     if (lexPos === this.MIN_LEX_POSITION) return ["", 0];
-    if (lexPos === this.MAX_LEX_POSITION) return ["", 0];
+    if (lexPos === this.MAX_LEX_POSITION) return ["", 1];
     const lastComma = lexPos.lastIndexOf(",");
+    if (lastComma === -1) {
+      throw new Error(`Not a LexPosition (no comma): "${lexPos}"`);
+    }
     return [
       lexPos.slice(0, lastComma),
       decodeValueIndex(lexPos.slice(lastComma + 1)),
@@ -30,8 +33,8 @@ export const LexUtils = {
 
   combineNodePrefix(metas: NodeMeta[]): string {
     if (metas.length === 0) return "";
-    const parts = new Array<string>(metas.length);
 
+    const parts = new Array<string>(metas.length);
     if (metas[0].parentID !== NodeIDs.ROOT) {
       throw new Error(
         `Invalid tree path: does not start with root child (${JSON.stringify(
@@ -60,11 +63,13 @@ export const LexUtils = {
 
     const parts = nodePrefix.split(",");
     const metas: NodeMeta[] = [];
-    // First part is child of the root; no offset.
+    // First part is child of the root; no offset string.
     metas.push({
       id: parts[0],
       parentID: NodeIDs.ROOT,
-      offset: 0,
+      // It's a child of MIN_POSITION with valueIndex 0, so
+      // offset = 2 * valueIndex + 1 = 1.
+      offset: 1,
     });
     // Other parts are "offset.nodeID".
     let parentID = parts[0];
@@ -99,7 +104,7 @@ export const LexUtils = {
       const dot = lastPart.indexOf(".");
       if (dot === -1) {
         throw new Error(
-          `Bad nodePrefix format; did you pass a LexPosition instead? (nodePrefix="${nodePrefix}", missing "." in part ${lastPart})`
+          `Invalid nodePrefix; did you pass a LexPosition instead? (nodePrefix="${nodePrefix}", missing "." in part ${lastPart})`
         );
       }
       return lastPart.slice(dot + 1);
@@ -113,16 +118,23 @@ function encodeOffset(offset: number): string {
 
 function decodeOffset(encoded: string): number {
   const seq = Number.parseInt(encoded, BASE);
+  if (isNaN(seq)) {
+    throw new Error(`Invalid nodePrefix: bad offset "${encoded}"`);
+  }
   return sequenceInv(seq);
 }
 
 function encodeValueIndex(valueIndex: number): string {
-  return encodeOffset(2 * valueIndex + 1);
+  return sequence(2 * valueIndex + 1).toString(BASE);
 }
 
 function decodeValueIndex(encoded: string): number {
-  // (offset - 1) / 2
-  return decodeOffset(encoded) >> 1;
+  const seq = Number.parseInt(encoded, BASE);
+  if (isNaN(seq)) {
+    throw new Error(`Invalid LexPosition: bad valueIndex "${encoded}"`);
+  }
+  // (n - 1) / 2
+  return sequenceInv(seq) >> 1;
 }
 
 /**
@@ -179,7 +191,7 @@ function sequence(n: number): number {
   // the d-digit subsequence.
   // So add `remaining` to the first d-digit number, which you can calculate is
   // BASE^d - BASE * (BASE/2)^(d-1).
-  return (remaining + BASE) ^ (d - BASE * (BASE / 2)) ^ (d - 1);
+  return remaining + Math.pow(BASE, d) - BASE * Math.pow(BASE / 2, d - 1);
 }
 
 /**
