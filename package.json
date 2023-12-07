@@ -1,7 +1,7 @@
 {
-  "name": "position-structs",
-  "version": "2.0.1",
-  "description": "Memory-efficient positions for collaborative lists and text",
+  "name": "list-positions",
+  "version": "0.0.1",
+  "description": "Efficient \"positions\" for lists and text - enabling rich documents and collaboration",
   "author": "Matthew Weidner",
   "license": "MIT",
   "bugs": {
