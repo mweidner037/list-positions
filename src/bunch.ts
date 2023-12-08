@@ -26,7 +26,7 @@ export type BunchMeta = {
 /**
  * A node in an Order's internal tree.
  *
- * You do not need to work with Nodes unless you are doing something advanced.
+ * You do not need to work with BunchNodes unless you are doing something advanced.
  * Instead, work with Positions directly, using a List or `Order.compare`.
  *
  * To obtain an Order's unique instance of a BunchNode, call `Order.getNode` or `Order.getNodeFor`.
@@ -35,7 +35,7 @@ export type BunchMeta = {
  */
 export interface BunchNode {
   // TODO: class property docs.
-  readonly id: string;
+  readonly bunchID: string;
   /** null for the root. */
   readonly parent: BunchNode | null;
   /** Unspecified for the root. */
@@ -48,20 +48,20 @@ export interface BunchNode {
    */
   readonly nextInnerIndex: number;
   /**
-   * Returns this node's NodeMeta.
+   * Returns the bunch's NodeMeta.
    *
    * Errors if this is the rootNode.
    */
   meta(): BunchMeta;
 
   /**
-   * Returns an array of all non-root BunchNodes that this depends on
-   * (including itself if non-root), in order from the root downwards.
+   * Returns an array of all non-root ancestors of this BunchNode
+   * (excluding this if non-root), in order from the root downwards.
    *
-   * Passing `this.dependencies().map(node => node.meta())` to `Order.receive` is
-   * sufficient to use this BunchNode's Positions.
+   * Passing `this.ancestors().map(node => node.meta())` to `Order.receive` is
+   * sufficient to use the bunch's Positions.
    */
-  dependencies(): BunchNode[];
+  ancestors(): BunchNode[];
 
   /**
    * Prefix of Positions & descendants. Can use LexUtils.combinePos to

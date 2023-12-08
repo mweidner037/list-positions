@@ -30,7 +30,7 @@ class NodeInternal implements BunchNode {
   createdChildren?: Map<number, NodeInternal>;
 
   constructor(
-    readonly id: string,
+    readonly bunchID: string,
     readonly parent: NodeInternal | null,
     readonly offset: number
   ) {
@@ -54,13 +54,13 @@ class NodeInternal implements BunchNode {
       throw new Error("Cannot call meta() on the root BunchNode");
     }
     return {
-      bunchID: this.id,
-      parentID: this.parent.id,
+      bunchID: this.bunchID,
+      parentID: this.parent.bunchID,
       offset: this.offset,
     };
   }
 
-  dependencies(): BunchNode[] {
+  ancestors(): BunchNode[] {
     const ans: BunchNode[] = [];
     for (
       // eslint-disable-next-line @typescript-eslint/no-this-alias
@@ -77,15 +77,15 @@ class NodeInternal implements BunchNode {
 
   lexPrefix(): string {
     return LexUtils.combineNodePrefix(
-      this.dependencies().map((node) => node.meta())
+      this.ancestors().map((node) => node.meta())
     );
   }
 
   toString() {
     // Similar to NodeMeta, but valid for rootNode as well.
     return JSON.stringify({
-      id: this.id,
-      parentID: this.parent === null ? null : this.parent.id,
+      id: this.bunchID,
+      parentID: this.parent === null ? null : this.parent.bunchID,
       offset: this.offset,
     });
   }
@@ -117,7 +117,7 @@ export class Order {
     this.newNodeID = options?.newNodeID ?? BunchIDs.usingReplicaID();
 
     this.rootNode = new NodeInternal(BunchIDs.ROOT, null, 0);
-    this.tree.set(this.rootNode.id, this.rootNode);
+    this.tree.set(this.rootNode.bunchID, this.rootNode);
   }
 
   // ----------
@@ -329,7 +329,7 @@ export class Order {
       parentNode,
       nodeMeta.offset
     );
-    this.tree.set(node.id, node);
+    this.tree.set(node.bunchID, node);
 
     // Add node to parentNode.children.
     if (parentNode.children === undefined) parentNode.children = [node];
@@ -414,7 +414,7 @@ export class Order {
         // pos will still be < nextPos, and going farther along prevNode
         // amounts to following the Exception above.
         const startPos: Position = {
-          bunchID: prevNode.id,
+          bunchID: prevNode.bunchID,
           innerIndex: prevNode.createdCounter,
         };
         prevNode.createdCounter += count;
@@ -435,7 +435,7 @@ export class Order {
     const conflict = newNodeParent.createdChildren?.get(newNodeOffset);
     if (conflict !== undefined) {
       const startPos: Position = {
-        bunchID: conflict.id,
+        bunchID: conflict.bunchID,
         innerIndex: conflict.createdCounter!,
       };
       conflict.createdCounter! += count;
@@ -444,7 +444,7 @@ export class Order {
 
     const createdNodeMeta: BunchMeta = {
       bunchID: this.newNodeID(),
-      parentID: newNodeParent.id,
+      parentID: newNodeParent.bunchID,
       offset: newNodeOffset,
     };
     if (this.tree.has(createdNodeMeta.bunchID)) {
@@ -464,7 +464,7 @@ export class Order {
 
     return [
       {
-        bunchID: createdNode.id,
+        bunchID: createdNode.bunchID,
         innerIndex: 0,
       },
       createdNode,
@@ -512,7 +512,7 @@ export class Order {
    * Useful for saving; pass the result to Order.receive to load/merge.
    * Can also turn into map (id -> { parentID, offset }).
    */
-  *nodeMetas(): IterableIterator<BunchMeta> {
+  *bunchMetas(): IterableIterator<BunchMeta> {
     for (const node of this.tree.values()) {
       if (node === this.rootNode) continue;
       yield node.meta();
@@ -524,7 +524,7 @@ export class Order {
   // ----------
 
   save(): OrderSavedState {
-    return [...this.nodeMetas()];
+    return [...this.bunchMetas()];
   }
 
   /**
@@ -630,9 +630,9 @@ export class Order {
     if (a.offset !== b.offset) {
       return a.offset - b.offset;
     }
-    if (a.id !== b.id) {
+    if (a.bunchID !== b.bunchID) {
       // Need to add the comma to match how LexPositions are sorted.
-      return a.id + "," > b.id + "," ? 1 : -1;
+      return a.bunchID + "," > b.bunchID + "," ? 1 : -1;
     }
     return 0;
   }

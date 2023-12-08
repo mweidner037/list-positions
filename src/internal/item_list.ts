@@ -391,7 +391,7 @@ export class ItemList<I, T> {
           // The position is among current's values, between child and the
           // previous child-with-data.
           return {
-            bunchID: current.id,
+            bunchID: current.bunchID,
             innerIndex: this.itemsMan.findPresentIndex(
               currentData.values,
               prevNextinnerIndex,
@@ -481,7 +481,7 @@ export class ItemList<I, T> {
         if (index >= start) {
           yield [
             {
-              bunchID: node.id,
+              bunchID: node.bunchID,
               innerIndex: innerIndex,
             },
             value,
@@ -558,7 +558,7 @@ export class ItemList<I, T> {
     const savedState: { [bunchID: string]: S } = {};
     for (const [node, data] of this.state) {
       if (!this.itemsMan.isEmpty(data.values)) {
-        savedState[node.id] = saveItems(data.values);
+        savedState[node.bunchID] = saveItems(data.values);
       }
     }
     return savedState;

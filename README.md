@@ -208,6 +208,8 @@ function onMessage(message: string) {
 }
 ```
 
+If you ever want to extract all of a Position's dependencies for sending to another device, you can use `list.order.lex(position)` to convert it to a LexPosition (and `unlex` on the other side). Or, you can directly access the dependent BunchMetas using `list.order.getNodeFor(position).ancestors().map(node => node.meta())`.
+
 > Errors you might get if you mis-manage metadata:
 >
 > - TODO
@@ -315,6 +317,8 @@ For example, `LexUtils.splitPos` and `LexUtils.combinePos` let you split a LexPo
 };
 ```
 
+TODO: also can get from `order.getBunch(bunchID).lexPrefix()`.
+
 LexUtil's [source code](./src/lex_utils.ts) is deliberately simple and dependency-less, so that you can easily re-implement it in another language. That way, you can manipulate LexPositions on a non-JavaScript backend - e.g., generate new LexPositions when a server programmatically inserts text.
 
 #### `BunchIDs`
@@ -334,11 +338,11 @@ const list = new List(order);
 // Test list...
 ```
 
-#### Interface `Bunch`
+#### Interface `BunchNode`
 
-An Order's internal representation of a [bunch](#bunches), returned by `Order.getBunch` and `Order.getBunchFor`.
+An Order's internal tree node corresponding to a [bunch](#bunches).
 
-For [Advanced](#advanced) usage only, this utility gives low-level access to an Order's tree of bunches.
+For [Advanced](#advanced) usage only, this utility gives low-level access to an Order's tree of bunches. Obtain with `Order.getNode` or `Order.getNodeFor`.
 
 ## Performance
 
