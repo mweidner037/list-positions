@@ -1,6 +1,6 @@
+import { BunchNode } from "./bunch";
 import { ItemList } from "./internal/item_list";
 import { NumberItemManager } from "./internal/sparse_items";
-import { OrderNode } from "./node";
 import { Order } from "./order";
 import { Position } from "./position";
 
@@ -9,7 +9,7 @@ import { Position } from "./position";
  * counts, starting with present (maybe 0)). JSON ordering guarantees.
  */
 export type OutlineSavedState = {
-  [nodeID: string]: number[];
+  [bunchID: string]: number[];
 };
 
 function cloneItems(items: number[]): number[] {
@@ -71,7 +71,7 @@ export class Outline {
    * TODO
    *
    * If multiple values are given, they are set starting at startPos
-   * in the same OrderNode. Note these might not be contiguous anymore,
+   * in the same BunchNode. Note these might not be contiguous anymore,
    * unless they are new (no causally-future Positions set yet).
    * @param startPos
    * @param sameNodeValues
@@ -118,7 +118,7 @@ export class Outline {
     this.itemList.clear();
   }
 
-  insert(prevPos: Position): [pos: Position, createdNode: OrderNode | null];
+  insert(prevPos: Position): [pos: Position, createdNode: BunchNode | null];
   /**
    *
    * @param index
@@ -127,15 +127,15 @@ export class Outline {
   insert(
     prevPos: Position,
     count?: number
-  ): [startPos: Position, createdNode: OrderNode | null];
+  ): [startPos: Position, createdNode: BunchNode | null];
   insert(
     prevPos: Position,
     count = 1
-  ): [startPos: Position, createdNode: OrderNode | null] {
+  ): [startPos: Position, createdNode: BunchNode | null] {
     return this.itemList.insert(prevPos, count);
   }
 
-  insertAt(index: number): [pos: Position, createdNode: OrderNode | null];
+  insertAt(index: number): [pos: Position, createdNode: BunchNode | null];
   /**
    *
    * @param index
@@ -144,11 +144,11 @@ export class Outline {
   insertAt(
     index: number,
     count?: number
-  ): [startPos: Position, createdNode: OrderNode | null];
+  ): [startPos: Position, createdNode: BunchNode | null];
   insertAt(
     index: number,
     count = 1
-  ): [startPos: Position, createdNode: OrderNode | null] {
+  ): [startPos: Position, createdNode: BunchNode | null] {
     return this.itemList.insertAt(index, count);
   }
 

@@ -1,6 +1,6 @@
+import { BunchNode } from "./bunch";
 import { ItemList } from "./internal/item_list";
 import { ArrayItemManager, SparseItems } from "./internal/sparse_items";
-import { OrderNode } from "./node";
 import { Order } from "./order";
 import { Position } from "./position";
 
@@ -9,7 +9,7 @@ import { Position } from "./position";
  * counts, starting with present (maybe [])). JSON ordering guarantees.
  */
 export type ListSavedState<T> = {
-  [nodeID: string]: (T[] | number)[];
+  [bunchID: string]: (T[] | number)[];
 };
 
 function cloneItems<T>(items: SparseItems<T[]>): SparseItems<T[]> {
@@ -91,7 +91,7 @@ export class List<T> {
    * TODO
    *
    * If multiple values are given, they are set starting at startPos
-   * in the same OrderNode. Note these might not be contiguous anymore,
+   * in the same BunchNode. Note these might not be contiguous anymore,
    * unless they are new (no causally-future Positions set yet).
    * @param startPos
    * @param sameNodeValues
@@ -149,25 +149,25 @@ export class List<T> {
   insert(
     prevPos: Position,
     value: T
-  ): [pos: Position, createdNode: OrderNode | null];
+  ): [pos: Position, createdNode: BunchNode | null];
   /**
    *
    * @param prevPos
    * @param values
    * @returns [ first value's new position, createdNode if created by Order ].
-   * If values.length > 1, their positions start at pos using the same OrderNode
-   * with increasing valueIndex.
+   * If values.length > 1, their positions start at pos using the same BunchNode
+   * with increasing innerIndex.
    * @throws If prevPos is Order.MAX_POSITION.
    * @throws If values.length = 0 (doesn't know what to return)
    */
   insert(
     prevPos: Position,
     ...values: T[]
-  ): [startPos: Position, createdNode: OrderNode | null];
+  ): [startPos: Position, createdNode: BunchNode | null];
   insert(
     prevPos: Position,
     ...values: T[]
-  ): [startPos: Position, createdNode: OrderNode | null] {
+  ): [startPos: Position, createdNode: BunchNode | null] {
     return this.itemList.insert(prevPos, values);
   }
 
@@ -181,15 +181,15 @@ export class List<T> {
   insertAt(
     index: number,
     value: T
-  ): [pos: Position, createdNode: OrderNode | null];
+  ): [pos: Position, createdNode: BunchNode | null];
   insertAt(
     index: number,
     ...values: T[]
-  ): [startPos: Position, createdNode: OrderNode | null];
+  ): [startPos: Position, createdNode: BunchNode | null];
   insertAt(
     index: number,
     ...values: T[]
-  ): [startPos: Position, createdNode: OrderNode | null] {
+  ): [startPos: Position, createdNode: BunchNode | null] {
     return this.itemList.insertAt(index, values);
   }
 

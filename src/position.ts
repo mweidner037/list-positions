@@ -9,9 +9,9 @@
  * and supply it with some metadata. You can then use those Positions in a List
  * on top of that Order, or call `Order.compare` to order them directly.
  *
- * Internally, the pair `{ creatorID, timestamp }` identifies an OrderNode
- * in Order's internal tree, while `valueIndex` identifies a specific value
- * belonging to that OrderNode.
+ * Internally, the pair `{ creatorID, timestamp }` identifies a BunchNode
+ * in Order's internal tree, while `innerIndex` identifies a specific value
+ * belonging to that BunchNode.
  * The "metadata" you must supply to Order is a NodeMeta for the node with NodeID
  * `{ creatorID, timestamp }`.
  *
@@ -19,19 +19,19 @@
  */
 export type Position = {
   /**
-   * The Position's OrderNode's id.
+   * The Position's BunchNode's id.
    */
-  readonly nodeID: string;
+  readonly bunchID: string;
   /**
-   * The index of this Position among its OrderNode's values, which is a
+   * The index of this Position among its BunchNode's values, which is a
    * nonnegative integer.
    *
-   * A given OrderNode's Positions are created with `valueIndex`s in counting
+   * A given BunchNode's Positions are created with `innerIndex`s in counting
    * order (0, 1, 2, ...).
    * Those Positions are in list order, and they are initially contiguous in
    * the list, but later insertions may get between them.
    */
-  readonly valueIndex: number;
+  readonly innerIndex: number;
 };
 
 /**
@@ -42,4 +42,3 @@ export type Position = {
  * indie of an Order, e.g. DB "ORDER BY" column; see LexUtils.
  */
 export type LexPosition = string;
-

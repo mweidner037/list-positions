@@ -1,10 +1,10 @@
-import { OrderNode } from "../node";
+import { BunchNode } from "../bunch";
 import { Order } from "../order";
 import { Position } from "../position";
 import { ItemManager, SparseItems, SparseItemsManager } from "./sparse_items";
 
 /**
- * List data associated to an OrderNode.
+ * List data associated to a BunchNode.
  */
 type NodeData<I> = {
   /**
@@ -34,11 +34,11 @@ export class ItemList<I, T> {
   private readonly itemsMan: SparseItemsManager<I, T>;
 
   /**
-   * Map from OrderNode to its data (total & values).
+   * Map from BunchNode to its data (total & values).
    *
    * Always omits entries with total = 0.
    */
-  private state = new Map<OrderNode, NodeData<I>>();
+  private state = new Map<BunchNode, NodeData<I>>();
 
   constructor(readonly order: Order, readonly itemMan: ItemManager<I, T>) {
     this.itemsMan = new SparseItemsManager(this.itemMan);
@@ -56,9 +56,9 @@ export class ItemList<I, T> {
     const node = this.order.getNodeFor(startPos);
     const length = this.itemMan.length(item);
     if (length === 0) return this.itemsMan.new();
-    if (node === this.order.rootNode && startPos.valueIndex + length - 1 > 1) {
+    if (node === this.order.rootNode && startPos.innerIndex + length - 1 > 1) {
       throw new Error(
-        `Last value's Position is invalid (rootNode only allows valueIndex 0 or 1): startPos=${JSON.stringify(
+        `Last value's Position is invalid (rootNode only allows innerIndex 0 or 1): startPos=${JSON.stringify(
           startPos
         )}, length=${length}`
       );
@@ -67,7 +67,7 @@ export class ItemList<I, T> {
     const data = this.getOrCreateData(node);
     const [newItems, replaced] = this.itemsMan.set(
       data.values,
-      startPos.valueIndex,
+      startPos.innerIndex,
       item
     );
     data.values = this.itemsMan.trim(newItems);
@@ -84,9 +84,9 @@ export class ItemList<I, T> {
     // Validate startPos even if count = 0.
     const node = this.order.getNodeFor(startPos);
     if (count === 0) return this.itemsMan.new();
-    if (node === this.order.rootNode && startPos.valueIndex + count - 1 > 1) {
+    if (node === this.order.rootNode && startPos.innerIndex + count - 1 > 1) {
       throw new Error(
-        `Last value's Position is invalid (rootNode only allows valueIndex 0 or 1): startPos=${JSON.stringify(
+        `Last value's Position is invalid (rootNode only allows innerIndex 0 or 1): startPos=${JSON.stringify(
           startPos
         )}, length=${count}`
       );
@@ -99,7 +99,7 @@ export class ItemList<I, T> {
     }
     const [newItems, replaced] = this.itemsMan.delete(
       data.values,
-      startPos.valueIndex,
+      startPos.innerIndex,
       count
     );
     data.values = this.itemsMan.trim(newItems);
@@ -109,7 +109,7 @@ export class ItemList<I, T> {
     return replaced;
   }
 
-  private getOrCreateData(node: OrderNode): NodeData<I> {
+  private getOrCreateData(node: BunchNode): NodeData<I> {
     let data = this.state.get(node);
     if (data === undefined) {
       let parentValuesBefore = 0;
@@ -118,7 +118,7 @@ export class ItemList<I, T> {
         if (parentData !== undefined) {
           parentValuesBefore = this.itemsMan.getInfo(
             parentData.values,
-            node.nextValueIndex
+            node.nextInnerIndex
           )[2];
         }
       }
@@ -130,18 +130,18 @@ export class ItemList<I, T> {
 
   /**
    * Call when changing the outline of node's values, i.e., which
-   * valueIndexes are present.
+   * innerIndexes are present.
    *
    * @param delta The change in the number of present values at node.
    */
-  private onUpdate(node: OrderNode, delta: number): void {
+  private onUpdate(node: BunchNode, delta: number): void {
     // Invalidate caches.
     if (this.cachedIndexNode !== node) this.cachedIndexNode = null;
 
     // Update total for node and its ancestors.
     if (delta !== 0) {
       for (
-        let current: OrderNode | null = node;
+        let current: BunchNode | null = node;
         current !== null;
         current = current.parent
       ) {
@@ -162,7 +162,7 @@ export class ItemList<I, T> {
         // of O((# runs) * (# children)), e.g., using itemsMan.split.
         childData.parentValuesBefore = this.itemsMan.getInfo(
           nodeData.values,
-          child.nextValueIndex
+          child.nextInnerIndex
         )[2];
       }
     }
@@ -171,7 +171,7 @@ export class ItemList<I, T> {
   /**
    * Deletes every value in the list.
    *
-   * The Order is unaffected (retains all OrderNodes).
+   * The Order is unaffected (retains all BunchNodes).
    */
   clear() {
     this.state.clear();
@@ -185,15 +185,15 @@ export class ItemList<I, T> {
    * @param prevPos
    * @param values
    * @returns [ first value's new position, createdNode if created by Order ].
-   * If item.length > 1, their positions start at pos using the same OrderNode
-   * with increasing valueIndex.
+   * If item.length > 1, their positions start at pos using the same BunchNode
+   * with increasing innerIndex.
    * @throws If prevPos is Order.MAX_POSITION.
    * @throws If item.length = 0 (doesn't know what to return)
    */
   insert(
     prevPos: Position,
     item: I
-  ): [startPos: Position, createdNode: OrderNode | null] {
+  ): [startPos: Position, createdNode: BunchNode | null] {
     // OPT: find nextPos without getting index, at least in common cases.
     const nextIndex = this.indexOfPosition(prevPos, "left") + 1;
     const nextPos =
@@ -220,7 +220,7 @@ export class ItemList<I, T> {
   insertAt(
     index: number,
     item: I
-  ): [startPos: Position, createdNode: OrderNode | null] {
+  ): [startPos: Position, createdNode: BunchNode | null] {
     const prevPos =
       index === 0 ? Order.MIN_POSITION : this.positionAt(index - 1);
     const nextPos =
@@ -242,7 +242,7 @@ export class ItemList<I, T> {
    * Returns the value at position, or undefined if it is not currently present.
    */
   get(pos: Position): T | undefined {
-    return this.getInNode(this.order.getNodeFor(pos), pos.valueIndex)[0];
+    return this.getInNode(this.order.getNodeFor(pos), pos.innerIndex)[0];
   }
 
   /**
@@ -261,24 +261,24 @@ export class ItemList<I, T> {
    * i.e., its value is present.
    */
   has(pos: Position): boolean {
-    return this.getInNode(this.order.getNodeFor(pos), pos.valueIndex)[1];
+    return this.getInNode(this.order.getNodeFor(pos), pos.innerIndex)[1];
   }
 
   /**
-   * Returns info about the value at valueIndex in node:
+   * Returns info about the value at innerIndex in node:
    * [value - undefined if not present, whether it's present,
    * count of node's present values before it]
    */
   private getInNode(
-    node: OrderNode,
-    valueIndex: number
+    node: BunchNode,
+    innerIndex: number
   ): [value: T | undefined, isPresent: boolean, nodeValuesBefore: number] {
     const data = this.state.get(node);
     if (data === undefined) return [undefined, false, 0];
-    return this.itemsMan.getInfo(data.values, valueIndex);
+    return this.itemsMan.getInfo(data.values, innerIndex);
   }
 
-  private cachedIndexNode: OrderNode | null = null;
+  private cachedIndexNode: BunchNode | null = null;
   private cachedIndex = -1;
 
   /**
@@ -304,15 +304,15 @@ export class ItemList<I, T> {
     const node = this.order.getNodeFor(pos);
     const [, isPresent, nodeValuesBefore] = this.getInNode(
       node,
-      pos.valueIndex
+      pos.innerIndex
     );
     // Will be the total number of values prior to position.
     let valuesBefore = nodeValuesBefore;
 
-    // Add totals for child nodes that come before valueIndex.
+    // Add totals for child nodes that come before innerIndex.
     for (let i = 0; i < node.childrenLength; i++) {
       const child = node.getChild(i);
-      if (!(child.nextValueIndex <= pos.valueIndex)) break;
+      if (!(child.nextInnerIndex <= pos.innerIndex)) break;
       valuesBefore += this.total(child);
     }
 
@@ -378,7 +378,7 @@ export class ItemList<I, T> {
       // currentData is defined because current has nonzero total (contains index).
       const currentData = this.state.get(current)!;
       // prev = previous child-with-data. We remember its values.
-      let prevNextValueIndex = 0;
+      let prevNextinnerIndex = 0;
       let prevParentValuesBefore = 0;
       for (let i = 0; i < current.childrenLength; i++) {
         const child = current.getChild(i);
@@ -391,10 +391,10 @@ export class ItemList<I, T> {
           // The position is among current's values, between child and the
           // previous child-with-data.
           return {
-            nodeID: current.id,
-            valueIndex: this.itemsMan.findPresentIndex(
+            bunchID: current.id,
+            innerIndex: this.itemsMan.findPresentIndex(
               currentData.values,
-              prevNextValueIndex,
+              prevNextinnerIndex,
               remaining
             ),
           };
@@ -408,7 +408,7 @@ export class ItemList<I, T> {
           } else remaining -= childData.total;
         }
 
-        prevNextValueIndex = child.nextValueIndex;
+        prevNextinnerIndex = child.nextInnerIndex;
         prevParentValuesBefore = childData.parentValuesBefore;
       }
 
@@ -429,7 +429,7 @@ export class ItemList<I, T> {
    * Returns the total number of present values at this
    * node and its descendants.
    */
-  private total(node: OrderNode): number {
+  private total(node: BunchNode): number {
     return this.state.get(node)?.total ?? 0;
   }
 
@@ -469,20 +469,20 @@ export class ItemList<I, T> {
       const node = top.node;
 
       // Emit node values between the previous and next child.
-      // Use nextValueIndex b/c it's an exclusive end.
+      // Use nextinnerIndex b/c it's an exclusive end.
       // OPT: shortcut if we won't start by the end.
-      const endValueIndex =
+      const endinnerIndex =
         top.nextChildIndex === node.childrenLength
           ? null
-          : node.getChild(top.nextChildIndex).nextValueIndex;
-      for (const [valueIndex, value] of top.valuesSlicer.nextSlice(
-        endValueIndex
+          : node.getChild(top.nextChildIndex).nextInnerIndex;
+      for (const [innerIndex, value] of top.valuesSlicer.nextSlice(
+        endinnerIndex
       )) {
         if (index >= start) {
           yield [
             {
-              nodeID: node.id,
-              valueIndex,
+              bunchID: node.id,
+              innerIndex: innerIndex,
             },
             value,
           ];
@@ -551,11 +551,11 @@ export class ItemList<I, T> {
    * on a new instance of LocalList, to reconstruct the
    * same list state.
    *
-   * Only saves values, not Order. nodeID order not guaranteed;
+   * Only saves values, not Order. bunchID order not guaranteed;
    * can sort if you care.
    */
-  save<S>(saveItems: (items: SparseItems<I>) => S): { [nodeID: string]: S } {
-    const savedState: { [nodeID: string]: S } = {};
+  save<S>(saveItems: (items: SparseItems<I>) => S): { [bunchID: string]: S } {
+    const savedState: { [bunchID: string]: S } = {};
     for (const [node, data] of this.state) {
       if (!this.itemsMan.isEmpty(data.values)) {
         savedState[node.id] = saveItems(data.values);
@@ -577,16 +577,16 @@ export class ItemList<I, T> {
    * [[save]] call.
    */
   load<S>(
-    savedState: { [nodeID: string]: S },
+    savedState: { [bunchID: string]: S },
     loadItems: (savedItems: S) => SparseItems<I>
   ): void {
     this.clear();
 
-    for (const [nodeID, savedArr] of Object.entries(savedState)) {
-      const node = this.order.getNode(nodeID);
+    for (const [bunchID, savedArr] of Object.entries(savedState)) {
+      const node = this.order.getNode(bunchID);
       if (node === undefined) {
         throw new Error(
-          `List/Outline savedState references missing OrderNode: id="${nodeID}". You must call Order.receive before referencing an OrderNode.`
+          `List/Outline savedState references missing bunchID: "${bunchID}". You must call Order.receive before referencing a bunch.`
         );
       }
       // TODO: wait until end to compute all parentValuesBefores, totals.

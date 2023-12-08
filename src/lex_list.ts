@@ -149,7 +149,7 @@ export class LexList<T> {
     for (let i = 0; i < count; i++) {
       lexPositions[i] = LexUtils.combinePos(
         nodePrefix,
-        startPos.valueIndex + i
+        startPos.innerIndex + i
       );
     }
     return lexPositions;
@@ -311,8 +311,8 @@ export class LexList<T> {
   save(): LexListSavedState<T> {
     // OPT: loop over nodes directly, to avoid double-object.
     const savedState: LexListSavedState<T> = {};
-    for (const [nodeID, values] of Object.entries(this.list.save())) {
-      savedState[this.order.getNode(nodeID)!.lexPrefix()] = values;
+    for (const [bunchID, values] of Object.entries(this.list.save())) {
+      savedState[this.order.getNode(bunchID)!.lexPrefix()] = values;
     }
     return savedState;
   }
@@ -322,7 +322,7 @@ export class LexList<T> {
     const listSavedState: LexListSavedState<T> = {};
     for (const [nodePrefix, values] of Object.entries(savedState)) {
       this.order.receive(LexUtils.splitNodePrefix(nodePrefix));
-      listSavedState[LexUtils.nodeIDFor(nodePrefix)] = values;
+      listSavedState[LexUtils.bunchIDFor(nodePrefix)] = values;
     }
     this.list.load(listSavedState);
   }

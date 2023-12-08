@@ -23,36 +23,36 @@ const REPLICA_ID_LENGTH = 8;
 const COUNTER_BASE = 36;
 
 /**
- * Utilities for Node IDs.
+ * Utilities for bunch IDs.
  */
-export const NodeIDs = {
+export const BunchIDs = {
   /**
    * Reserved for the special root node's ID.
    */
   ROOT: "ROOT",
 
   /**
-   * Throws an error if nodeID is invalid.
+   * Throws an error if bunchID is invalid.
    *
    * Rules:
    * - Not NodeIDs.ROOT = "ROOT".
    * - Must not contain "." or ",".
    * - Must be lexicographically less than "~" (needed for Order.MAX_LEX_POSITION to work).
    */
-  validate(nodeID: string): void {
-    if (nodeID === this.ROOT) {
+  validate(bunchID: string): void {
+    if (bunchID === this.ROOT) {
       throw new Error(
-        `Invalid nodeID or replicaID: "${this.ROOT}" (NodeIDs.ROOT) is reserved.`
+        `Invalid bunchID or replicaID: "${this.ROOT}" (NodeIDs.ROOT) is reserved.`
       );
     }
-    if (nodeID.indexOf(".") !== -1 || nodeID.indexOf(",") !== -1) {
+    if (bunchID.indexOf(".") !== -1 || bunchID.indexOf(",") !== -1) {
       throw new Error(
-        `Invalid nodeID or replicaID "${nodeID}": must not contain "." or ",".`
+        `Invalid bunchID or replicaID "${bunchID}": must not contain "." or ",".`
       );
     }
-    if (!(nodeID < "~")) {
+    if (!(bunchID < "~")) {
       throw new Error(
-        `Invalid nodeID or replicaID "${nodeID}": must be lexicographically less than "~".`
+        `Invalid bunchID or replicaID "${bunchID}": must be lexicographically less than "~".`
       );
     }
   },
@@ -71,9 +71,9 @@ export const NodeIDs = {
 
     let counter = 0;
     return function () {
-      const nodeID = theReplicaID + "_" + counter.toString(COUNTER_BASE);
+      const bunchID = theReplicaID + "_" + counter.toString(COUNTER_BASE);
       counter++;
-      return nodeID;
+      return bunchID;
     };
   },
 
@@ -129,24 +129,27 @@ export const NodeIDs = {
   },
 
   /**
-   * Parses a nodeID from NodeIDs.usingReplicaID back into its replicaID
+   * Parses a bunchID from NodeIDs.usingReplicaID back into its replicaID
    * + counter. For optimized map-array representation.
    */
-  parseUsingReplicaID(nodeID: string): [replicaID: string, counter: number] {
-    const underscore = nodeID.lastIndexOf("_");
+  parseUsingReplicaID(bunchID: string): [replicaID: string, counter: number] {
+    const underscore = bunchID.lastIndexOf("_");
     if (underscore === -1) {
       throw new Error(
-        `nodeID is not from NodeIDs.usingReplicaID (missing "_"): ${nodeID}`
+        `bunchID is not from NodeIDs.usingReplicaID (missing "_"): ${bunchID}`
       );
     }
 
-    const counter = Number.parseInt(nodeID.slice(underscore + 1), COUNTER_BASE);
+    const counter = Number.parseInt(
+      bunchID.slice(underscore + 1),
+      COUNTER_BASE
+    );
     if (isNaN(counter)) {
       throw new Error(
-        `nodeID is not from NodeIDs.usingReplicaID (bad counter): ${nodeID}`
+        `bunchID is not from NodeIDs.usingReplicaID (bad counter): ${bunchID}`
       );
     }
 
-    return [nodeID.slice(0, underscore), counter];
+    return [bunchID.slice(0, underscore), counter];
   },
 } as const;

@@ -353,5 +353,5 @@ TODO: benchmarks
 - The library is optimized for forward (left-to-right) insertions. If you primarily insert backward (right-to-left) or at random, you will see worse efficiency - especially storage overhead. (Internally, only forward insertions reuse [bunches](#bunches), so other patterns lead to fewer Positions per bunch.)
 
 <!-- TODO
-Custom serialization: protobufs; parse default nodeID format; exploit recurrences in replicaIDs.
+Custom serialization: protobufs; parse default bunchID format; exploit recurrences in replicaIDs.
 -->

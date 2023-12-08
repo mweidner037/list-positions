@@ -1,24 +1,24 @@
-import type { NodeMeta } from "./node";
-import { NodeIDs } from "./node_ids";
+import type { BunchMeta } from "./bunch";
+import { BunchIDs } from "./bunch_ids";
 import type { LexPosition } from "./position";
 
 export const LexUtils = {
   MIN_LEX_POSITION: "" as LexPosition,
   MAX_LEX_POSITION: "~" as LexPosition,
 
-  combinePos(nodePrefix: string, valueIndex: number): LexPosition {
+  combinePos(nodePrefix: string, innerIndex: number): LexPosition {
     if (nodePrefix === "") {
       // Root node.
-      if (valueIndex === 0) return this.MIN_LEX_POSITION;
-      if (valueIndex === 1) return this.MAX_LEX_POSITION;
+      if (innerIndex === 0) return this.MIN_LEX_POSITION;
+      if (innerIndex === 1) return this.MAX_LEX_POSITION;
       throw new Error(
-        `Position uses rootNode but is not MIN_POSITION or MAX_POSITION (valueIndex 0 or 1): valueIndex=${valueIndex}`
+        `Position uses rootNode but is not MIN_POSITION or MAX_POSITION (innerIndex 0 or 1): innerIndex=${innerIndex}`
       );
     }
-    return nodePrefix + "," + encodeValueIndex(valueIndex);
+    return nodePrefix + "," + encodeInnerIndex(innerIndex);
   },
 
-  splitPos(lexPos: LexPosition): [nodePrefix: string, valueIndex: number] {
+  splitPos(lexPos: LexPosition): [nodePrefix: string, innerIndex: number] {
     if (lexPos === this.MIN_LEX_POSITION) return ["", 0];
     if (lexPos === this.MAX_LEX_POSITION) return ["", 1];
     const lastComma = lexPos.lastIndexOf(",");
@@ -27,51 +27,51 @@ export const LexUtils = {
     }
     return [
       lexPos.slice(0, lastComma),
-      decodeValueIndex(lexPos.slice(lastComma + 1)),
+      decodeInnerIndex(lexPos.slice(lastComma + 1)),
     ];
   },
 
-  combineNodePrefix(metas: NodeMeta[]): string {
+  combineNodePrefix(metas: BunchMeta[]): string {
     if (metas.length === 0) return "";
 
     const parts = new Array<string>(metas.length);
-    if (metas[0].parentID !== NodeIDs.ROOT) {
+    if (metas[0].parentID !== BunchIDs.ROOT) {
       throw new Error(
         `Invalid tree path: does not start with root child (${JSON.stringify(
           metas[0]
         )}))`
       );
     }
-    parts[0] = metas[0].id;
+    parts[0] = metas[0].bunchID;
 
     for (let i = 1; i < metas.length; i++) {
-      if (metas[i].parentID !== metas[i - 1].id) {
+      if (metas[i].parentID !== metas[i - 1].bunchID) {
         throw new Error(
           `Invalid tree path: metas[${i}] is not a child of metas[${
             i - 1
           }] (${JSON.stringify(metas[i])}, ${JSON.stringify(metas[i - 1])})`
         );
       }
-      parts[i] = encodeOffset(metas[i].offset) + "." + metas[i].id;
+      parts[i] = encodeOffset(metas[i].offset) + "." + metas[i].bunchID;
     }
 
     return parts.join(",");
   },
 
-  splitNodePrefix(nodePrefix: string): NodeMeta[] {
+  splitNodePrefix(nodePrefix: string): BunchMeta[] {
     if (nodePrefix === "") return [];
 
     const parts = nodePrefix.split(",");
-    const metas: NodeMeta[] = [];
+    const metas: BunchMeta[] = [];
     // First part is child of the root; no offset string.
     metas.push({
-      id: parts[0],
-      parentID: NodeIDs.ROOT,
-      // It's a child of MIN_POSITION with valueIndex 0, so
-      // offset = 2 * valueIndex + 1 = 1.
+      bunchID: parts[0],
+      parentID: BunchIDs.ROOT,
+      // It's a child of MIN_POSITION with innerIndex 0, so
+      // offset = 2 * innerIndex + 1 = 1.
       offset: 1,
     });
-    // Other parts are "offset.nodeID".
+    // Other parts are "offset.bunchID".
     let parentID = parts[0];
     for (let i = 1; i < parts.length; i++) {
       const dot = parts[i].indexOf(".");
@@ -82,7 +82,7 @@ export const LexUtils = {
       }
       const id = parts[i].slice(dot + 1);
       metas.push({
-        id,
+        bunchID: id,
         parentID,
         offset: decodeOffset(parts[i].slice(0, dot)),
       });
@@ -91,15 +91,15 @@ export const LexUtils = {
     return metas;
   },
 
-  nodeIDFor(nodePrefix: string): string {
-    if (nodePrefix === "") return NodeIDs.ROOT;
+  bunchIDFor(nodePrefix: string): string {
+    if (nodePrefix === "") return BunchIDs.ROOT;
 
     const lastComma = nodePrefix.lastIndexOf(",");
     if (lastComma === -1) {
-      // Child of root; prefix is just nodeID.
+      // Child of root; prefix is just bunchID.
       return nodePrefix;
     } else {
-      // lastPart is "offset.nodeID".
+      // lastPart is "offset.bunchID".
       const lastPart = nodePrefix.slice(lastComma + 1);
       const dot = lastPart.indexOf(".");
       if (dot === -1) {
@@ -124,14 +124,14 @@ function decodeOffset(encoded: string): number {
   return sequenceInv(seq);
 }
 
-function encodeValueIndex(valueIndex: number): string {
-  return sequence(2 * valueIndex + 1).toString(BASE);
+function encodeInnerIndex(innerIndex: number): string {
+  return sequence(2 * innerIndex + 1).toString(BASE);
 }
 
-function decodeValueIndex(encoded: string): number {
+function decodeInnerIndex(encoded: string): number {
   const seq = Number.parseInt(encoded, BASE);
   if (isNaN(seq)) {
-    throw new Error(`Invalid LexPosition: bad valueIndex "${encoded}"`);
+    throw new Error(`Invalid LexPosition: bad innerIndex "${encoded}"`);
   }
   // (n - 1) / 2
   return sequenceInv(seq) >> 1;
