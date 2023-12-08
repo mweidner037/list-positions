@@ -7,8 +7,6 @@ Efficient "positions" for lists and text - enabling rich documents and collabora
 - [API](#api)
 - [Performance](#performance)
 
-<!-- TODO: update when other sections added -->
-
 ## About
 
 Many apps use a list whose values can change index over time: characters in a text document, items in a todo list, rows in a spreadsheet, etc. Instead of thinking of this list as an array, it's easier to think of it as an ordered map `(position -> value)`, where a value's _position_ doesn't change over time. So if you insert a new entry `(position, value)` into the map, the other entries stay the same, even though their indices change:
@@ -99,6 +97,8 @@ type Position = {
 
 <a id="bunches"></a>
 The `bunchID` identifies a _bunch_ of Positions that were share metadata (for efficiency). Each bunch has Positions with `innerIndex` 0, 1, 2, ...; these were originally inserted contiguously (e.g., by a user typing left-to-right) but might not be contiguous anymore. Regardless, bunches makes it easy to store a List's map `(Position -> value)` compactly:
+
+<a id="compact-list"></a>
 
 ```ts
 // As a double map:
@@ -227,41 +227,122 @@ Outline is useful when you are already storing a list's values in a different se
   ```
 - Convert the other sequence's changes into `(position, value)` pair updates:
 
-```ts
-// When the other sequence inserts `value` at `index`:
-const position = outline.insertAt(index);
-/* Broadcast/store the newly-set pair (position, value); */
-```
+  ```ts
+  // When the other sequence inserts `value` at `index`:
+  const position = outline.insertAt(index);
+  /* Broadcast/store the newly-set pair (position, value); */
+  ```
 
-<!--
+Like List, Outline requires you to [manage metadata](#managing-metadata).
+
 ### Advanced
 
-TODO
-
-internals
-
-Node prefixes / LexUtils
-
-LexPosition format
-
-Sparse array/outline format
-
-Direct Bunch and tree access
-
-Somewhere: compatibility (lex and unlex; save/loadOutline - both for transitioning List/Outline, and for separate list storage)
-
-Custom serialization: protobufs; parse default nodeID format; exploit recurrences in replicaIDs.
-
-Ex: faking a spreadsheet's infinite list of rows to start, by making a root child bunch
--->
+The library's internals are conceptually simple. By understanding them, you can unlock additional features and optimizations, or implement compatible libraries in other languages. See [Internals](./internals.md).
 
 ## API
 
-Brief summary of exports? Deferring to typedoc/Intellisense for details.
+This section gives a high-level overview of the library's exports. The implementations have complete docs, which should show up in your IDE's tooltips.
 
-Cursors
+### Classes
+
+#### `List<T>`
+
+A list of values of type `T`, represented as an ordered map with [Position](#position) keys.
+
+Its API is a hybrid between `Array<T>` and `Map<Position, T>`. Use `insertAt` or `insert` to insert new values into the list in the style of `Array.splice`.
+
+#### `Order`
+
+A total order on [Positions](#position), independent of any specific assignment of values.
+
+An Order manages metadata (bunches) for any number of Lists and LexLists. You can also use an Order to create Positions independent of a List (`createPositions`), convert between Positions and LexPositions (`lex` and `unlex`), and directly view the tree of bunches (`getBunch`, `getBunchFor`).
+
+Static utilities include `Order.MIN_POSITION` and `Order.MAX_POSITION`.
+
+#### `Outline`
+
+An outline for a list of values. It represents an ordered map with [Position](#type-position) keys, but unlike [List](#class-listt), it only tracks which Positions are present - not their associated values.
+
+Outline is useful when you are already storing a list's values in a different sequence data structure, but still need to convert between Positions and list indices.
+
+#### `LexList<T>`
+
+A list of values of type `T`, represented as an ordered map with [LexPosition](#type-lexposition) keys.
+
+Its API is a hybrid between `Array<T>` and `Map<LexPosition, T>`. Use `insertAt` or `insert` to insert new values into the list in the style of `Array.splice`.
+
+### Types
+
+All types are JSON serializable.
+
+Representations of positions:
+
+- `Position`, used in List and Outline.
+- `LexPosition = string`, used in LexList.
+
+Metadata:
+
+- `BunchMeta`, used in Order.
+
+Saved states: Each class lets you save and load its internal states in JSON format. You can treat these saved states as opaque blobs, or read their docs to understand their formats.
+
+- `ListSavedState<T>`
+- `OrderSavedState`
+- `OutlineSavedState`
+- `LexListSavedState<T>`
+
+### Utilities
+
+#### Cursors
+
+A _cursor_ points to a spot in the list between two values - e.g., a cursor in a text document.
+
+Internally, a cursor is represented as the Position (or LexPosition, for LexList) of the value to its left, or `Order.MIN_POSITION` if it is at the start of the list. If that position becomes not-present in the list, the cursor's literal value remains the same, but its current index shifts to the left.
+
+Convert indices to cursors and back using methods `cursorAt` and `indexOfCursor`, on classes List, Outline, and LexList. (These are wrappers around `positionAt` and `indexOfPosition` that get the edge cases right.)
+
+#### `LexUtils`
+
+Utilities for manipulating [LexPositions](#lexlist-and-lexposition).
+
+For example, `LexUtils.splitPos` and `LexUtils.combinePos` let you split a LexPosition into its `innerIndex` and _bunch prefix_ - a string that embeds all of a bunch's dependencies (including its ancestors' BunchMetas). That lets you store a LexList's map `(LexPosition -> value)` almost as [compactly](#compact-list) as a List's map `(Position -> value)` while still embedding all metadata. E.g., use a double map
+
+```ts
+{
+  [bunchPrefix: string]: {
+    [innerIndex: number]: T;
+  };
+};
+```
+
+LexUtil's [source code](./src/lex_utils.ts) is deliberately simple and dependency-less, so that you can easily re-implement it in another language. That way, you can manipulate LexPositions on a non-JavaScript backend - e.g., generate new LexPositions when a server programmatically inserts text.
+
+#### `BunchIDs`
+
+Utitilies for generating `bunchIDs`.
+
+When a method like `List.insertAt` creates a new Position (or LexPosition), it may create a new [bunch](#bunches) internally. This bunch is assigned a new bunchID which should be globally unique - or at least, unique among all bunches that this bunch will ever appear alongside (i.e., in the same Order).
+
+By default, the library uses `BunchIDs.usingReplicaID()`, which returns [causal dots](https://mattweidner.com/2022/10/21/basic-list-crdt.html#causal-dot). You can supply a different bunchID generator in Order's constructor. E.g., to get reproducible bunchIDs in a test environment:
+
+```ts
+import seedrandom from "seedrandom";
+
+const rng = seedrandom("42");
+const order = new Order({ newBunchID: BunchIDs.usingReplicaID({ rng }) });
+const list = new List(order);
+// Test list...
+```
+
+#### Interface `Bunch`
+
+An Order's internal representation of a [bunch](#bunches), returned by `Order.getBunch` and `Order.getBunchFor`.
+
+For [Advanced](#advanced) usage only, this utility gives low-level access to an Order's tree of bunches.
 
 ## Performance
+
+Benchmarks are a WIP and will be reported here.
 
 <!--
 TODO: benchmarks
@@ -271,4 +352,6 @@ TODO: benchmarks
 
 - The library is optimized for forward (left-to-right) insertions. If you primarily insert backward (right-to-left) or at random, you will see worse efficiency - especially storage overhead. (Internally, only forward insertions reuse [bunches](#bunches), so other patterns lead to fewer Positions per bunch.)
 
-<!-- TODO -->
+<!-- TODO
+Custom serialization: protobufs; parse default nodeID format; exploit recurrences in replicaIDs.
+-->
