@@ -82,7 +82,7 @@ class NodeInternal implements BunchNode {
   }
 
   toString() {
-    // Similar to NodeMeta, but valid for rootNode as well.
+    // Similar to BunchMeta, but valid for rootNode as well.
     return JSON.stringify({
       id: this.bunchID,
       parentID: this.parent === null ? null : this.parent.bunchID,
@@ -103,7 +103,7 @@ export class Order {
 
   /**
    * Set this to be notified when we locally create a new BunchNode in createPosition.
-   * The NodeMeta for createdNode (which is also returned by createPosition & List.insert etc.)
+   * The BunchMeta for createdNode (which is also returned by createPosition & List.insert etc.)
    * must be broadcast to other replicas before they can use the new Position.
    */
   onCreateNode: ((createdNode: BunchNode) => void) | undefined = undefined;
@@ -205,129 +205,129 @@ export class Order {
   // Mutators
   // ----------
 
-  receive(nodeMetas: Iterable<BunchMeta>): void {
-    // 1. Pick out the new (non-redundant) nodes in nodeMetas.
+  receive(bunchMetas: Iterable<BunchMeta>): void {
+    // 1. Pick out the new (non-redundant) nodes in bunchMetas.
     // For the redundant ones, check that their parents match.
-    // Redundancy also applies to duplicates within nodeMetas.
+    // Redundancy also applies to duplicates within bunchMetas.
 
-    // New NodeMetas, keyed by id.
-    const newNodeMetas = new Map<string, BunchMeta>();
+    // New BunchMetas, keyed by id.
+    const newBunchMetas = new Map<string, BunchMeta>();
 
-    for (const nodeMeta of nodeMetas) {
-      if (nodeMeta.bunchID === BunchIDs.ROOT) {
+    for (const bunchMeta of bunchMetas) {
+      if (bunchMeta.bunchID === BunchIDs.ROOT) {
         throw new Error(
-          `Received NodeMeta describing the root node: ${JSON.stringify(
-            nodeMeta
+          `Received BunchMeta describing the root node: ${JSON.stringify(
+            bunchMeta
           )}.`
         );
       }
-      const existing = this.tree.get(nodeMeta.bunchID);
+      const existing = this.tree.get(bunchMeta.bunchID);
       if (existing !== undefined) {
-        if (!Order.equalsBunchMeta(nodeMeta, existing.meta())) {
+        if (!Order.equalsBunchMeta(bunchMeta, existing.meta())) {
           throw new Error(
-            `Received NodeMeta describing an existing node but with different metadata: received=${JSON.stringify(
-              nodeMeta
+            `Received BunchMeta describing an existing node but with different metadata: received=${JSON.stringify(
+              bunchMeta
             )}, existing=${JSON.stringify(existing.meta())}.`
           );
         }
       } else {
-        const otherNew = newNodeMetas.get(nodeMeta.bunchID);
+        const otherNew = newBunchMetas.get(bunchMeta.bunchID);
         if (otherNew !== undefined) {
-          if (!Order.equalsBunchMeta(nodeMeta, otherNew)) {
+          if (!Order.equalsBunchMeta(bunchMeta, otherNew)) {
             throw new Error(
-              `Received two NodeMetas for the same node but with different metadata: first=${JSON.stringify(
+              `Received two BunchMetas for the same node but with different metadata: first=${JSON.stringify(
                 otherNew
-              )}, second=${JSON.stringify(nodeMeta)}.`
+              )}, second=${JSON.stringify(bunchMeta)}.`
             );
           }
         } else {
-          BunchIDs.validate(nodeMeta.bunchID);
-          newNodeMetas.set(nodeMeta.bunchID, nodeMeta);
+          BunchIDs.validate(bunchMeta.bunchID);
+          newBunchMetas.set(bunchMeta.bunchID, bunchMeta);
         }
       }
     }
 
-    // 2. Sort newNodeMetas into a valid processing order, in which each node
+    // 2. Sort newBunchMetas into a valid processing order, in which each node
     // follows its parent (or its parent already exists).
     const toProcess: BunchMeta[] = [];
-    // New NodeMetas that are waiting on a parent in newNodeMetas, keyed by
+    // New BunchMetas that are waiting on a parent in newBunchMetas, keyed by
     // that parent's id.
     const pendingChildren = new Map<string, BunchMeta[]>();
 
-    for (const nodeMeta of newNodeMetas.values()) {
-      if (this.tree.get(nodeMeta.parentID) !== undefined) {
+    for (const bunchMeta of newBunchMetas.values()) {
+      if (this.tree.get(bunchMeta.parentID) !== undefined) {
         // Parent already exists - ready to process.
-        toProcess.push(nodeMeta);
+        toProcess.push(bunchMeta);
       } else {
-        // Parent should be in newNodeMetas. Store in pendingChildren for now.
-        let pendingArr = pendingChildren.get(nodeMeta.parentID);
+        // Parent should be in newBunchMetas. Store in pendingChildren for now.
+        let pendingArr = pendingChildren.get(bunchMeta.parentID);
         if (pendingArr === undefined) {
           pendingArr = [];
-          pendingChildren.set(nodeMeta.parentID, pendingArr);
+          pendingChildren.set(bunchMeta.parentID, pendingArr);
         }
-        pendingArr.push(nodeMeta);
+        pendingArr.push(bunchMeta);
       }
     }
     // For each node in toProcess, if it has pending children, append those.
     // That way they'll be processed after the node, including by this loop.
-    for (const nodeMeta of toProcess) {
-      const pendingArr = pendingChildren.get(nodeMeta.bunchID);
+    for (const bunchMeta of toProcess) {
+      const pendingArr = pendingChildren.get(bunchMeta.bunchID);
       if (pendingArr !== undefined) {
         toProcess.push(...pendingArr);
         // Delete so we can later check whether all pendingChildren were
         // moved to toProcess.
-        pendingChildren.delete(nodeMeta.bunchID);
+        pendingChildren.delete(bunchMeta.bunchID);
       }
     }
 
     // Check that all pendingChildren were moved to toProcess.
     if (pendingChildren.size !== 0) {
-      // Nope; find a failed nodeMeta for the error message.
+      // Nope; find a failed bunchMeta for the error message.
       let someFailedMeta = (
         pendingChildren.values().next().value as BunchMeta[]
       )[0];
-      // Walk up the tree until we find a nodeMeta with missing parent or a cycle.
+      // Walk up the tree until we find a bunchMeta with missing parent or a cycle.
       const seenNodeIDs = new Set<string>();
-      while (newNodeMetas.has(someFailedMeta.parentID)) {
-        someFailedMeta = newNodeMetas.get(someFailedMeta.parentID)!;
+      while (newBunchMetas.has(someFailedMeta.parentID)) {
+        someFailedMeta = newBunchMetas.get(someFailedMeta.parentID)!;
         if (seenNodeIDs.has(someFailedMeta.bunchID)) {
           // Found a cycle.
           throw new Error(
-            `Failed to process nodeMetas due to a cycle involving ${JSON.stringify(
+            `Failed to process bunchMetas due to a cycle involving ${JSON.stringify(
               someFailedMeta
             )}.`
           );
         }
         seenNodeIDs.add(someFailedMeta.bunchID);
       }
-      // someFailedMeta's parent does not exist and is not in newNodeMetas.
+      // someFailedMeta's parent does not exist and is not in newBunchMetas.
       throw new Error(
-        `Received NodeMeta ${JSON.stringify(
+        `Received BunchMeta ${JSON.stringify(
           someFailedMeta
-        )}, but we have not yet received a NodeMeta for its parent node.`
+        )}, but we have not yet received a BunchMeta for its parent node.`
       );
     }
 
     // Finally, we are guaranteed that:
-    // - All NodeMetas in toProcess are new, valid, and distinct.
+    // - All BunchMetas in toProcess are new, valid, and distinct.
     // - They are in a valid order (a node's parent will be known by the time
     // it is reached).
-    for (const nodeMeta of toProcess) this.newNode(nodeMeta);
+    for (const bunchMeta of toProcess) this.newNode(bunchMeta);
   }
 
-  private newNode(nodeMeta: BunchMeta): NodeInternal {
-    const parentNode = this.tree.get(nodeMeta.parentID);
+  private newNode(bunchMeta: BunchMeta): NodeInternal {
+    const parentNode = this.tree.get(bunchMeta.parentID);
     if (parentNode === undefined) {
       throw new Error(
-        `Internal error: NodeMeta ${JSON.stringify(
-          nodeMeta
+        `Internal error: BunchMeta ${JSON.stringify(
+          bunchMeta
         )} passed validation checks, but its parent node was not found.`
       );
     }
     const node = new NodeInternal(
-      nodeMeta.bunchID,
+      bunchMeta.bunchID,
       parentNode,
-      nodeMeta.offset
+      bunchMeta.offset
     );
     this.tree.set(node.bunchID, node);
 
@@ -442,23 +442,23 @@ export class Order {
       return [startPos, null];
     }
 
-    const createdNodeMeta: BunchMeta = {
+    const createdBunchMeta: BunchMeta = {
       bunchID: this.newBunchID(),
       parentID: newNodeParent.bunchID,
       offset: newNodeOffset,
     };
-    if (this.tree.has(createdNodeMeta.bunchID)) {
+    if (this.tree.has(createdBunchMeta.bunchID)) {
       throw new Error(
-        `newBunchID() returned node ID that already exists: ${createdNodeMeta.bunchID}`
+        `newBunchID() returned node ID that already exists: ${createdBunchMeta.bunchID}`
       );
     }
 
-    const createdNode = this.newNode(createdNodeMeta);
+    const createdNode = this.newNode(createdBunchMeta);
     createdNode.createdCounter = count;
     if (newNodeParent.createdChildren === undefined) {
       newNodeParent.createdChildren = new Map();
     }
-    newNodeParent.createdChildren.set(createdNodeMeta.offset, createdNode);
+    newNodeParent.createdChildren.set(createdBunchMeta.offset, createdNode);
 
     this.onCreateNode?.(createdNode);
 
@@ -582,7 +582,7 @@ export class Order {
   }
 
   /**
-   * Returns whether two NodeMetas are equal, i.e., they have equal contents.
+   * Returns whether two BunchMetas are equal, i.e., they have equal contents.
    */
   static equalsBunchMeta(a: BunchMeta, b: BunchMeta): boolean {
     return (

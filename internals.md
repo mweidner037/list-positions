@@ -10,3 +10,5 @@ TODO
 Idea of rewriting LexUtils in another lang (esp simple).
 
 Idea of in-order database queries w/o LexPosition inefficiency.
+
+Also update BunchNode docs to describe offset etc.

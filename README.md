@@ -133,7 +133,7 @@ Notes:
 
 Each Position depends on some metadata, which is stored separately. (In contrast, a LexPosition embeds all of its metadata - this is why LexPositions have a variable length.) To use the same Positions with different instances of the List class (possibly on different devices), you must first transfer this metadata between the Lists.
 
-Specifically, a Lists [bunches](#bunches) form a tree. Each bunch, except for the special root with bunchID `"ROOT"`, has a `BunchMeta` that describes its location in the tree:
+Specifically, a List's [bunches](#bunches) form a tree. Each bunch, except for the special root with bunchID `"ROOT"`, has a `BunchMeta` that describes its location in the tree:
 
 ```ts
 type BunchMeta = {
@@ -208,7 +208,7 @@ function onMessage(message: string) {
 }
 ```
 
-If you ever want to extract all of a Position's dependencies for sending to another device, you can use `list.order.lex(position)` to convert it to a LexPosition (and `unlex` on the other side). Or, you can directly access the dependent BunchMetas using `list.order.getNodeFor(position).ancestors().map(node => node.meta())`.
+If you ever want to extract all of a Position's dependencies for sending to another device, you can use `list.order.lex(position)` to convert it to a LexPosition (and `unlex` on the other side). Or, you can directly obtain the dependent BunchMetas using `list.order.getNodeFor(position).ancestors().map(node => node.meta())`.
 
 > Errors you might get if you mis-manage metadata:
 >
@@ -340,9 +340,9 @@ const list = new List(order);
 
 #### Interface `BunchNode`
 
-An Order's internal tree node corresponding to a [bunch](#bunches).
+An Order's internal tree node corresponding to a [bunch](#bunches) of Positions.
 
-You can access a bunch's BunchNode to get info about its metadata, using the `meta()` and `ancestors()` methods. For [Advanced](#advanced) usage, BunchNode also gives low-level access to an Order's tree of bunches.
+You can access a bunch's BunchNode to retrieve its dependent metadata, using the `meta()` and `ancestors()` methods. For [Advanced](#advanced) usage, BunchNode also gives low-level access to an Order's tree of bunches.
 
 Obtain BunchNodes using `Order.getNode` or `Order.getNodeFor`.
 
