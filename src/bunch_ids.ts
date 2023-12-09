@@ -78,7 +78,7 @@ export const BunchIDs = {
   },
 
   /**
-   * Don't use as newNodeID - call usingReplicaID instead.
+   * Don't use as newBunchID - call usingReplicaID instead.
    *
    * @param options.chars Get approx log_2(chars.length) entropy per length.
    * Only first 256 values are used.

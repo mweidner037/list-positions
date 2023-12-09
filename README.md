@@ -342,7 +342,9 @@ const list = new List(order);
 
 An Order's internal tree node corresponding to a [bunch](#bunches).
 
-For [Advanced](#advanced) usage only, this utility gives low-level access to an Order's tree of bunches. Obtain with `Order.getNode` or `Order.getNodeFor`.
+You can access a bunch's BunchNode to get info about its metadata, using the `meta()` and `ancestors()` methods. For [Advanced](#advanced) usage, BunchNode also gives low-level access to an Order's tree of bunches.
+
+Obtain BunchNodes using `Order.getNode` or `Order.getNodeFor`.
 
 ## Performance
 

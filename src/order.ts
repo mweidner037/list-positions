@@ -92,7 +92,7 @@ class NodeInternal implements BunchNode {
 }
 
 export class Order {
-  private readonly newNodeID: () => string;
+  private readonly newBunchID: () => string;
 
   readonly rootNode: BunchNode;
 
@@ -110,11 +110,11 @@ export class Order {
 
   /**
    *
-   * @param options.newNodeID Function that returns a globally unique new
+   * @param options.newBunchID Function that returns a globally unique new
    * node ID, used for our created node's IDs. Default: `NodeIDs.usingReplicaID()`.
    */
-  constructor(options?: { newNodeID?: () => string }) {
-    this.newNodeID = options?.newNodeID ?? BunchIDs.usingReplicaID();
+  constructor(options?: { newBunchID?: () => string }) {
+    this.newBunchID = options?.newBunchID ?? BunchIDs.usingReplicaID();
 
     this.rootNode = new NodeInternal(BunchIDs.ROOT, null, 0);
     this.tree.set(this.rootNode.bunchID, this.rootNode);
@@ -443,13 +443,13 @@ export class Order {
     }
 
     const createdNodeMeta: BunchMeta = {
-      bunchID: this.newNodeID(),
+      bunchID: this.newBunchID(),
       parentID: newNodeParent.bunchID,
       offset: newNodeOffset,
     };
     if (this.tree.has(createdNodeMeta.bunchID)) {
       throw new Error(
-        `newNodeID() returned node ID that already exists: ${createdNodeMeta.bunchID}`
+        `newBunchID() returned node ID that already exists: ${createdNodeMeta.bunchID}`
       );
     }
 
