@@ -118,7 +118,7 @@ type ListSavedState<T> = {
   // The sparse array alternates between "runs" of present and deleted
   // values. Each even index is an array of present values; each odd
   // index is a count of deleted values.
-  // E.g. [["a", "b"], 3, ["c"]] -> ["a", "b", null, null, null, "c"].
+  // E.g. [["a", "b"], 3, ["c"]] means ["a", "b", null, null, null, "c"].
   [bunchID: string]: (T[] | number)[];
 };
 ```
@@ -158,6 +158,7 @@ Here are some scenarios, in order of difficulty.
 
 **Single session, multiple Lists** Suppose you have multiple Lists in the same session (JavaScript runtime). E.g., a rich-text document might be represented as a List of characters and a List of formatting info. Then it suffices for those Lists to share an Order instance: `const list2 = new List(list1.order)`.
 
+<a id="save-load"></a>
 **Single user, multiple sessions** Consider a single-user app that saves and loads a List to disk. Then you must also save and load the List's Order:
 
 ```ts
@@ -178,6 +179,7 @@ function load<T>(savedState: string): List<T> {
 }
 ```
 
+<a id="createdBunch"></a>
 **Multiple users** The most complicated scenarios involve multiple users and a single list order, e.g., a collaborative text editor. Any time a user creates a new Position by calling `list.insertAt`, `list.insert`, or `list.order.createPositions`, they might create a new bunch. The new bunch will be returned; you must distribute its BunchMeta before/together with the new Position. For example:
 
 ```ts
@@ -191,7 +193,7 @@ if (createdBunch !== null) {
 broadcast(JSON.stringify({ type: "set", position, value: "x" }));
 
 // Alt: Use an Order.onCreatedBunch callback.
-// list.order.onCreatedBunch = (createdBunch) => { ... }
+// list.order.onCreatedBunch = (createdBunch) => { /* Broadcast createdBunch.meta()... */ }
 
 // When a user receives a message:
 function onMessage(message: string) {
@@ -251,13 +253,13 @@ This section gives a high-level overview of the library's exports. The implement
 
 A list of values of type `T`, represented as an ordered map with [Position](#position) keys.
 
-Its API is a hybrid between `Array<T>` and `Map<Position, T>`. Use `insertAt` or `insert` to insert new values into the list in the style of `Array.splice`.
+List's API is a hybrid between `Array<T>` and `Map<Position, T>`. Use `insertAt` or `insert` to insert new values into the list in the style of `Array.splice`.
 
 #### `Order`
 
 A total order on [Positions](#position), independent of any specific assignment of values.
 
-An Order manages metadata (bunches) for any number of Lists and LexLists. You can also use an Order to create Positions independent of a List (`createPositions`), convert between Positions and LexPositions (`lex` and `unlex`), and directly view the tree of bunches (`getBunch`, `getBunchFor`).
+An Order manages metadata (bunches) for any number of Lists, LexLists, and Outlines. You can also use an Order to create Positions independent of a List (`createPositions`), convert between Positions and LexPositions (`lex` and `unlex`), and directly view the tree of bunches (`getBunch`, `getBunchFor`).
 
 Static utilities include `Order.MIN_POSITION` and `Order.MAX_POSITION`.
 
@@ -265,13 +267,13 @@ Static utilities include `Order.MIN_POSITION` and `Order.MAX_POSITION`.
 
 An outline for a list of values. It represents an ordered map with [Position](#type-position) keys, but unlike [List](#class-listt), it only tracks which Positions are present - not their associated values.
 
-Outline is useful when you are already storing a list's values in a different sequence data structure, but still need to convert between Positions and list indices.
+Outline is useful when you are already storing a list's values in a different sequence data structure, but you still need to convert between Positions and list indices.
 
 #### `LexList<T>`
 
 A list of values of type `T`, represented as an ordered map with [LexPosition](#type-lexposition) keys.
 
-Its API is a hybrid between `Array<T>` and `Map<LexPosition, T>`. Use `insertAt` or `insert` to insert new values into the list in the style of `Array.splice`.
+LexList's API is a hybrid between `Array<T>` and `Map<LexPosition, T>`. Use `insertAt` or `insert` to insert new values into the list in the style of `Array.splice`.
 
 ### Types
 

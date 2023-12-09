@@ -5,24 +5,45 @@ import { Order } from "./order";
 import { Position } from "./position";
 
 /**
- * TODO: Explain format (double-map to alternating present, deleted
- * counts, starting with present (maybe 0)). JSON ordering guarantees.
+ * A JSON-serializable saved state for an Outline.
+ *
+ * To save an Outline's current state, call `outline.save()`. You can then call
+ * `outline2.load(savedState)` to load that state into a different Outline `outline2`,
+ * possibly in a different session or on a different device.
+ *
+ * **Before loading a saved state, you must deliver its dependent metadata
+ * to the Outline's Order** - e.g., by also saving and loading the Order's state
+ * ([example](https://github.com/mweidner037/position-structs#save-load)).
+ *
+ * ## Format
+ *
+ * For advanced usage, you may read and write OutlineSavedStates directly.
+ *
+ * The format is: For each [bunch](https://github.com/mweidner037/position-structs#bunches)
+ * with Positions present in the Outline, map the bunch's ID to a sparse array
+ * representing the map
+ * ```
+ * innerIndex -> (true if Position { bunchID, innerIndex } is present).
+ * ```
+ * bunchID keys are in no particular order.
+ *
+ * Each sparse array of type `number[]` alternates between "runs" of present and deleted
+ * values. Each even index is a count of present values; each odd
+ * index is a count of deleted values.
+ * E.g. `[2, 3, 1]` means `[true, true, null, null, null, true]`.
  */
 export type OutlineSavedState = {
   [bunchID: string]: number[];
 };
 
-function cloneItems(items: number[]): number[] {
-  // Defensive copy
-  return items.slice();
-}
-
 /**
- * Like List, but doesn't track values. Instead, tracks which are present and
- * converts between indexes and Positions.
+ * An outline for a list of values. It represents an ordered map with Position keys, but unlike List,
+ * it only tracks which Positions are present - not their associated values.
  *
- * Can use this to save memory when you have values in separate list-like
- * data structure, e.g., a rich-text editor's internal representation.
+ * See [List, Position, and Order](https://github.com/mweidner037/position-structs#list-position-and-order) in the readme.
+ *
+ * Outline is useful when you are already storing a list's values in a different sequence data structure,
+ * but you still need to convert between Positions and list indices.
  */
 export class Outline {
   readonly order: Order;
@@ -74,9 +95,9 @@ export class Outline {
    * in the same BunchNode. Note these might not be contiguous anymore,
    * unless they are new (no causally-future Positions set yet).
    * @param startPos
-   * @param sameNodeValues
+   * @param sameBunchValues
    */
-  set(startPos: Position, sameNodeCount?: number): void;
+  set(startPos: Position, sameBunchCount?: number): void;
   set(startPos: Position, count = 1): void {
     // TODO: return existing.save()? Likewise in delete, setAt?, deleteAt?
     this.itemList.set(startPos, count);
@@ -90,7 +111,7 @@ export class Outline {
    * it was initially present.
    */
   delete(pos: Position): void;
-  delete(startPos: Position, sameNodeCount?: number): void;
+  delete(startPos: Position, sameBunchCount?: number): void;
   delete(startPos: Position, count = 1): void {
     this.itemList.delete(startPos, count);
   }
@@ -118,7 +139,7 @@ export class Outline {
     this.itemList.clear();
   }
 
-  insert(prevPos: Position): [pos: Position, createdNode: BunchNode | null];
+  insert(prevPos: Position): [pos: Position, createdBunch: BunchNode | null];
   /**
    *
    * @param index
@@ -127,15 +148,15 @@ export class Outline {
   insert(
     prevPos: Position,
     count?: number
-  ): [startPos: Position, createdNode: BunchNode | null];
+  ): [startPos: Position, createdBunch: BunchNode | null];
   insert(
     prevPos: Position,
     count = 1
-  ): [startPos: Position, createdNode: BunchNode | null] {
+  ): [startPos: Position, createdBunch: BunchNode | null] {
     return this.itemList.insert(prevPos, count);
   }
 
-  insertAt(index: number): [pos: Position, createdNode: BunchNode | null];
+  insertAt(index: number): [pos: Position, createdBunch: BunchNode | null];
   /**
    *
    * @param index
@@ -144,11 +165,11 @@ export class Outline {
   insertAt(
     index: number,
     count?: number
-  ): [startPos: Position, createdNode: BunchNode | null];
+  ): [startPos: Position, createdBunch: BunchNode | null];
   insertAt(
     index: number,
     count = 1
-  ): [startPos: Position, createdNode: BunchNode | null] {
+  ): [startPos: Position, createdBunch: BunchNode | null] {
     return this.itemList.insertAt(index, count);
   }
 
@@ -285,4 +306,9 @@ export class Outline {
   load(savedState: OutlineSavedState): void {
     this.itemList.load(savedState, cloneItems);
   }
+}
+
+function cloneItems(items: number[]): number[] {
+  // Defensive copy
+  return items.slice();
 }

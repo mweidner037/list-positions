@@ -12,3 +12,9 @@ Idea of rewriting LexUtils in another lang (esp simple).
 Idea of in-order database queries w/o LexPosition inefficiency.
 
 Also update BunchNode docs to describe offset etc.
+
+Root positions (min and max only - others invalid). Likewise, only offset 1 is valid for children. Ref errors for searchers.
+
+    // TODO: in tree structure (?): doc senderID sort different from Fugue:
+    // same-as-parent last. Would like first (as in Collabs), but trickier, esp
+    // in lex rep (need reverse lex numbers).

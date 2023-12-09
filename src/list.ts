@@ -5,39 +5,44 @@ import { Order } from "./order";
 import { Position } from "./position";
 
 /**
- * TODO: Explain format (double-map to alternating present values, deleted
- * counts, starting with present (maybe [])). JSON ordering guarantees.
+ * A JSON-serializable saved state for a `List<T>`.
+ *
+ * To save a List's current state, call `list.save()`. You can then call
+ * `list2.load(savedState)` to load that state into a different List `list2`,
+ * possibly in a different session or on a different device.
+ *
+ * **Before loading a saved state, you must deliver its dependent metadata
+ * to the List's Order** - e.g., by also saving and loading the Order's state
+ * ([example](https://github.com/mweidner037/position-structs#save-load)).
+ *
+ * ## Format
+ *
+ * For advanced usage, you may read and write ListSavedStates directly.
+ *
+ * The format is: For each [bunch](https://github.com/mweidner037/position-structs#bunches)
+ * with Positions present in the List, map the bunch's ID to a sparse array
+ * representing the map
+ * ```
+ * innerIndex -> (value at Position { bunchID, innerIndex }).
+ * ```
+ * bunchID keys are in no particular order.
+ *
+ * Each sparse array of type `(T[] | number)[]` alternates between "runs" of present and deleted
+ * values. Each even index is an array of present values; each odd
+ * index is a count of deleted values.
+ * E.g. `[["a", "b"], 3, ["c"]]` means `["a", "b", null, null, null, "c"]`.
  */
 export type ListSavedState<T> = {
   [bunchID: string]: (T[] | number)[];
 };
 
-function cloneItems<T>(items: SparseItems<T[]>): SparseItems<T[]> {
-  // Defensive deep copy
-  const copy = new Array<T[] | number>(items.length);
-  for (let i = 0; i < items.length; i++) {
-    if (i % 2 === 0) copy[i] = (items[i] as T[]).slice();
-    else copy[i] = items[i];
-  }
-  return copy;
-}
-
 /**
- * A local (non-collaborative) data structure mapping [[Position]]s to
- * values, in list order.
+ * A list of values of type `T`, represented as an ordered map with Position keys.
  *
- * You can use a LocalList to maintain a sorted, indexable view of a
- * [[CValueList]], [[CList]], or [[CText]]'s values.
- * For example, when using a [[CList]],
- * you could store its archived values in a LocalList.
- * That would let you iterate over the archived values in list order.
+ * See [List, Position, and Order](https://github.com/mweidner037/position-structs#list-position-and-order) in the readme.
  *
- * To construct a LocalList that uses an existing list's positions, pass
- * that list's `totalOrder` to our constructor.
- *
- * It is *not* safe to modify a LocalList while iterating over it. The iterator
- * will attempt to throw an exception if it detects such modification,
- * but this is not guaranteed.
+ * List's API is a hybrid between `Array<T>` and `Map<Position, T>`.
+ * Use `insertAt` or `insert` to insert new values into the list in the style of `Array.splice`.
  *
  * @typeParam T The value type.
  */
@@ -94,9 +99,9 @@ export class List<T> {
    * in the same BunchNode. Note these might not be contiguous anymore,
    * unless they are new (no causally-future Positions set yet).
    * @param startPos
-   * @param sameNodeValues
+   * @param sameBunchValues
    */
-  set(startPos: Position, ...sameNodeValues: T[]): void;
+  set(startPos: Position, ...sameBunchValues: T[]): void;
   set(startPos: Position, ...values: T[]): void {
     // TODO: return existing.save()? Likewise in delete, setAt?, deleteAt?
     this.itemList.set(startPos, values);
@@ -119,7 +124,7 @@ export class List<T> {
    * it was initially present.
    */
   delete(pos: Position): void;
-  delete(startPos: Position, sameNodeCount?: number): void;
+  delete(startPos: Position, sameBunchCount?: number): void;
   delete(startPos: Position, count = 1): void {
     this.itemList.delete(startPos, count);
   }
@@ -149,12 +154,12 @@ export class List<T> {
   insert(
     prevPos: Position,
     value: T
-  ): [pos: Position, createdNode: BunchNode | null];
+  ): [pos: Position, createdBunch: BunchNode | null];
   /**
    *
    * @param prevPos
    * @param values
-   * @returns [ first value's new position, createdNode if created by Order ].
+   * @returns [ first value's new position, createdBunch if created by Order ].
    * If values.length > 1, their positions start at pos using the same BunchNode
    * with increasing innerIndex.
    * @throws If prevPos is Order.MAX_POSITION.
@@ -163,11 +168,11 @@ export class List<T> {
   insert(
     prevPos: Position,
     ...values: T[]
-  ): [startPos: Position, createdNode: BunchNode | null];
+  ): [startPos: Position, createdBunch: BunchNode | null];
   insert(
     prevPos: Position,
     ...values: T[]
-  ): [startPos: Position, createdNode: BunchNode | null] {
+  ): [startPos: Position, createdBunch: BunchNode | null] {
     return this.itemList.insert(prevPos, values);
   }
 
@@ -181,15 +186,15 @@ export class List<T> {
   insertAt(
     index: number,
     value: T
-  ): [pos: Position, createdNode: BunchNode | null];
+  ): [pos: Position, createdBunch: BunchNode | null];
   insertAt(
     index: number,
     ...values: T[]
-  ): [startPos: Position, createdNode: BunchNode | null];
+  ): [startPos: Position, createdBunch: BunchNode | null];
   insertAt(
     index: number,
     ...values: T[]
-  ): [startPos: Position, createdNode: BunchNode | null] {
+  ): [startPos: Position, createdBunch: BunchNode | null] {
     return this.itemList.insertAt(index, values);
   }
 
@@ -355,7 +360,7 @@ export class List<T> {
    * guarantees.
    */
   save(): ListSavedState<T> {
-    return this.itemList.save(cloneItems);
+    return this.itemList.save(deepCloneItems);
   }
 
   /**
@@ -373,6 +378,16 @@ export class List<T> {
    * [[save]] call.
    */
   load(savedState: ListSavedState<T>): void {
-    this.itemList.load(savedState, cloneItems);
+    this.itemList.load(savedState, deepCloneItems);
   }
+}
+
+function deepCloneItems<T>(items: SparseItems<T[]>): SparseItems<T[]> {
+  // Defensive deep copy
+  const copy = new Array<T[] | number>(items.length);
+  for (let i = 0; i < items.length; i++) {
+    if (i % 2 === 0) copy[i] = (items[i] as T[]).slice();
+    else copy[i] = items[i];
+  }
+  return copy;
 }

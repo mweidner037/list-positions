@@ -184,7 +184,7 @@ export class ItemList<I, T> {
    *
    * @param prevPos
    * @param values
-   * @returns [ first value's new position, createdNode if created by Order ].
+   * @returns [ first value's new position, createdBunch if created by Order ].
    * If item.length > 1, their positions start at pos using the same BunchNode
    * with increasing innerIndex.
    * @throws If prevPos is Order.MAX_POSITION.
@@ -193,7 +193,7 @@ export class ItemList<I, T> {
   insert(
     prevPos: Position,
     item: I
-  ): [startPos: Position, createdNode: BunchNode | null] {
+  ): [startPos: Position, createdBunch: BunchNode | null] {
     // OPT: find nextPos without getting index, at least in common cases.
     const nextIndex = this.indexOfPosition(prevPos, "left") + 1;
     const nextPos =
@@ -220,7 +220,7 @@ export class ItemList<I, T> {
   insertAt(
     index: number,
     item: I
-  ): [startPos: Position, createdNode: BunchNode | null] {
+  ): [startPos: Position, createdBunch: BunchNode | null] {
     const prevPos =
       index === 0 ? Order.MIN_POSITION : this.positionAt(index - 1);
     const nextPos =
