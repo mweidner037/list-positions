@@ -116,8 +116,12 @@ export interface BunchNode {
   ancestors(): BunchNode[];
 
   /**
-   * TODO Prefix of Positions & descendants. Can use LexUtils.combinePos to
-   * get LexPositions.
+   * Returns this bunch's *bunch prefix* - a string that embeds all of its
+   * dependencies (including its ancestors' BunchMetas), and that appears as a
+   * prefix of all of its LexPositions.
+   * 
+   * You can use LexUtils to convert between a LexPosition and its
+   * (bunch prefix, innerIndex) pair.
    */
   lexPrefix(): string;
 

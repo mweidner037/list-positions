@@ -4,7 +4,7 @@ import { Order } from "./order";
 import { LexPosition, Position } from "./position";
 
 export type LexListSavedState<T> = {
-  [nodePrefix: string]: (T[] | number)[];
+  [bunchPrefix: string]: (T[] | number)[];
 };
 
 /**
@@ -143,12 +143,12 @@ export class LexList<T> {
   }
 
   private lexAll(startPos: Position, count: number): LexPosition[] {
-    // Reuse the nodePrefix instead of calling lex on each position.
-    const nodePrefix = this.order.getNodeFor(startPos).lexPrefix();
+    // Reuse the bunchPrefix instead of calling lex on each position.
+    const bunchPrefix = this.order.getNodeFor(startPos).lexPrefix();
     const lexPositions = new Array<LexPosition>(count);
     for (let i = 0; i < count; i++) {
       lexPositions[i] = LexUtils.combinePos(
-        nodePrefix,
+        bunchPrefix,
         startPos.innerIndex + i
       );
     }
@@ -320,9 +320,9 @@ export class LexList<T> {
   load(savedState: LexListSavedState<T>): void {
     // OPT: loop over nodes directly, to avoid double-object.
     const listSavedState: LexListSavedState<T> = {};
-    for (const [nodePrefix, values] of Object.entries(savedState)) {
-      this.order.receive(LexUtils.splitNodePrefix(nodePrefix));
-      listSavedState[LexUtils.bunchIDFor(nodePrefix)] = values;
+    for (const [bunchPrefix, values] of Object.entries(savedState)) {
+      this.order.receive(LexUtils.splitBunchPrefix(bunchPrefix));
+      listSavedState[LexUtils.bunchIDFor(bunchPrefix)] = values;
     }
     this.list.load(listSavedState);
   }

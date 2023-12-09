@@ -97,7 +97,7 @@ class NodeInternal implements BunchNode {
   }
 
   lexPrefix(): string {
-    return LexUtils.combineNodePrefix(
+    return LexUtils.combineBunchPrefix(
       this.ancestors().map((node) => node.meta())
     );
   }
@@ -148,7 +148,7 @@ export class Order {
    * creates a new bunch.
    *
    * It is called with the same `createdBunch` that is returned by the createPositions call.
-   * Other collaborators will need to receive the createdBunch's BenchMeta before they can use
+   * Other collaborators will need to receive the createdBunch's BunchMeta before they can use
    * the new Positions; see [Managing Metadata](https://github.com/mweidner037/position-structs#createdBunch).
    */
   onCreateNode: ((createdBunch: BunchNode) => void) | undefined = undefined;
@@ -166,7 +166,8 @@ export class Order {
    * @param options.newBunchID Used to assign the bunchID when this Order creates a new
    * [bunch](https://github.com/mweidner037/position-structs#bunches) of Positions.
    * It must be *globally unique* among all Orders that share the same Positions,
-   * e.g., a UUID. Default: `BunchIDs.usingReplicaID()`, which uses a shorter
+   * e.g., a UUID. Also, it must satisfy the rules documented on `BunchIDs.validate`.
+   * Default: `BunchIDs.usingReplicaID()`, which uses a shorter
    * form of ID than UUIDs.
    */
   constructor(options?: { newBunchID?: () => string }) {
@@ -466,7 +467,7 @@ export class Order {
    *
    * Sometimes, creating new Positions will create a new [bunch](https://github.com/mweidner037/position-structs#bunches).
    * In that case, its BunchNode is returned as the second value.
-   * Other collaborators will need to receive its BenchMeta before they can use
+   * Other collaborators will need to receive its BunchMeta before they can use
    * the new Positions; see [Managing Metadata](https://github.com/mweidner037/position-structs#createdBunch).
    *
    * When count > 1, the new Positions all use the same bunch, with sequential
@@ -679,11 +680,11 @@ export class Order {
    * from lexPos and delivered to `this.receive` internally if needed.
    */
   unlex(lexPos: LexPosition): Position {
-    const [nodePrefix, innerIndex] = LexUtils.splitPos(lexPos);
-    const bunchID = LexUtils.bunchIDFor(nodePrefix);
+    const [bunchPrefix, innerIndex] = LexUtils.splitPos(lexPos);
+    const bunchID = LexUtils.bunchIDFor(bunchPrefix);
     if (!this.tree.has(bunchID)) {
       // Receive the node.
-      this.receive(LexUtils.splitNodePrefix(nodePrefix));
+      this.receive(LexUtils.splitBunchPrefix(bunchPrefix));
     }
     // Else we skip checking agreement with the existing node, for efficiency.
 

@@ -2,12 +2,34 @@ import type { BunchMeta } from "./bunch";
 import { BunchIDs } from "./bunch_ids";
 import type { LexPosition } from "./position";
 
+/**
+ * Utilities for manipulating LexPositions.
+ */
 export const LexUtils = {
+  /**
+   * The minimum LexPosition in any Order.
+   *
+   * This LexPosition is defined to be less than all other LexPositions.
+   * It is equivalent to Order.MIN_POSITION.
+   *
+   * Copy of Order.MIN_LEX_POSITION.
+   */
   MIN_LEX_POSITION: "" as LexPosition,
+  /**
+   * The maximum LexPosition in any Order.
+   *
+   * This LexPosition is defined to be greater than all other LexPositions.
+   * It is equivalent to Order.MAX_POSITION.
+   *
+   * Copy of Order.MAX_LEX_POSITION.
+   */
   MAX_LEX_POSITION: "~" as LexPosition,
 
-  combinePos(nodePrefix: string, innerIndex: number): LexPosition {
-    if (nodePrefix === "") {
+  /**
+   * Combines a bunch prefix (see LexUtils.splitPos) and `innerIndex` into a LexPosition.
+   */
+  combinePos(bunchPrefix: string, innerIndex: number): LexPosition {
+    if (bunchPrefix === "") {
       // Root node.
       if (innerIndex === 0) return this.MIN_LEX_POSITION;
       if (innerIndex === 1) return this.MAX_LEX_POSITION;
@@ -15,10 +37,25 @@ export const LexUtils = {
         `Position uses rootNode but is not MIN_POSITION or MAX_POSITION (innerIndex 0 or 1): innerIndex=${innerIndex}`
       );
     }
-    return nodePrefix + "," + encodeInnerIndex(innerIndex);
+    return bunchPrefix + "," + encodeInnerIndex(innerIndex);
   },
 
-  splitPos(lexPos: LexPosition): [nodePrefix: string, innerIndex: number] {
+  /**
+   * Splits a LexPosition into its `innerIndex` and a *bunch prefix* - a string
+   * that embeds all of its bunch's dependencies (including its ancestors' BunchMetas), and that appears as a
+   * prefix of all of its LexPositions.
+   *
+   * This decomposition is the LexPosition analog of Position's obvious decomposition
+   * ```ts
+   * type Position = {
+   *   bunchID: string;
+   *   innerIndex: number;
+   * };
+   * ```
+   *
+   * Recombine with LexUtils.combine.
+   */
+  splitPos(lexPos: LexPosition): [bunchPrefix: string, innerIndex: number] {
     if (lexPos === this.MIN_LEX_POSITION) return ["", 0];
     if (lexPos === this.MAX_LEX_POSITION) return ["", 1];
     const lastComma = lexPos.lastIndexOf(",");
@@ -31,7 +68,16 @@ export const LexUtils = {
     ];
   },
 
-  combineNodePrefix(metas: BunchMeta[]): string {
+  /**
+   * Returns a bunch's prefix (see LexUtils.splitPos), given the
+   * BunchMetas of its ancestors in order from
+   * the root downwards (excluding the root and including the bunch, unless root).
+   * 
+   * Usually you will just call `bunchNode.lexPrefix()` to get a bunch's prefix.
+   * This function is instead meant as a reference for working with LexPositions
+   * in other languages.
+   */
+  combineBunchPrefix(metas: BunchMeta[]): string {
     if (metas.length === 0) return "";
 
     const parts = new Array<string>(metas.length);
@@ -58,10 +104,16 @@ export const LexUtils = {
     return parts.join(",");
   },
 
-  splitNodePrefix(nodePrefix: string): BunchMeta[] {
-    if (nodePrefix === "") return [];
+  /**
+   * Splits a bunch prefix (see LexUtils.splitPos) into its embedded BunchMetas.
+   *
+   * These are the BunchMetas of the original bunch and all of its ancestors,
+   * excluding the root, in order from the root downwards. It is equivalent to `bunchNode.ancestors().map(node => node.meta())`.
+   */
+  splitBunchPrefix(bunchPrefix: string): BunchMeta[] {
+    if (bunchPrefix === "") return [];
 
-    const parts = nodePrefix.split(",");
+    const parts = bunchPrefix.split(",");
     const metas: BunchMeta[] = [];
     // First part is child of the root; no offset string.
     metas.push({
@@ -77,7 +129,7 @@ export const LexUtils = {
       const dot = parts[i].indexOf(".");
       if (dot === -1) {
         throw new Error(
-          `Bad nodePrefix format; did you pass a LexPosition instead? (nodePrefix="${nodePrefix}", missing "." in part ${parts[i]})`
+          `Bad bunchPrefix format; did you pass a LexPosition instead? (bunchPrefix="${bunchPrefix}", missing "." in part ${parts[i]})`
         );
       }
       const id = parts[i].slice(dot + 1);
@@ -91,20 +143,23 @@ export const LexUtils = {
     return metas;
   },
 
-  bunchIDFor(nodePrefix: string): string {
-    if (nodePrefix === "") return BunchIDs.ROOT;
+  /**
+   * Given a bunch's prefix, returns its bunchID.
+   */
+  bunchIDFor(bunchPrefix: string): string {
+    if (bunchPrefix === "") return BunchIDs.ROOT;
 
-    const lastComma = nodePrefix.lastIndexOf(",");
+    const lastComma = bunchPrefix.lastIndexOf(",");
     if (lastComma === -1) {
       // Child of root; prefix is just bunchID.
-      return nodePrefix;
+      return bunchPrefix;
     } else {
       // lastPart is "offset.bunchID".
-      const lastPart = nodePrefix.slice(lastComma + 1);
+      const lastPart = bunchPrefix.slice(lastComma + 1);
       const dot = lastPart.indexOf(".");
       if (dot === -1) {
         throw new Error(
-          `Invalid nodePrefix; did you pass a LexPosition instead? (nodePrefix="${nodePrefix}", missing "." in part ${lastPart})`
+          `Invalid bunchPrefix; did you pass a LexPosition instead? (bunchPrefix="${bunchPrefix}", missing "." in part ${lastPart})`
         );
       }
       return lastPart.slice(dot + 1);
@@ -119,7 +174,7 @@ function encodeOffset(offset: number): string {
 function decodeOffset(encoded: string): number {
   const seq = Number.parseInt(encoded, BASE);
   if (isNaN(seq)) {
-    throw new Error(`Invalid nodePrefix: bad offset "${encoded}"`);
+    throw new Error(`Invalid bunchPrefix: bad offset "${encoded}"`);
   }
   return sequenceInv(seq);
 }

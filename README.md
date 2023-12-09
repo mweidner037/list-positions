@@ -309,7 +309,7 @@ Convert indices to cursors and back using methods `cursorAt` and `indexOfCursor`
 
 Utilities for manipulating [LexPositions](#lexlist-and-lexposition).
 
-For example, `LexUtils.splitPos` and `LexUtils.combinePos` let you split a LexPosition into its `innerIndex` and _bunch prefix_ - a string that embeds all of a bunch's dependencies (including its ancestors' BunchMetas). That lets you store a LexList's map `(LexPosition -> value)` almost as [compactly](#compact-list) as a List's map `(Position -> value)` while still embedding all metadata. E.g., use a double map
+For example, `LexUtils.splitPos` and `LexUtils.combinePos` let you split a LexPosition into its `innerIndex` and a _bunch prefix_ - a string that embeds all of its bunch's dependencies (including its ancestors' BunchMetas). That lets you store a LexList's map `(LexPosition -> value)` almost as [compactly](#compact-list) as a List's map `(Position -> value)` while still embedding all metadata. E.g., use a double map
 
 ```ts
 {
@@ -319,7 +319,7 @@ For example, `LexUtils.splitPos` and `LexUtils.combinePos` let you split a LexPo
 };
 ```
 
-TODO: also can get from `order.getBunch(bunchID).lexPrefix()`.
+(You can also obtain a bunch's prefix from its BunchNode using the `lexPrefix()` method - e.g., `order.getBunch(bunchID)!.lexPrefix()`.)
 
 LexUtil's [source code](./src/lex_utils.ts) is deliberately simple and dependency-less, so that you can easily re-implement it in another language. That way, you can manipulate LexPositions on a non-JavaScript backend - e.g., generate new LexPositions when a server programmatically inserts text.
 
