@@ -6,3 +6,5 @@ docs
 .idea/
 *.tsbuildinfo
 benchmark_results
+.nyc_output
+coverage
