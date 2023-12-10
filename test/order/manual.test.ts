@@ -166,6 +166,27 @@ function testSingleUser(replicaID: string) {
 
     testUniqueAfterDelete(list, alice);
   });
+
+  it("bulk vs sequential", () => {
+    // One way to create bulk positions: one createPositions call.
+    const [startPos] = alice.createPositions(
+      Order.MIN_POSITION,
+      Order.MAX_POSITION,
+      100
+    );
+    const list1 = Order.startPosToArray(startPos, 100);
+    // 2nd way to create bulk positions: series of calls.
+    const alice2 = new Order({
+      newBunchID: BunchIDs.usingReplicaID(replicaID),
+    });
+    const list2: Position[] = [];
+    let previous = Order.MIN_POSITION;
+    for (let i = 0; i < 100; i++) {
+      [previous] = alice2.createPositions(previous, Order.MAX_POSITION, 1);
+      list2.push(previous);
+    }
+    assert.deepStrictEqual(list2, list1);
+  });
 }
 
 function testTwoUsers(replicaID1: string, replicaID2: string) {

@@ -322,16 +322,16 @@ export class SparseItemsManager<I, T> {
       if (startRemaining < length) {
         // Act as if startIndex is at item[startRemaining].
         // (It may be earlier, but then countRemaining is adjusted to compensate.)
+        const searchedLength = length - startRemaining;
         if (i % 2 === 0) {
           // Search the rest of items[i].
-          const searchedLength = length - startRemaining;
           if (countRemaining < searchedLength) {
             return ans + countRemaining;
           } else {
             countRemaining -= searchedLength;
-            ans += searchedLength;
           }
         }
+        ans += searchedLength;
         // Record that we've passed start.
         startRemaining = 0;
       } else startRemaining -= length;

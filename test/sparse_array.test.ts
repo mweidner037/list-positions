@@ -338,5 +338,11 @@ describe("Sparse Array", () => {
         if (i % 20 === 0) checker.testQueries(rng);
       }
     });
+
+    test("first deleted", () => {
+      // Values [null, "x"].
+      const [items] = man.set(man.new(), 1, ["x"]);
+      assert.strictEqual(man.findPresentIndex(items, 0, 0), 1);
+    });
   });
 });

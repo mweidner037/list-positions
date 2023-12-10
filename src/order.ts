@@ -101,7 +101,7 @@ class NodeInternal implements BunchNode {
   toString() {
     // Similar to BunchMeta, but valid for rootNode as well.
     return JSON.stringify({
-      id: this.bunchID,
+      bunchID: this.bunchID,
       parentID: this.parent === null ? null : this.parent.bunchID,
       offset: this.offset,
     });

@@ -145,7 +145,7 @@ export class ItemList<I, T> {
         current !== null;
         current = current.parent
       ) {
-        const data = this.getOrCreateData(node);
+        const data = this.getOrCreateData(current);
         data.total += delta;
         if (data.total === 0) this.state.delete(current);
       }
@@ -253,7 +253,11 @@ export class ItemList<I, T> {
    * which would instead return undefined.
    */
   getAt(index: number): T {
-    return this.get(this.positionAt(index))!;
+    // TODO: revert
+    const pos = this.positionAt(index);
+    const ret = this.get(pos);
+    return ret!;
+    // return this.get(this.positionAt(index))!;
   }
 
   /**
@@ -334,7 +338,7 @@ export class ItemList<I, T> {
         current = current.parent
       ) {
         // Parent's values that come before current.
-        beforeNode += this.state.get(current.parent)?.parentValuesBefore ?? 0;
+        beforeNode += this.state.get(current)?.parentValuesBefore ?? 0;
         // Sibling nodes that come before current.
         for (let i = 0; i < current.parent.childrenLength; i++) {
           const child = current.parent.getChild(i);
@@ -380,41 +384,48 @@ export class ItemList<I, T> {
       // prev = previous child-with-data. We remember its values.
       let prevNextinnerIndex = 0;
       let prevParentValuesBefore = 0;
-      for (let i = 0; i < current.childrenLength; i++) {
-        const child = current.getChild(i);
-        const childData = this.state.get(child);
-        if (childData === undefined) continue; // No values in child
+      currentSearch: {
+        for (let i = 0; i < current.childrenLength; i++) {
+          const child = current.getChild(i);
+          const childData = this.state.get(child);
+          if (childData === undefined) continue; // No values in child
 
-        const valuesBetween =
-          childData.parentValuesBefore - prevParentValuesBefore;
-        if (remaining < valuesBetween) {
-          // The position is among current's values, between child and the
-          // previous child-with-data.
-          return {
-            bunchID: current.bunchID,
-            innerIndex: this.itemsMan.findPresentIndex(
-              currentData.values,
-              prevNextinnerIndex,
-              remaining
-            ),
-          };
-        } else {
-          remaining -= valuesBetween;
-          if (remaining < childData.total) {
-            // Recurse into child.
-            current = child;
-            // Breaks the for loop, taking us to the next iteration of while(true).
-            break;
-          } else remaining -= childData.total;
+          const valuesBetween =
+            childData.parentValuesBefore - prevParentValuesBefore;
+          if (remaining < valuesBetween) {
+            // The position is among current's values, between child and the
+            // previous child-with-data.
+            return {
+              bunchID: current.bunchID,
+              innerIndex: this.itemsMan.findPresentIndex(
+                currentData.values,
+                prevNextinnerIndex,
+                remaining
+              ),
+            };
+          } else {
+            remaining -= valuesBetween;
+            if (remaining < childData.total) {
+              // Recurse into child.
+              current = child;
+              break currentSearch;
+            } else remaining -= childData.total;
+          }
+
+          prevNextinnerIndex = child.nextInnerIndex;
+          prevParentValuesBefore = childData.parentValuesBefore;
         }
 
-        prevNextinnerIndex = child.nextInnerIndex;
-        prevParentValuesBefore = childData.parentValuesBefore;
+        // The position is among current's values, after all children.
+        return {
+          bunchID: current.bunchID,
+          innerIndex: this.itemsMan.findPresentIndex(
+            currentData.values,
+            prevNextinnerIndex,
+            remaining
+          ),
+        };
       }
-
-      // We should always end by the break statement (recursion), not by
-      // the for loop's finishing.
-      throw new Error("Internal error: failed to find index among children");
     }
   }
 
