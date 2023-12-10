@@ -1,12 +1,12 @@
 /**
- * Metadata for a [bunch](https://github.com/mweidner037/position-structs#bunches)
+ * Metadata for a [bunch](https://github.com/mweidner037/list-positions#bunches)
  * of Positions, as a JSON object.
  *
  * In scenarios with multiple related Lists (e.g., collaborative text editing),
  * you often need to use a Position with a List different from the List that
  * created it. Before doing so, you must call `list.order.receive` with the
  * BunchMeta corresponding to that Position's bunch and its ancestors.
- * See [Managing Metadata](https://github.com/mweidner037/position-structs#managing-metadata).
+ * See [Managing Metadata](https://github.com/mweidner037/list-positions#managing-metadata).
  *
  * @see Order.equalsBunchMeta Equality function for BunchMetas.
  */
@@ -23,7 +23,7 @@ export type BunchMeta = {
    * you must do so for the parent's BunchMeta, unless `parentID == "ROOT"`.
    *
    * Parent relations form a tree that is used to order
-   * this bunch's Positions. See [Internals](https://github.com/mweidner037/position-structs/tree/master/internals.md) for details.
+   * this bunch's Positions. See [Internals](https://github.com/mweidner037/list-positions/tree/master/internals.md) for details.
    */
   readonly parentID: string;
   /**
@@ -32,16 +32,16 @@ export type BunchMeta = {
    * Offsets are used by the tree to order the
    * bunch's Positions.
    * They are not necessarily assigned in counting order for a given parentID.
-   * See [Internals](https://github.com/mweidner037/position-structs/tree/master/internals.md) for details.
+   * See [Internals](https://github.com/mweidner037/list-positions/tree/master/internals.md) for details.
    */
   readonly offset: number;
 };
 
 /**
- * An Order's internal tree node corresponding to a [bunch](https://github.com/mweidner037/position-structs#bunches) of Positions.
+ * An Order's internal tree node corresponding to a [bunch](https://github.com/mweidner037/list-positions#bunches) of Positions.
  *
  * You can access a bunch's BunchNode to retrieve its dependent metadata, using the `meta()` and `ancestors()` methods.
- * For [Advanced](https://github.com/mweidner037/position-structs#advanced) usage,
+ * For [Advanced](https://github.com/mweidner037/list-positions#advanced) usage,
  * BunchNode also gives low-level access to an Order's tree of bunches.
  *
  * Obtain BunchNodes using `Order.getNode` or `Order.getNodeFor`.
@@ -106,7 +106,7 @@ export interface BunchNode {
   /**
    * Returns the ancestors of this node, up to but excluding the root,
    * in the order from the root downwards.
-   * 
+   *
    * You can use this method to obtain all of a Position's dependent BunchMetas.
    * E.g. starting from a List `list`:
    * ```ts
@@ -119,7 +119,7 @@ export interface BunchNode {
    * Returns this bunch's *bunch prefix* - a string that embeds all of its
    * dependencies (including its ancestors' BunchMetas), and that appears as a
    * prefix of all of its LexPositions.
-   * 
+   *
    * You can use LexUtils to convert between a LexPosition and its
    * (bunch prefix, innerIndex) pair.
    */
@@ -127,13 +127,13 @@ export interface BunchNode {
 
   /**
    * The number of child nodes in the Order's current tree.
-   * 
+   *
    * This may increase as more BunchMetas are delivered to `Order.receive`.
    */
   readonly childrenLength: number;
   /**
    * Returns the `index`-th child node in the Order's current tree.
-   * 
+   *
    * The children are in sort order, i.e., all of child 0's Positions are less
    * than all of child 1's Positions.
    * Note that some of this bunch's own Positions may be between between adjacent children,

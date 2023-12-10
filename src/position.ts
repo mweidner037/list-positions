@@ -6,7 +6,7 @@
  *
  * Type Position is used with the library's List and Outline data structures.
  * You can also work with Positions independent of a specific list using an Order.
- * See the [readme](https://github.com/mweidner037/position-structs#readme)
+ * See the [readme](https://github.com/mweidner037/list-positions#readme)
  * for details.
  *
  * See also:
@@ -16,11 +16,11 @@
  */
 export type Position = {
   /**
-   * The ID of the [bunch](https://github.com/mweidner037/position-structs#bunches) containing this Position.
+   * The ID of the [bunch](https://github.com/mweidner037/list-positions#bunches) containing this Position.
    */
   readonly bunchID: string;
   /**
-   * The index of this Position within its [bunch](https://github.com/mweidner037/position-structs#bunches).
+   * The index of this Position within its [bunch](https://github.com/mweidner037/list-positions#bunches).
    * A nonnegative integer.
    */
   readonly innerIndex: number;
@@ -31,10 +31,10 @@ export type Position = {
  *
  * LexPositions let you treat a list as an ordered map `(position -> value)`,
  * where a value's *position* doesn't change over time - unlike an array index.
- * 
+ *
  * The list order on LexPositions matches their lexicographic order as strings.
  * That makes it easy to work with LexPositions outside of this library, but it has a cost in metadata overhead.
- * See the [readme](https://github.com/mweidner037/position-structs#readme)
+ * See the [readme](https://github.com/mweidner037/list-positions#readme)
  * for details.
  *
  * See also:

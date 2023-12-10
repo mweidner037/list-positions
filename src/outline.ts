@@ -13,7 +13,7 @@ import { Position } from "./position";
  *
  * For advanced usage, you may read and write OutlineSavedStates directly.
  *
- * The format is: For each [bunch](https://github.com/mweidner037/position-structs#bunches)
+ * The format is: For each [bunch](https://github.com/mweidner037/list-positions#bunches)
  * with Positions present in the Outline, map the bunch's ID to a sparse array
  * representing the map
  * ```
@@ -34,7 +34,7 @@ export type OutlineSavedState = {
  * An outline for a list of values. It represents an ordered set of Positions. Unlike List,
  * it only tracks which Positions are present - not their associated values.
  *
- * See [Outline](https://github.com/mweidner037/position-structs#outline) in the readme.
+ * See [Outline](https://github.com/mweidner037/list-positions#outline) in the readme.
  *
  * Outline's API is a hybrid between `Array<Position>` and `Set<Position>`.
  * Use `insertAt` or `insert` to insert new Positions into the list in the style of `Array.splice`.
@@ -42,7 +42,7 @@ export type OutlineSavedState = {
 export class Outline {
   /**
    * The Order that manages this list's Positions and their metadata.
-   * See [Managing Metadata](https://github.com/mweidner037/position-structs#managing-metadata).
+   * See [Managing Metadata](https://github.com/mweidner037/list-positions#managing-metadata).
    */
   readonly order: Order;
   private readonly itemList: ItemList<number, true>;
@@ -88,7 +88,7 @@ export class Outline {
    */
   add(pos: Position): void;
   /**
-   * Adds a sequence of Positions within the same [bunch](https://github.com/mweidner037/position-structs#bunches).
+   * Adds a sequence of Positions within the same [bunch](https://github.com/mweidner037/list-positions#bunches).
    *
    * The Positions start at `startPos` and have the same `bunchID` but increasing `innerIndex`.
    * Note that these Positions might not be contiguous anymore, if later
@@ -108,7 +108,7 @@ export class Outline {
    */
   delete(pos: Position): void;
   /**
-   * Deletes a sequence of Positions within the same [bunch](https://github.com/mweidner037/position-structs#bunches).
+   * Deletes a sequence of Positions within the same [bunch](https://github.com/mweidner037/list-positions#bunches).
    *
    * The Positions start at `startPos` and have the same `bunchID` but increasing `innerIndex`.
    * Note that these Positions might not be contiguous anymore, if later
@@ -153,19 +153,19 @@ export class Outline {
    * In a collaborative setting, the new Position is *globally unique*, even
    * if other users call `Outline.insert` (or similar methods) concurrently.
    * 
-   * @returns [insertion Position, [created bunch's](https://github.com/mweidner037/position-structs#createdBunch) BunchNode (or null)].
+   * @returns [insertion Position, [created bunch's](https://github.com/mweidner037/list-positions#createdBunch) BunchNode (or null)].
    * @throws If prevPos is Order.MAX_POSITION.
    */
   insert(prevPos: Position): [pos: Position, createdBunch: BunchNode | null];
   /**
    * Inserts `count` new Positions just after prevPos.
    *
-   * The new Positions all use the same [bunch](https://github.com/mweidner037/position-structs#bunches), with sequential
+   * The new Positions all use the same [bunch](https://github.com/mweidner037/list-positions#bunches), with sequential
    * `innerIndex` (starting at the returned startPos).
    * They are originally contiguous, but may become non-contiguous in the future,
    * if new Positions are created between them.
    *
-   * @returns [starting Position, [created bunch's](https://github.com/mweidner037/position-structs#createdBunch) BunchNode (or null)].
+   * @returns [starting Position, [created bunch's](https://github.com/mweidner037/list-positions#createdBunch) BunchNode (or null)].
    * @throws If prevPos is Order.MAX_POSITION.
    * @throws If no values are provided.
    * @see Order.startPosToArray To convert (startPos, count) to an array of Positions.
@@ -190,19 +190,19 @@ export class Outline {
    * In a collaborative setting, the new Position is *globally unique*, even
    * if other users call `Outline.insertAt` (or similar methods) concurrently.
    *
-   * @returns [insertion Position, [created bunch's](https://github.com/mweidner037/position-structs#createdBunch) BunchNode (or null)].
+   * @returns [insertion Position, [created bunch's](https://github.com/mweidner037/list-positions#createdBunch) BunchNode (or null)].
    * @throws If index is not in `[0, this.length]`. The index `this.length` is allowed and will cause an append, unless this list's current last Position is Order.MAX_POSITION.
    */
   insertAt(index: number): [pos: Position, createdBunch: BunchNode | null];
   /**
    * Inserts `count` new Positions at `index` (i.e., between the values at `index - 1` and `index`).
    *
-   * The new Positions all use the same [bunch](https://github.com/mweidner037/position-structs#bunches), with sequential
+   * The new Positions all use the same [bunch](https://github.com/mweidner037/list-positions#bunches), with sequential
    * `innerIndex` (starting at the returned startPos).
    * They are originally contiguous, but may become non-contiguous in the future,
    * if new Positions are created between them.
    *
-   * @returns [insertion Position, [created bunch's](https://github.com/mweidner037/position-structs#createdBunch) BunchNode (or null)].
+   * @returns [insertion Position, [created bunch's](https://github.com/mweidner037/list-positions#createdBunch) BunchNode (or null)].
    * @throws If index is not in `[0, this.length]`. The index `this.length` is allowed and will cause an append, unless this list's current last Position is Order.MAX_POSITION.
    * @throws If count is 0.
    * @see Order.startPosToArray To convert (startPos, count) to an array of Positions.
@@ -270,7 +270,7 @@ export class Outline {
 
   /**
    * Returns the cursor at `index` within the list, i.e., between the positions at `index - 1` and `index`.
-   * See [Cursors](https://github.com/mweidner037/position-structs#cursors).
+   * See [Cursors](https://github.com/mweidner037/list-positions#cursors).
    *
    * Invert with indexOfCursor, possibly on a different List/Outline/LexList or a different device.
    */
@@ -334,7 +334,7 @@ export class Outline {
    * **Before loading a saved state, you must deliver its dependent metadata
    * to this.Order**. For example, you could save and load the Order's state
    * alongside the Outline's state, making sure to load the Order first.
-   * See [Managing Metadata](https://github.com/mweidner037/position-structs#save-load) for an example
+   * See [Managing Metadata](https://github.com/mweidner037/list-positions#save-load) for an example
    * with List (Outline is analogous).
    */
   load(savedState: OutlineSavedState): void {

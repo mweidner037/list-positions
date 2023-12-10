@@ -12,8 +12,8 @@ import { LexPosition, Position } from "./position";
  *
  * For advanced usage, you may read and write LexListSavedStates directly.
  *
- * The format is: For each [bunch](https://github.com/mweidner037/position-structs#bunches)
- * with LexPositions present in the LexList, map the [bunch's prefix](https://github.com/mweidner037/position-structs#bunch-prefix) to a sparse array
+ * The format is: For each [bunch](https://github.com/mweidner037/list-positions#bunches)
+ * with LexPositions present in the LexList, map the [bunch's prefix](https://github.com/mweidner037/list-positions#bunch-prefix) to a sparse array
  * representing the map
  * ```
  * innerIndex -> (value at Position { bunchID, innerIndex }).
@@ -32,7 +32,7 @@ export type LexListSavedState<T> = {
 /**
  * A list of values of type `T`, represented as an ordered map with LexPosition keys.
  *
- * See [LexList and LexPosition](https://github.com/mweidner037/position-structs#lexlist-and-lexposition) in the readme.
+ * See [LexList and LexPosition](https://github.com/mweidner037/list-positions#lexlist-and-lexposition) in the readme.
  *
  * LexList's API is a hybrid between `Array<T>` and `Map<LexPosition, T>`.
  * Use `insertAt` or `insert` to insert new values into the list in the style of `Array.splice`.
@@ -43,7 +43,7 @@ export class LexList<T> {
   /**
    * The Order that manages this list's Positions and their metadata.
    *
-   * Unlike with List and Outline, you do not need to [Manage Metadata](https://github.com/mweidner037/position-structs#managing-metadata)
+   * Unlike with List and Outline, you do not need to [Manage Metadata](https://github.com/mweidner037/list-positions#managing-metadata)
    * when using LexList. However, you can still access the Order
    * to convert between LexPositions and Positions (using `Order.lex` / `Order.unlex`)
    * or to share the Order with other data structures.
@@ -262,7 +262,7 @@ export class LexList<T> {
 
   /**
    * Returns the cursor at `index` within the list, i.e., between the positions at `index - 1` and `index`.
-   * See [Cursors](https://github.com/mweidner037/position-structs#cursors).
+   * See [Cursors](https://github.com/mweidner037/list-positions#cursors).
    *
    * Invert with indexOfCursor, possibly on a different List/Outline/LexList or a different device.
    */

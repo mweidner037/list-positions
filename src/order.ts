@@ -5,7 +5,7 @@ import { LexPosition, Position } from "./position";
 
 /**
  * A JSON-serializable saved state for an Order.
- * 
+ *
  * See Order.save and Order.load.
  *
  * ### Format
@@ -111,7 +111,7 @@ class NodeInternal implements BunchNode {
 /**
  * A total order on [Positions](#position), independent of any specific assignment of values.
  *
- * An Order manages metadata ([bunches](https://github.com/mweidner037/position-structs#bunches))
+ * An Order manages metadata ([bunches](https://github.com/mweidner037/list-positions#bunches))
  * for any number of Lists, LexLists, and Outlines.
  * You can also use an Order to create Positions independent of a List (`createPositions`),
  * convert between Positions and LexPositions
@@ -145,7 +145,7 @@ export class Order {
    *
    * It is called with the same `createdBunch` that is returned by the createPositions call.
    * Other collaborators will need to receive the createdBunch's BunchMeta before they can use
-   * the new Positions; see [Managing Metadata](https://github.com/mweidner037/position-structs#createdBunch).
+   * the new Positions; see [Managing Metadata](https://github.com/mweidner037/list-positions#createdBunch).
    */
   onCreateNode: ((createdBunch: BunchNode) => void) | undefined = undefined;
 
@@ -156,11 +156,11 @@ export class Order {
    * automatically share the same total order on Positions.
    * To share total orders between Order instances (possibly on different devices),
    * you will need to
-   * [Manage Metadata](https://github.com/mweidner037/position-structs#managing-metadata)
-   * or limit yourself to [LexList and LexPosition](https://github.com/mweidner037/position-structs#lexlist-and-lexposition).
+   * [Manage Metadata](https://github.com/mweidner037/list-positions#managing-metadata)
+   * or limit yourself to [LexList and LexPosition](https://github.com/mweidner037/list-positions#lexlist-and-lexposition).
    *
    * @param options.newBunchID Used to assign the bunchID when this Order creates a new
-   * [bunch](https://github.com/mweidner037/position-structs#bunches) of Positions.
+   * [bunch](https://github.com/mweidner037/list-positions#bunches) of Positions.
    * It must be *globally unique* among all Orders that share the same Positions,
    * e.g., a UUID. Also, it must satisfy the rules documented on `BunchIDs.validate`.
    * Default: `BunchIDs.usingReplicaID()`, which uses a shorter
@@ -189,7 +189,7 @@ export class Order {
    * Returns the BunchNode corresponding to the given Position's bunch.
    *
    * @throws If we have not received a BunchMeta for the Position's bunch; see
-   * [Managing Metadata](https://github.com/mweidner037/position-structs#managing-metadata).
+   * [Managing Metadata](https://github.com/mweidner037/list-positions#managing-metadata).
    * @throws If the Position is misformatted, e.g., it uses a negative `innerIndex`.
    */
   getNodeFor(pos: Position): BunchNode {
@@ -284,7 +284,7 @@ export class Order {
    *
    * Before using a Position with this Order or an associated List or Outline,
    * you must deliver its bunch's BunchMeta to this method.
-   * See [Managing Metadata](https://github.com/mweidner037/position-structs#managing-metadata).
+   * See [Managing Metadata](https://github.com/mweidner037/list-positions#managing-metadata).
    *
    * (You do not need to manage metadata when using LexPositions/LexList,
    * since LexPositions embed all of their metadata.)
@@ -466,7 +466,7 @@ export class Order {
    * They are originally contiguous, but may become non-contiguous in the future,
    * if new Positions are created between them.
    *
-   * @returns [starting Position, [created bunch's](https://github.com/mweidner037/position-structs#createdBunch) BunchNode (or null)].
+   * @returns [starting Position, [created bunch's](https://github.com/mweidner037/list-positions#createdBunch) BunchNode (or null)].
    * @throws If prevPos >= nextPos (i.e., `this.compare(prevPos, nextPos) >= 0`).
    * @see Order.startPosToArray To convert (startPos, count) to an array of Positions.
    */
@@ -742,7 +742,7 @@ export class Order {
 
   /**
    * Returns the array of Positions corresponding to a startPos and a count of
-   * Positions within the same [bunch](https://github.com/mweidner037/position-structs#bunches)
+   * Positions within the same [bunch](https://github.com/mweidner037/list-positions#bunches)
    * (with sequential `innerIndex`).
    *
    * You can use this method to expand on the startPos returned by

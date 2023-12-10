@@ -5,12 +5,12 @@
   "author": "Matthew Weidner",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/mweidner037/position-structs/issues"
+    "url": "https://github.com/mweidner037/list-positions/issues"
   },
-  "homepage": "https://github.com/mweidner037/position-structs/tree/master/#readme",
+  "homepage": "https://github.com/mweidner037/list-positions/tree/master/#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/mweidner037/position-structs.git"
+    "url": "git+https://github.com/mweidner037/list-positions.git"
   },
   "keywords": [
     "CRDT",

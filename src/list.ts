@@ -13,7 +13,7 @@ import { Position } from "./position";
  *
  * For advanced usage, you may read and write ListSavedStates directly.
  *
- * The format is: For each [bunch](https://github.com/mweidner037/position-structs#bunches)
+ * The format is: For each [bunch](https://github.com/mweidner037/list-positions#bunches)
  * with Positions present in the List, map the bunch's ID to a sparse array
  * representing the map
  * ```
@@ -33,7 +33,7 @@ export type ListSavedState<T> = {
 /**
  * A list of values of type `T`, represented as an ordered map with Position keys.
  *
- * See [List, Position, and Order](https://github.com/mweidner037/position-structs#list-position-and-order) in the readme.
+ * See [List, Position, and Order](https://github.com/mweidner037/list-positions#list-position-and-order) in the readme.
  *
  * List's API is a hybrid between `Array<T>` and `Map<Position, T>`.
  * Use `insertAt` or `insert` to insert new values into the list in the style of `Array.splice`.
@@ -43,7 +43,7 @@ export type ListSavedState<T> = {
 export class List<T> {
   /**
    * The Order that manages this list's Positions and their metadata.
-   * See [Managing Metadata](https://github.com/mweidner037/position-structs#managing-metadata).
+   * See [Managing Metadata](https://github.com/mweidner037/list-positions#managing-metadata).
    */
   readonly order: Order;
   private readonly itemList: ItemList<T[], T>;
@@ -93,7 +93,7 @@ export class List<T> {
    */
   set(pos: Position, value: T): void;
   /**
-   * Sets the values at a sequence of Positions within the same [bunch](https://github.com/mweidner037/position-structs#bunches).
+   * Sets the values at a sequence of Positions within the same [bunch](https://github.com/mweidner037/list-positions#bunches).
    *
    * The Positions start at `startPos` and have the same `bunchID` but increasing `innerIndex`.
    * Note that these Positions might not be contiguous anymore, if later
@@ -123,7 +123,7 @@ export class List<T> {
    */
   delete(pos: Position): void;
   /**
-   * Deletes a sequence of Positions within the same [bunch](https://github.com/mweidner037/position-structs#bunches).
+   * Deletes a sequence of Positions within the same [bunch](https://github.com/mweidner037/list-positions#bunches).
    *
    * The Positions start at `startPos` and have the same `bunchID` but increasing `innerIndex`.
    * Note that these Positions might not be contiguous anymore, if later
@@ -167,7 +167,7 @@ export class List<T> {
    * In a collaborative setting, the new Position is *globally unique*, even
    * if other users call `List.insert` (or similar methods) concurrently.
    * 
-   * @returns [insertion Position, [created bunch's](https://github.com/mweidner037/position-structs#createdBunch) BunchNode (or null)].
+   * @returns [insertion Position, [created bunch's](https://github.com/mweidner037/list-positions#createdBunch) BunchNode (or null)].
    * @throws If prevPos is Order.MAX_POSITION.
    */
   insert(
@@ -177,12 +177,12 @@ export class List<T> {
   /**
    * Inserts the given values just after prevPos, at a series of new Positions.
    *
-   * The new Positions all use the same [bunch](https://github.com/mweidner037/position-structs#bunches), with sequential
+   * The new Positions all use the same [bunch](https://github.com/mweidner037/list-positions#bunches), with sequential
    * `innerIndex` (starting at the returned startPos).
    * They are originally contiguous, but may become non-contiguous in the future,
    * if new Positions are created between them.
    *
-   * @returns [starting Position, [created bunch's](https://github.com/mweidner037/position-structs#createdBunch) BunchNode (or null)].
+   * @returns [starting Position, [created bunch's](https://github.com/mweidner037/list-positions#createdBunch) BunchNode (or null)].
    * @throws If prevPos is Order.MAX_POSITION.
    * @throws If no values are provided.
    * @see Order.startPosToArray To convert (startPos, values.length) to an array of Positions.
@@ -207,7 +207,7 @@ export class List<T> {
    * In a collaborative setting, the new Position is *globally unique*, even
    * if other users call `List.insertAt` (or similar methods) concurrently.
    *
-   * @returns [insertion Position, [created bunch's](https://github.com/mweidner037/position-structs#createdBunch) BunchNode (or null)].
+   * @returns [insertion Position, [created bunch's](https://github.com/mweidner037/list-positions#createdBunch) BunchNode (or null)].
    * @throws If index is not in `[0, this.length]`. The index `this.length` is allowed and will cause an append, unless this list's current last Position is Order.MAX_POSITION.
    */
   insertAt(
@@ -217,12 +217,12 @@ export class List<T> {
   /**
    * Inserts the given values at `index` (i.e., between the values at `index - 1` and `index`), at a series of new Positions.
    *
-   * The new Positions all use the same [bunch](https://github.com/mweidner037/position-structs#bunches), with sequential
+   * The new Positions all use the same [bunch](https://github.com/mweidner037/list-positions#bunches), with sequential
    * `innerIndex` (starting at the returned startPos).
    * They are originally contiguous, but may become non-contiguous in the future,
    * if new Positions are created between them.
    *
-   * @returns [insertion Position, [created bunch's](https://github.com/mweidner037/position-structs#createdBunch) BunchNode (or null)].
+   * @returns [insertion Position, [created bunch's](https://github.com/mweidner037/list-positions#createdBunch) BunchNode (or null)].
    * @throws If index is not in `[0, this.length]`. The index `this.length` is allowed and will cause an append, unless this list's current last Position is Order.MAX_POSITION.
    * @throws If no values are provided.
    * @see Order.startPosToArray To convert (startPos, values.length) to an array of Positions.
@@ -306,7 +306,7 @@ export class List<T> {
 
   /**
    * Returns the cursor at `index` within the list, i.e., between the positions at `index - 1` and `index`.
-   * See [Cursors](https://github.com/mweidner037/position-structs#cursors).
+   * See [Cursors](https://github.com/mweidner037/list-positions#cursors).
    *
    * Invert with indexOfCursor, possibly on a different List/Outline/LexList or a different device.
    */
@@ -398,7 +398,7 @@ export class List<T> {
    * **Before loading a saved state, you must deliver its dependent metadata
    * to this.Order**. For example, you could save and load the Order's state
    * alongside the List's state, making sure to load the Order first.
-   * See [Managing Metadata](https://github.com/mweidner037/position-structs#save-load) for an example.
+   * See [Managing Metadata](https://github.com/mweidner037/list-positions#save-load) for an example.
    */
   load(savedState: ListSavedState<T>): void {
     this.itemList.load(savedState, deepCloneItems);
