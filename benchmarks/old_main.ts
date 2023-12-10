@@ -68,8 +68,8 @@ function run(ops?: number, rotateFreq?: number) {
     metrics.map((metric) => metric.waypoints)
   );
   printStats(
-    "valueIndex",
-    metrics.map((metric) => metric.valueIndex)
+    "innerIndex",
+    metrics.map((metric) => metric.innerIndex)
   );
 
   // Estimate PositionSource memory usage.
@@ -87,11 +87,11 @@ function run(ops?: number, rotateFreq?: number) {
   if (!fs.existsSync(resultsDir)) fs.mkdirSync(resultsDir);
   const fileName = `results_${ops ?? "all"}_${rotateFreq ?? "never"}.csv`;
   const csv =
-    "length,longNames,waypoints,valueIndex\n" +
+    "length,longNames,waypoints,innerIndex\n" +
     metrics
       .map(
         (metric) =>
-          `${metric.length},${metric.longNames},${metric.waypoints},${metric.valueIndex}`
+          `${metric.length},${metric.longNames},${metric.waypoints},${metric.innerIndex}`
       )
       .join("\n");
   fs.writeFileSync(resultsDir + fileName, csv);
@@ -111,10 +111,10 @@ interface PositionMetric {
   /** The total number of waypoints. */
   waypoints: number;
   /**
-   * The valueIndex. This is the normal, 0-indexed count of values
+   * The innerIndex. This is the normal, 0-indexed count of values
    * in a row, not the valueSeq.
    */
-  valueIndex: number;
+  innerIndex: number;
 }
 
 function getLastWaypointChar(position: string): number {
@@ -156,7 +156,7 @@ function getMetric(position: string): PositionMetric {
     length: position.length,
     longNames,
     waypoints: waypointCount(position),
-    valueIndex: valueIndexFromSeq(valueSeq),
+    innerIndex: innerIndexFromSeq(valueSeq),
   };
 }
 
@@ -183,9 +183,9 @@ function waypointCount(position: string): number {
 }
 
 /**
- * Returns the valueIndex corresponding to the (odd) valueSeq n.
+ * Returns the innerIndex corresponding to the (odd) valueSeq n.
  */
-function valueIndexFromSeq(n: number): number {
+function innerIndexFromSeq(n: number): number {
   const d = n === 0 ? 1 : Math.floor(Math.log(n) / Math.log(52)) + 1;
   // First d-digit number is 52^d - 52 * 26^(d-1); check how far
   // we are from there (= index in d-digit sequence)

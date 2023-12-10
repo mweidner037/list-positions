@@ -1,502 +1,427 @@
-# position-structs
+# list-positions
 
-A source of memory-efficient "position structs" for collaborative lists and text.
+Efficient "positions" for lists and text - enabling rich documents and collaboration
 
 - [About](#about)
 - [Usage](#usage)
 - [API](#api)
-- [Example App](#example-app)
 - [Performance](#performance)
 
 ## About
 
-In a collaborative list (or text string), you need a way to refer
-to "positions" within that list that:
+Many apps use a list whose values can change index over time: characters in a text document, items in a todo list, rows in a spreadsheet, etc. Instead of thinking of this list as an array, it's easier to think of it as an ordered map `(position -> value)`, where a value's _position_ doesn't change over time. So if you insert a new entry `(position, value)` into the map, the other entries stay the same, even though their indices change:
 
-1. Point to a specific list element (or text character).
-2. Are global (all users agree on them) and immutable (they do not
-   change over time).
-3. Can be sorted.
-4. Are unique, even if different users concurrently create positions
-   at the same place.
+```
+Before:
 
-This package gives you such positions, as a JSON-serializable struct (flat object) called [Position](#struct-position). Specifically:
+Index    | 0       1       2
+Position | pos123  posLMN  posXYZ
+Value    | 'C'     'a'     't'
 
-- Class [Order](#class-order) manages a [total order](https://en.wikipedia.org/wiki/Total_order) on Positions, letting you create and compare them. It requires some shared metadata, described below.
-- Class [List](#class-list) represents a map `Position -> value` in list form, allowing indexed access with low memory overhead.
+After calling list.set(posABC, 'h') where pos123 < posABC < posLMN:
 
-These Positions have the bonus properties:
+Index    | 0       1       2       3
+Position | pos123  posABC  posLMN  posXYZ
+Value    | 'C'     'h'     'a'     't'
+```
 
-5. It is easy to store and edit a map from Positions to values in your own code, including in a database or non-JS backend. You only need the code in this package to compare Positions in the total order or do indexed access. (See [Advanced](TODO) for how to create new Positions on a non-JS backend.)
+This library provides positions (types `Position`/`LexPosition`) and corresponding list-as-ordered-map data structures (classes `List`/`LexList`/`Outline`). Multiple lists can use the same positions (with the same sort order), including lists on different devices - enabling DIY collaborative lists & text editing.
 
-6. (Forward Non-Interleaving) If two users concurrently create a forward (left-to-right)
-   sequence of positions at the same place,
-   their sequences will not be interleaved.
+### Example Use Cases
 
-   For example, if
-   Alice types "Hello" while Bob types "World" at the same place,
-   and they each use an Order to create a Position for each
-   character, then
-   the resulting order will be "HelloWorld" or "WorldHello", not
-   "HWeolrllod".
+1. In a **text document with annotations** (comments/highlights), store the text as a List of characters, and indicate each annotation's range using a `start` and `end` Position. That way, when the user inserts text in front of an annotation, the annotation stays "in the same place", without needing to update start/end indexes.
+2. In a **todo-list app built on top of a database**, store each todo-item's LexPosition as part of its database entry, and `ORDER BY` that column to query the items in order. That lets you insert a new todo-item in the middle of the list (by assigning it a position in that spot) or move a todo-item around (by changing its position). It works even for a collaborative todo-list built on top of a cloud database.
+3. In a **text editor with suggested changes** (from collaborators, AI, or local drafts), store each suggestion as a collection of `(position, char)` pairs to insert or delete. When the user accepts a suggestion, apply those changes to the main List.
+4. To make a **collaborative text editor**, you just need a way to collaborate on the map `(position -> char)`. This is easy to DIY, and more flexible than using an Operational Transformation or CRDT library. For example:
+   - When a user types `char` at `index`, call `[position] = list.insertAt(index, char)` to insert the char into their local List at a (new) Position `position`. Then broadcast `(position, char)` to all collaborators. Recipients call `list.set(position, char)` on their own Lists.
+   - Or, store the map in a cloud database. You can do this efficiently by understanding the [structure of Positions](#bunches).
+   - Or, send each `(position, char)` pair to a central server. The server can choose to accept, reject, or modify the change before forwarding it to other users - e.g., enforcing per-paragraph permissions. It can also choose to store the map in a database table, instead of loading each active document into memory.
 
-### Further reading
+### Features
 
-- [position-strings](https://www.npmjs.com/package/position-strings),
-  a package that provides positions in the form of lexicographically-ordered strings instead of structs. position-structs is less flexible than position-strings, but it has noticably lower memory/storage overhead, especially for collaborative text.
-- [List CRDTs](https://mattweidner.com/2022/10/21/basic-list-crdt.html)
-  and how they relate to unique immutable Positions. `Order` is similar to that post's [tree implementation](https://mattweidner.com/2022/10/21/basic-list-crdt.html#tree-implementation), but it uses an optimized variant of [RGA](https://doi.org/10.1016/j.jpdc.2010.12.006) instead of Fugue.
-- [Paper about interleaving](https://www.repository.cam.ac.uk/handle/1810/290391)
-  in collaborative text editors.
+**Performance** Our list data structures have a small memory footprint, fast edits, and small saved states. <!-- See our [performance measurements](TODO) for a 260k op text-editing trace. -->
+
+**Collaboration** Lists can share the same positions even across devices. Even in the face of concurrent edits, Positions are always globally unique, and you can insert a new position anywhere in a list. To make this possible, the library essentially implements a list CRDT ([Fugue](https://arxiv.org/abs/2305.00583)), but with a more flexible API.
+
+**Non-interleaving** In collaborative scenarios, if two users concurrently insert a (forward or backward) sequence at the same place, their sequences will not be interleaved. For example, in a collaborative text editor, if Alice types "Hello" while Bob types "World" at the same place, then the resulting order will be "HelloWorld" or "WorldHello", not "HWeolrllod".
+
+**Flexible usage** There are multiple inter-compatible ways to work with our positions and lists. For example, you can ask for a [lexicographically-sortable version of a position](#lexlist-and-lexposition) to use indendently of this library, or [store list values in your own data structure](#outline) instead of our default List class.
+
+### Related Work
+
+- [Fractional indexing](https://www.figma.com/blog/realtime-editing-of-ordered-sequences/#fractional-indexing),
+  a related but less general idea.
+- [Blog post](https://mattweidner.com/2022/10/21/basic-list-crdt.html) describing the Fugue list CRDT and how it relates to the "list position" abstraction. This library implements optimized versions of that post's tree implementation (List/Position) and string implementation (LexList/LexPosition).
+- [Paper](https://arxiv.org/abs/2305.00583) with more details about Fugue - in particular, its non-interleaving guarantees.
 
 ## Usage
 
 Install with npm:
 
 ```bash
-npm i --save position-structs
+npm i --save list-positions
 ```
 
-Create an empty Order and an empty List on top of it:
+### LexList and LexPosition
+
+An easy way to get started with the library is using the `LexList<T>` class. It is a list-as-ordered map with value type `T` and positions (keys) of type `LexPosition`.
+
+Example code:
 
 ```ts
-import { List, Order, Position } from "position-structs";
+import { LexList, LexPosition } from "list-positions";
 
-const order = new Order();
-const list = new List<string>(order);
-```
+// Make an empty LexList.
+const list = new LexList();
 
-Now you can create Positions and manipulate the List state:
-
-```ts
-// Insert some values into the list:
+// Insert some values into the list.
 list.insertAt(0, "x");
 list.insertAt(1, "a", "b", "c");
 list.insertAt(3, "y");
 console.log([...list.values()]); // Prints ['x', 'a', 'b', 'y', 'c']
-```
 
-Other ways to manipulate a List:
-
-```ts
-list.setAt(1, 'A');
+// Other ways to manipulate a LexList:
+list.setAt(1, "A");
 list.deleteAt(0);
 console.log([...list.values()]); // Prints ['A', 'b', 'y', 'c']
 
-// 2nd way to insert values: insert after an existing Position,
+// 2nd way to insert values: insert after an existing position,
 // e.g., the current cursor.
-const prevPos: Position = ...;
-const { pos: newPos } = list.insert(prevPos, 'z');
+const cursorPos: LexPosition = list.positionAt(2);
+const [newPos] = list.insert(cursorPos, "z");
+console.log([...list.values()]); // Prints ['A', 'b', 'y', 'z', 'c'];
 
-list.set(newPos, 'Z');
+// Map-like API:
+list.set(newPos, "Z");
 list.delete(newPos);
 ```
 
-You can create and compare Positions directly in the Order, without affecting its Lists:
+Internally, LexPositions are just strings. LexPositions have the nice property that **their lexicographic order matches the list order**. So you can `ORDER BY` LexPositions in a database table, or store them in a different [ordered](https://www.npmjs.com/package/functional-red-black-tree) [map](https://docs.oracle.com/javase/8/docs/api/java/util/TreeMap.html) [data](https://en.cppreference.com/w/cpp/container/map) [structure](https://doc.rust-lang.org/std/collections/struct.BTreeMap.html).
+
+The downside of using LexPositions is metadata overhead - they have variable length and can become long in certain scenarios<!-- (TODO in our benchmarks)-->. Also, if you store all of the literal pairs `(lexPosition, value)`, then you have per-value metadata overhead. Nonetheless, LexPositions are a convenient option for short lists of perhaps <1,000 values - e.g., the items in a todo list, or the scenarios where [Figma uses fractional indexing](https://www.figma.com/blog/how-figmas-multiplayer-technology-works/#syncing-trees-of-objects).
+
+> Using LexList is more efficient than storing all of the literal pairs `(lexPosition, value)` - in fact, it is as memory-efficient as the next section's List class. Likewise, LexList's saved states are more compact than the naive representation, though they are larger than the equivalent List/Order saved states. <!-- GZIP mostly closes the gap (TODO: data). -->
+
+See also: [LexUtils](#lexutils)
+
+### List, Position, and Order
+
+The library's main class is `List<T>`. It is a list-as-ordered-map with value type `T` and positions (keys) of type `Position`.
+
+Example code:
 
 ```ts
-const { pos: otherPos } = order.createPosition(order.minPosition);
-console.log(order.compare(order.minPosition, otherPos) < 0); // Prints true
+import { List, Order, Position } from "list-positions";
+
+// Make an empty Order and an empty List on top of it.
+const order = new Order();
+const list = new List(order);
+
+// Insert some values into the list.
+list.insertAt(0, "x");
+list.insertAt(1, "a", "b", "c");
+list.insertAt(3, "y");
+console.log([...list.values()]); // Prints ['x', 'a', 'b', 'y', 'c']
+
+// Other ways to manipulate a LexList:
+list.setAt(1, "A");
+list.deleteAt(0);
+console.log([...list.values()]); // Prints ['A', 'b', 'y', 'c']
+
+// 2nd way to insert values: insert after an existing position,
+// e.g., the current cursor.
+const cursorPos: Position = list.positionAt(2);
+const [newPos] = list.insert(cursorPos, "z");
+console.log([...list.values()]); // Prints ['A', 'b', 'y', 'z', 'c'];
+
+// Map-like API:
+list.set(newPos, "Z");
+list.delete(newPos);
+
+// You can create and compare Positions directly in the Order,
+// without affecting its Lists.
+const [otherPos] = order.createPositions(
+  Order.MIN_POSITION,
+  list.positionAt(0),
+  1
+);
+console.log(order.compare(Order.MIN_POSITION, otherPos) < 0); // Prints true
+console.log(order.compare(otherPos, list.positionAt(0)) < 0); // Prints true
 
 // Optionally, set the value at otherPos sometime later.
 // This "inserts" the value at the appropriate index for otherPos.
 list.set(otherPos, "w");
+console.log([...list.values()]); // Prints ['w', 'A', 'b', 'y', 'c'];
 ```
 
-You can have multiple Lists on top of the same Order:
+Unlike LexPositions, Positions aren't directly comparable. Instead, their sort order depends on some extra metadata, described in [Managing Metadata](#managing-metadata) below. The upside is that Positions have nearly constant size, so they are more efficient to share and store than LexPositions (which embed all of their dependent metadata).
 
-```ts
-const bodyText = new List<string>(order);
-const suggestedText = new List<string>(order);
-
-bodyText.insertAt(0, ..."Animal: ");
-
-// User makes a suggestion at index 8 in bodyText:
-const cursorPos = bodyText.positionAt(8);
-suggestedText.insert(cursorPos, ..."cat");
-
-// When the suggestion is accepted:
-for (const [pos, value] of suggestedText.entries()) {
-  bodyText.set(pos, value);
-}
-console.log([...bodyText.values()].join("")); // Prints "Animal: cat"
-```
-
-### Shared Metadata: NodeDescs
-
-Multiple instances of Order can use the same Positions, including instances on different devices (collaboration) or at different times (loaded from storage). However, you need to share some metadata first.
-
-Specifically, each Position has the form
+Positions are JSON objects with the following format:
 
 ```ts
 type Position = {
-  creatorID: string;
-  timestamp: number;
-  valueIndex: number;
+  bunchID: string;
+  innerIndex: number;
 };
 ```
 
-The pair `{ creatorID, timestamp }` identifies a **node** in a shared tree. Your Order must receive a **[NodeDesc](#types-nodedesc) ("node description")** for this node before you can use the Position in `List.set`, `Order.compare`, etc. Otherwise, you will get an error `"Position references missing Node: <...>. You must call Order.receive/receiveSavedState before referencing a Node."`.
-
-> Exception: The root node `{ creatorID: "ROOT", timestamp: 0 }` is always valid. Its only Positions are `Order.minPosition` and `Order.maxPosition`.
-
-Use `Order.save` and `Order.receiveSavedState` to share all of an Order's NodeDescs:
+<a id="bunches"></a>
+The `bunchID` identifies a _bunch_ of Positions that were share metadata (for efficiency). Each bunch has Positions with `innerIndex` 0, 1, 2, ...; these were originally inserted contiguously (e.g., by a user typing left-to-right) but might not be contiguous anymore. Regardless, bunches makes it easy to store a List's map `(Position -> value)` compactly:
 
 ```ts
-// Before exiting:
-const savedState: OrderSavedState = order.save();
-localStorage.setItem("orderSavedState", JSON.stringify(savedState));
-
-// Next time you start the app:
-order.receiveSavedState(JSON.parse(localStorage.getItem("orderSavedState")));
-```
-
-Use `Order.onCreateNode` and `Order.receive` to share a new node's description when it is created:
-
-```ts
-// Just after creating order:
-order.onCreateNode = (createdNodeDesc: NodeDesc) => {
-  const msg = JSON.stringify(createdNodeDesc);
-  // Broadcast msg to all collaborators...
+// As a double map:
+{
+  [bunchID: string]: {
+    [innerIndex: number]: T;
+  };
 };
 
-function onBroadcastReceive(msg: string) {
-  order.receive([JSON.parse(msg)]);
+// As a sparse array for each bunch's Positions:
+{
+  [bunchID: string]: (T | null)[];
+};
+
+// Using our internal sparse array format:
+type ListSavedState<T> = {
+  // The sparse array alternates between "runs" of present and deleted
+  // values. Each even index is an array of present values; each odd
+  // index is a count of deleted values.
+  // E.g. [["a", "b"], 3, ["c"]] means ["a", "b", null, null, null, "c"].
+  [bunchID: string]: (T[] | number)[];
+};
+```
+
+Notes:
+
+- A Position's `innerIndex` is unrelated to its current list index. Indeed, Positions are immutable, but their list index can change over time.
+- Do not create a never-seen-before Position from a bunchID and innerIndex unless you know what you're doing. Instead, use a method like `List.insertAt`, `List.insert`, or `Order.createPositions` to obtain new Positions. (Reconstructing previously-created Positions is fine, e.g., deserializing a Position received from a collaborator.)
+- A similar bunch-to-sparse-array representation is also possible with LexPositions: instead of keying each bunch by its bunchID, use its "bunch prefix", which can be combined with an innerIndex to yield a LexPosition. See [below](#bunch-prefix).
+
+#### Managing Metadata
+
+Each Position depends on some metadata, which is stored separately. (In contrast, a LexPosition embeds all of its metadata - this is why LexPositions have a variable length.) To use the same Positions with different instances of the List class (possibly on different devices), you must first transfer this metadata between the Lists.
+
+Specifically, a List's [bunches](#bunches) form a tree. Each bunch, except for the special root with bunchID `"ROOT"`, has a `BunchMeta` that describes its location in the tree:
+
+```ts
+type BunchMeta = {
+  /** The bunch's ID, same as its Positions' bunchID. */
+  bunchID: string;
+  /** The parent bunch's ID. */
+  parentID: string;
+  /** A nonnegative integer used by the tree. */
+  offset: number;
+};
+```
+
+A List's tree of bunches is stored by a separate class `Order`, accessible from the List's `order` property. Multiple List instances can share the same Order via a constructor option. But when Lists have different Order instances, before using a Position from one List in the other (e.g., calling `list.set` or `list.indexOfPosition`), you must call `list.order.receive` with:
+
+- The Position's bunch's BunchMeta.
+- That bunch's parent's BunchMeta.
+- The parent's parent's BunchMeta, etc., up the tree until reaching the root (exclusive).
+
+Here are some scenarios, in order of difficulty.
+
+**Single List** If you only ever use Positions with the List instance that created them (via `list.insert`, `list.insertAt`, or `list.order.createPositions`), you don't need to manage metadata at all.
+
+**Single session, multiple Lists** Suppose you have multiple Lists in the same session (JavaScript runtime). E.g., a rich-text document might be represented as a List of characters and a List of formatting info. Then it suffices for those Lists to share an Order instance: `const list2 = new List(list1.order)`.
+
+<a id="save-load"></a>
+**Single user, multiple sessions** Consider a single-user app that saves and loads a List to disk. Then you must also save and load the List's Order:
+
+```ts
+function save<T>(list: List<T>): string {
+  // Save the List's state *and* its Order's state (an array of BunchMetas).
+  return JSON.stringify({
+    orderSave: list.order.save(),
+    listSave: list.save(),
+  });
 }
 
-// Alternative to order.onCreatedNode:
-// Methods that might create a node (List.insertAt, List.insert,
-// Order.createPosition) also return its `createdNodeDesc` (or null).
+function load<T>(savedState: string): List<T> {
+  const list = new List<T>();
+  const { orderSave, listSave } = JSON.parse(savedState);
+  // Load the Order's state first, to receive the saved BunchMetas.
+  list.order.load(orderSave);
+  list.load(listSave);
+}
 ```
 
-Internally, a [NodeDesc](#struct-nodedesc) indicates a node's **parent Position**:
+<a id="createdBunch"></a>
+**Multiple users** The most complicated scenarios involve multiple users and a single list order, e.g., a collaborative text editor. Any time a user creates a new Position by calling `list.insertAt`, `list.insert`, or `list.order.createPositions`, they might create a new bunch. The created bunch will be returned; you must distribute its BunchMeta before/together with the new Position. For example:
 
 ```ts
-type NodeDesc = {
-  // Node ID, matching the node's Positions.
-  readonly creatorID: string;
-  readonly timestamp: number;
-  // The node's parent Position.
-  readonly parent: Position;
-};
+// When a user types "x" at index 7:
+const [position, createdBunch] = list.insertAt(7, "x");
+if (createdBunch !== null) {
+  // Distribute the new bunch's BunchMeta.
+  broadcast(JSON.stringify({ type: "meta", meta: createdBunch.meta() }));
+} // Else position reused an old bunch - no new metadata.
+// Now you can distribute position:
+broadcast(JSON.stringify({ type: "set", position, value: "x" }));
+
+// Alt: Use an Order.onCreatedBunch callback.
+// list.order.onCreatedBunch = (createdBunch) => { /* Broadcast createdBunch.meta()... */ }
+
+// When a user receives a message:
+function onMessage(message: string) {
+  const parsed = JSON.parse(message);
+  switch (parsed.type) {
+    case "meta":
+      list.order.receive([parsed.meta]);
+      break;
+    case "set":
+      list.set(parsed.position, parsed.value);
+      break;
+    // ...
+  }
+}
 ```
 
-It is okay if an Order receives the same NodeDesc multiple times, or if different instances receive NodeDescs in different orders. However, before receiving a NodeDesc, its parent Position must itself be valid: the Order must have already received the parent's NodeDesc (or the parent is part of the same `Order.receive`/`Order.receiveSavedState` call). Otherwise, you will get an error `"Received NodeDesc <...>, but we have not yet received a NodeDesc for its parent node <...>."`.
+If you ever want to extract all of a Position's dependencies for sending to another device, you can use `list.order.lex(position)` to convert it to a LexPosition (and `unlex` on the other side). Or, you can directly obtain the dependent BunchMetas using `list.order.getNodeFor(position).ancestors().map(node => node.meta())`.
 
-> You can think of an Order's state as a Grow-Only Set of NodeDescs. `Order.save` and `Order.receiveSavedState` form a [state-based CRDT](https://en.wikipedia.org/wiki/Conflict-free_replicated_data_type#State-based_CRDTs), while `Order.onCreateNode` and `Order.receive` form an [op-based CRDT](https://en.wikipedia.org/wiki/Conflict-free_replicated_data_type#Operation-based_CRDTs). You can also implement your own sync strategies - e.g., two peers compare their largest timestamps for each creatorID and only exchange the ones they're missing.
+> Errors you might get if you mis-manage metadata:
+>
+> - "Position references missing bunchID: {...}. You must call Order.receive before referencing a bunch."
+> - "Received BunchMeta {...}, but we have not yet received a BunchMeta for its parent node."
 
-### Storage and Collaboration
+### Outline
 
-The List class does not handle storage or collaboration - it is just a local data structure. (This contrasts with most collaborative text-editing libraries.) You are free to manage its state however you like. For example, in a collaborative text editor, each client's List could be an optimistic cache of a server-side database, allowing the server to enforce consistency, fine-grained permissions (per-paragraph access controls?), etc.
+An `Outline` is like a List but without values. Instead, you tell the Outline which Positions are currently present (set), then use it to convert between Positions and their current indices.
 
-Fundamentally, a List's state is a map `Position -> value`. Some ways to store this state outside of a List:
+Outline is useful when you are already storing a list's values in a different sequence data structure: a traditional array, a rich-text editor's internal state, a server-side search library, etc. Then you don't need to waste memory & storage space storing the values again in a List, but you might still need to:
 
-- A database table with columns `creatorID: string; timestamp: uint; valueIndex: uint; value: T`.
-- More efficiently, a database table with columns `creatorID: string; timestamp: uint; values: (T | null)[]`. Here you represent all of a node's values in a single array, indexed by `valueIndex`.
-- A triple-layered map `creatorID -> (timestamp -> (valueIndex -> value))`. The methods `List.save()` and `List.load()` use this representation. <!-- TODO: link, at least to ListSavedState type? -->
+- Look up the current index of a cursor or annotation that uses Positions.
+- Add a `(position, value)` pair to the list that was received from a remote collaborator:
+  ```ts
+  outline.set(position);
+  const index = outline.indexOfPosition(position);
+  /* Splice value into the other list at index; */
+  ```
+- Convert the other sequence's changes into `(position, value)` pair updates:
 
-Likewise, an Order's state is fundamentally an array of NodeDescs. Some ways to store this state:
+  ```ts
+  // When the other sequence inserts `value` at `index`:
+  const position = outline.insertAt(index);
+  /* Broadcast/store the newly-set pair (position, value); */
+  ```
 
-- A database table with columns `creatorID: string; timestamp: uint; parentCreatorID: string, parentTimestamp: uint, parentValueIndex: uint`.
-- A double-layered map `creatorID -> (timestamp -> Position)`. The methods `Order.save()` and `Order.receiveSavedState` use this representation.
-
-Tips:
-
-- `valueIndex` is an array index assigned consecutively (0, 1, 2, ...). This lets you store all of a node's values in a single array, although note that the array may have holes (from deleted values).
-- `timestamp` is a non-negative integer that increases over time, but it is **not** assigned consecutively - there may be gaps.
-- Each `creatorID` corresponds to a specific instance of Order: that instance's [replicaID](#TODO). So you can expect to see the same `creatorID`s repeated many times. In particular, a NodeDesc's `creatorID` is usually the same as its `parent.creatorID`.
-- You can improve over Position and NodeDesc's JSON encodings using [protobufs](https://www.npmjs.com/package/protobufjs) or similar.
+Like List, Outline requires you to [manage metadata](#managing-metadata).
 
 ### Advanced
 
-By understanding Order's underlying tree structure, you can:
-
-- Create Positions on a non-JS backend, without importing this library, or without loading the entire list.
-- Lazy-load only the NodeDescs that you need, e.g., when viewing part of a large text document.
-- Stitch together total orders that were created separately but should be displayed in sequence, e.g., after merging independent blocks of text.
-
-See the [Advanced Guide](./advanced.md). TODO
+The library's internals are conceptually simple. By understanding them, you can unlock additional features and optimizations, or implement compatible libraries in other languages. See [Internals](./internals.md).
 
 ## API
 
-TODO
-<!-- 
-- [Class `PositionSource`](#class-positionsource)
-- [Function `findPosition`](#function-findposition)
-- [Class `Cursors`](#class-cursors)
-- [Class `IDs`](#class-ids)
+This section gives a high-level overview of the library's exports. The implementations have complete docs, which should show up in your IDE's tooltips.
 
-### Class `PositionSource`
+### Classes
 
-#### constructor
+#### `List<T>`
 
-```ts
-constructor(options?: { ID?: string })
-```
+A list of values of type `T`, represented as an ordered map with [Position](#position) keys.
 
-Constructs a new `PositionSource`.
+List's API is a hybrid between `Array<T>` and `Map<Position, T>`. Use `insertAt` or `insert` to insert new values into the list in the style of `Array.splice`.
 
-It is okay to share a single `PositionSource` between
-all documents (lists/text strings) in the same JavaScript runtime.
+#### `Order`
 
-For efficiency (shorter position strings),
-within each JavaScript runtime, you should not use
-more than one `PositionSource` for the same document.
-An exception is if multiple logical users share the same runtime;
-we then recommend one `PositionSource` per user.
+A total order on [Positions](#position), independent of any specific assignment of values.
 
-_@param_ `options.ID` A unique ID for this `PositionSource`. Defaults to
-`IDs.random()`.
+An Order manages metadata (bunches) for any number of Lists, LexLists, and Outlines. You can also use an Order to create Positions independent of a List (`createPositions`), convert between Positions and LexPositions (`lex` and `unlex`), and directly view the tree of bunches (`getBunch`, `getBunchFor`).
 
-If provided, `options.ID` must satisfy:
+Static utilities include `Order.MIN_POSITION` and `Order.MAX_POSITION`.
 
-- It is unique across the entire collaborative application, i.e.,
-  all `PositionSource`s whose positions may be compared to ours. This
-  includes past `PositionSource`s, even if they correspond to the same
-  user/device.
-- It does not contain `','` or `'.'`.
-- The first character is lexicographically less than `'~'` (code point 126).
+#### `Outline`
 
-If `options.ID` contains non-alphanumeric characters, then created
-positions will contain those characters in addition to
-alphanumeric characters, `','`, and `'.'`.
+An outline for a list of values. It represents an ordered map with [Position](#type-position) keys, but unlike [List](#class-listt), it only tracks which Positions are present - not their associated values.
 
-#### createBetween
+Outline is useful when you are already storing a list's values in a different sequence data structure, but you still need to convert between Positions and list indices.
 
-```ts
-createBetween(
-  left: string = PositionSource.FIRST,
-  right: string = PositionSource.LAST
-): string
-```
+#### `LexList<T>`
 
-Returns a new position between `left` and `right`
-(`left < new < right`).
+A list of values of type `T`, represented as an ordered map with [LexPosition](#type-lexposition) keys.
 
-The new position is unique across the entire collaborative application,
-even in the face of concurrent calls to this method on other
-`PositionSource`s.
+LexList's API is a hybrid between `Array<T>` and `Map<LexPosition, T>`. Use `insertAt` or `insert` to insert new values into the list in the style of `Array.splice`.
 
-_@param_ `left` Defaults to `PositionSource.FIRST` (insert at the beginning).
+### Types
 
-_@param_ `right` Defaults to `PositionSource.LAST` (insert at the end).
+All types are JSON serializable.
 
-#### Properties
+Representations of positions:
 
-```ts
-readonly ID: string
-```
+- `Position`, used in List and Outline.
+- `LexPosition = string`, used in LexList.
 
-The unique ID for this `PositionSource`.
+Metadata:
 
-```ts
-static readonly FIRST: string = ""
-```
+- `BunchMeta`, used in Order.
 
-A string that is less than all positions.
+Saved states: Each class lets you save and load its internal states in JSON format. You can treat these saved states as opaque blobs, or read their docs to understand their formats.
 
-```ts
-static readonly LAST: string = "~"
-```
+- `ListSavedState<T>`
+- `OrderSavedState`
+- `OutlineSavedState`
+- `LexListSavedState<T>`
 
-A string that is greater than all positions.
+### Utilities
 
-### Function `findPosition`
+#### Cursors
+
+A _cursor_ points to a spot in the list between two values - e.g., a cursor in a text document.
+
+Internally, a cursor is represented as the Position (or LexPosition, for LexList) of the value to its left, or `Order.MIN_POSITION` if it is at the start of the list. If that position becomes not-present in the list, the cursor's literal value remains the same, but its current index shifts to the left.
+
+Convert indices to cursors and back using methods `cursorAt` and `indexOfCursor`, on classes List, Outline, and LexList. (These are wrappers around `positionAt` and `indexOfPosition` that get the edge cases right.)
+
+#### `LexUtils`
+
+Utilities for manipulating [LexPositions](#lexlist-and-lexposition).
+
+<a id="bunch-prefix"></a>
+For example, `LexUtils.splitPos` and `LexUtils.combinePos` let you convert between a LexPosition and a pair `(bunchPrefix, innerIndex)`, where the _bunch prefix_ is a string that embeds all of its bunch's dependencies (including ancestors' BunchMetas). This lets you use the same [compact map representations](#bunches) as with List, just replacing each `bunchID` with a `bunchPrefix`. Indeed, LexListSavedState uses such a representation.
+
+(Given a BunchNode, you can obtain its bunch's prefix using the `lexPrefix()` method - e.g., `order.getBunch(bunchID)!.lexPrefix()`.)
+
+LexUtil's [source code](./src/lex_utils.ts) is deliberately simple and dependency-less, so that you can easily re-implement it in another language. That way, you can manipulate LexPositions on a non-JavaScript backend - e.g., generate new LexPositions when a server programmatically inserts text.
+
+#### `BunchIDs`
+
+Utitilies for generating `bunchIDs`.
+
+When a method like `List.insertAt` creates a new Position (or LexPosition), it may create a new [bunch](#bunches) internally. This bunch is assigned a new bunchID which should be globally unique - or at least, unique among all bunches that this bunch will ever appear alongside (i.e., in the same Order).
+
+By default, the library uses `BunchIDs.usingReplicaID()`, which returns [causal dots](https://mattweidner.com/2022/10/21/basic-list-crdt.html#causal-dot). You can supply a different bunchID generator in Order's constructor. E.g., to get reproducible bunchIDs in a test environment:
 
 ```ts
-function findPosition(
-  position: string,
-  positions: ArrayLike<string>
-): { index: number; isPresent: boolean };
+import seedrandom from "seedrandom";
+
+const rng = seedrandom("42");
+const order = new Order({ newBunchID: BunchIDs.usingReplicaID({ rng }) });
+const list = new List(order);
+// Test list...
 ```
 
-Returns `{ index, isPresent }`, where:
+#### Interface `BunchNode`
 
-- `index` is the current index of `position` in `positions`,
-  or where it would be if added.
-- `isPresent` is true if `position` is present in `positions`.
+An Order's internal tree node corresponding to a [bunch](#bunches) of Positions.
 
-If this method is inconvenient (e.g., the positions are in a database
-instead of an array), you can instead compute
-`index` by finding the number of positions less than `position`.
-For example, in SQL, use:
+You can access a bunch's BunchNode to retrieve its dependent metadata, using the `meta()` and `ancestors()` methods. For [Advanced](#advanced) usage, BunchNode also gives low-level access to an Order's tree of bunches.
 
-```sql
-SELECT COUNT(*) FROM table WHERE position < $position
-```
-
-See also: `Cursors.toIndex`.
-
-_@param_ `positions` The target list's positions, in lexicographic order.
-There should be no duplicate positions.
-
-### Class `Cursors`
-
-Utilities for working with cursors in a collaborative list
-or text string.
-
-A cursor points to a particular spot in a list, in between
-two list elements (or text characters). This class handles
-cursors for lists that use our position strings.
-
-A cursor is represented as a string.
-Specifically, it is the position of the element
-to its left, or `PositionSource.FIRST` if it is at the beginning
-of the list. If that position is later deleted, the cursor stays the
-same, but its index shifts to next element on its left.
-
-You can use cursor strings as ordinary cursors, selection endpoints,
-range endpoints for a comment or formatting span, etc.
-
-#### fromIndex
-
-```ts
-static fromIndex(index: number, positions: ArrayLike<string>): string
-```
-
-Returns the cursor at `index` within the given list of positions. Invert with `Cursors.toIndex`.
-
-That is, the cursor is between the list elements at `index - 1` and `index`.
-
-If this method is inconvenient (e.g., the positions are in a database
-instead of an array), you can instead run the following algorithm yourself:
-
-- If `index` is 0, return `PositionSource.FIRST = ""`.
-- Else return `positions[index - 1]`.
-
-_@param_ `positions` The target list's positions, in lexicographic order.
-There should be no duplicate positions.
-
-#### toIndex
-
-```ts
-static toIndex(cursor: string, positions: ArrayLike<string>): number
-```
-
-Returns the current index of `cursor` within the given list of
-positions. Inverse of `Cursors.fromIndex`.
-
-That is, the cursor is between the list elements at `index - 1` and `index`.
-
-If this method is inconvenient (e.g., the positions are in a database
-instead of an array), you can instead compute
-`index` by finding the number of positions less than
-or equal to `position`.
-For example, in SQL, use:
-
-```sql
-SELECT COUNT(*) FROM table WHERE position <= $position
-```
-
-See also: `findPosition`.
-
-_@param_ `positions` The target list's positions, in lexicographic order.
-There should be no duplicate positions.
-
-### Class `IDs`
-
-Utitilies for generating `PositionSource` IDs (the `options.ID` constructor argument).
-
-#### random
-
-```ts
-static random(options?: { length?: number; chars?: string }): string
-```
-
-Returns a cryptographically random ID made of alphanumeric characters.
-
-_@param_ `options.length` The length of the ID, in characters.
-Default: `IDs.DEFAULT_LENGTH`.
-
-_@param_ `options.chars` The characters to draw from. Default: `IDs.DEFAULT_CHARS`.
-
-If specified, only the first 256 elements are used, and you achieve
-about `log_2(chars.length)` bits of entropy per `length`.
-
-#### pseudoRandom
-
-```ts
-static pseudoRandom(
-    rng: seedrandom.prng,
-    options?: { length?: number; chars?: string }
-  ): string
-```
-
-Returns a psuedorandom ID made of alphanumeric characters,
-generated using `rng` from package [seedrandom](https://www.npmjs.com/package/seedrandom).
-
-> Note: If you install `@types/seedrandom` yourself instead of relying on our
-> dependency, install version `2.4.28`, even though `seedrandom` itself
-> has version `3.0.5`.
-
-Pseudorandom IDs with a fixed seed are recommended for
-tests and benchmarks, to make them deterministic.
-
-_@param_ `options.length` The length of the ID, in characters.
-Default: `IDs.DEFAULT_LENGTH`.
-
-_@param_ `options.chars` The characters to draw from. Default: `IDs.DEFAULT_CHARS`.
-
-If specified, only the first 256 elements are used, and you achieve
-about `log_2(chars.length)` bits of entropy per `length`.
-
-#### validate
-
-```ts
-static validate(ID: string): void
-```
-
-Throws an error if `ID` does not satisfy the
-following requirements from `PositionSource`'s constructor:
-
-- It does not contain `','` or `'.'`.
-- The first character is lexicographically less than `'~'` (code point 126).
-
-#### Properties
-
-```ts
-static readonly DEFAULT_LENGTH: number = 10
-```
-
-The default length of an ID, in characters.
-
-```ts
-static readonly DEFAULT_CHARS: string =
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-```
-
-Default characters used in IDs: alphanumeric chars.
-
-## Example App
-
-TODO (update from position-strings)
-
-[Firebase text-editor](https://firebase-text-editor.herokuapp.com/) uses position-strings to implement collaborative (plain) text editing on top of [Firebase RTDB](https://firebase.google.com/docs/database). Each character is stored together with its position, and a Firebase query is used to list the characters in order.
-
-The app also demonstrates using `Cursors` to track the local user's selection start and end.
-
-[Source code](https://github.com/mweidner037/firebase-text-editor/blob/master/src/site/main.ts)
+Obtain BunchNodes using `Order.getNode` or `Order.getNodeFor`.
 
 ## Performance
 
-TODO (update from position-strings)
+Benchmarks are a WIP and will be reported here.
 
-_Position string length_ is our main performance metric. This determines the memory, storage, and network overhead due to a collaborative list's positions.
-
-> Additionally, each `PositionSource` instance uses some memory, and `PositionSource.createBetween` takes some time, but these are usually small enough to ignore.
-
-To measure position string length in a realistic setting, we benchmark against [Martin Kleppmann's text trace](https://github.com/automerge/automerge-perf). That is, we pretend a user is typing into a collaborative text editor that attaches a position string to each character, then output statistics for those positions.
-
-For the complete trace (182k positions, 260k total edits) typed by a single `PositionSource`, the average position length is **33 characters**, and the max length is 55.
-
-For a more realistic scenario with 260 `PositionSource`s (a new one every 1,000 edits), the average position length is **111 characters**, and the max length is 237. "Rotating" `PositionSource`s in this way simulates the effect of multiple users, or a single user who occasionally reloads the page. (The extra length comes from referencing multiple [IDs](#properties) per position: an average of 8 IDs/position x 8 chars/ID = 64 chars/position.)
-
-If we only consider the first 10,000 edits, the averages decrease to **23 characters** (single `PositionSource`) and **50 characters** (new `PositionSource` every 1,000 edits).
-
-More stats for these four scenarios are in [stats.md](https://github.com/mweidner037/position-strings/blob/master/stats.md). For full data, run `npm run benchmarks` (after `npm ci`) and look in `benchmark_results/`.
+<!--
+TODO: benchmarks
+-->
 
 ### Performance Considerations
 
-- In realistic scenarios with multiple `PositionSource`s, most of the positions' length comes from referencing [IDs](#properties). By default, IDs are 8 random alphanumeric characters to give a low probability of collisions, but you can pass your own shorter IDs to [`PositionSource`'s constructor](#constructor). For example, you could assign IDs sequentially from a server.
-- A set of positions from the same list compress reasonably well together, since they represent different paths in the same tree. In particular, a list's worth of positions should compress well under gzip or prefix compression. However, compressing individual positions is not recommended.
-- [`PositionSource.createBetween`](#createbetween) is optimized for left-to-right insertions. If you primarily insert right-to-left or at random, you will see worse performance. -->
+- The library is optimized for forward (left-to-right) insertions. If you primarily insert backward (right-to-left) or at random, you will see worse efficiency - especially storage overhead. (Internally, only forward insertions reuse [bunches](#bunches), so other patterns lead to fewer Positions per bunch.)
+
+<!-- TODO
+Custom serialization: protobufs; parse default bunchID format; exploit recurrences in replicaIDs.
+-->

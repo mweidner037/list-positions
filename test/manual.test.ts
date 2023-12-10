@@ -309,7 +309,7 @@ function testTwoUsers(ID1: string, ID2: string) {
   it("left children", () => {
     const gParent = alice.createBetween();
     // Each parent is a child of gParent with the same waypoint but
-    // a range of valueIndex's.
+    // a range of innerIndex's.
     const parents: string[] = [];
     let previous = gParent;
     for (let i = 0; i < 500; i++) {

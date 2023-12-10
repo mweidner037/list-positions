@@ -1,83 +1,78 @@
 import { BunchNode } from "./bunch";
 import { ItemList } from "./internal/item_list";
-import { ArrayItemManager, SparseItems } from "./internal/sparse_items";
+import { NumberItemManager } from "./internal/sparse_items";
 import { Order } from "./order";
 import { Position } from "./position";
 
 /**
- * A JSON-serializable saved state for a `List<T>`.
+ * A JSON-serializable saved state for an Outline.
  *
- * See List.save and List.load.
+ * See Outline.save and Outline.load.
  *
  * ### Format
  *
- * For advanced usage, you may read and write ListSavedStates directly.
+ * For advanced usage, you may read and write OutlineSavedStates directly.
  *
  * The format is: For each [bunch](https://github.com/mweidner037/list-positions#bunches)
- * with Positions present in the List, map the bunch's ID to a sparse array
+ * with Positions present in the Outline, map the bunch's ID to a sparse array
  * representing the map
  * ```
- * innerIndex -> (value at Position { bunchID, innerIndex }).
+ * innerIndex -> (true if Position { bunchID, innerIndex } is present).
  * ```
  * bunchID keys are in no particular order.
  *
- * Each sparse array of type `(T[] | number)[]` alternates between "runs" of present and deleted
- * values. Each even index is an array of present values; each odd
+ * Each sparse array of type `number[]` alternates between "runs" of present and deleted
+ * values. Each even index is a count of present values; each odd
  * index is a count of deleted values.
- * E.g. `[["a", "b"], 3, ["c"]]` means `["a", "b", null, null, null, "c"]`.
+ * E.g. `[2, 3, 1]` means `[true, true, null, null, null, true]`.
  */
-export type ListSavedState<T> = {
-  [bunchID: string]: (T[] | number)[];
+export type OutlineSavedState = {
+  [bunchID: string]: number[];
 };
 
 /**
- * A list of values of type `T`, represented as an ordered map with Position keys.
+ * An outline for a list of values. It represents an ordered set of Positions. Unlike List,
+ * it only tracks which Positions are present - not their associated values.
  *
- * See [List, Position, and Order](https://github.com/mweidner037/list-positions#list-position-and-order) in the readme.
+ * See [Outline](https://github.com/mweidner037/list-positions#outline) in the readme.
  *
- * List's API is a hybrid between `Array<T>` and `Map<Position, T>`.
- * Use `insertAt` or `insert` to insert new values into the list in the style of `Array.splice`.
- *
- * @typeParam T The value type.
+ * Outline's API is a hybrid between `Array<Position>` and `Set<Position>`.
+ * Use `insertAt` or `insert` to insert new Positions into the list in the style of `Array.splice`.
  */
-export class List<T> {
+export class Outline {
   /**
    * The Order that manages this list's Positions and their metadata.
    * See [Managing Metadata](https://github.com/mweidner037/list-positions#managing-metadata).
    */
   readonly order: Order;
-  private readonly itemList: ItemList<T[], T>;
+  private readonly itemList: ItemList<number, true>;
 
   /**
-   * Constructs a List, initially empty.
+   * Constructs an Outline, initially empty.
    *
    * @param order The Order to use for `this.order`.
    * Multiple Lists/Outlines/LexLists can share an Order; they then automatically
    * share metadata. If not provided, a `new Order()` is used.
    *
-   * @see List.from To construct a List from an initial set of entries.
+   * @see Outline.from To construct an Outline from an initial set of Positions.
    */
   constructor(order?: Order) {
     this.order = order ?? new Order();
-    this.itemList = new ItemList(this.order, new ArrayItemManager());
+    this.itemList = new ItemList(this.order, new NumberItemManager());
   }
 
   /**
-   * Returns a new List using the given Order and with the given
-   * ordered-map entries.
+   * Returns a new Outline using the given Order and with the given set of Positions.
    *
    * Like when loading a saved state, you must deliver all of the Positions'
    * dependent metadata to `order` before calling this method.
    */
-  static from<T>(
-    entries: Iterable<[pos: Position, value: T]>,
-    order: Order
-  ): List<T> {
-    const list = new List<T>(order);
-    for (const [pos, value] of entries) {
-      list.set(pos, value);
+  static from(positions: Iterable<Position>, order: Order): Outline {
+    const outline = new Outline(order);
+    for (const pos of positions) {
+      outline.add(pos);
     }
-    return list;
+    return outline;
   }
 
   // ----------
@@ -85,15 +80,15 @@ export class List<T> {
   // ----------
 
   /**
-   * Sets the value at the given position.
+   * Adds the given Position.
    *
-   * If the position is already present, its value is overwritten.
-   * Otherwise, later values in the list shift right
+   * If the position is already present, nothing happens.
+   * Otherwise, later positions in the list shift right
    * (increment their index).
    */
-  set(pos: Position, value: T): void;
+  add(pos: Position): void;
   /**
-   * Sets the values at a sequence of Positions within the same [bunch](https://github.com/mweidner037/list-positions#bunches).
+   * Adds a sequence of Positions within the same [bunch](https://github.com/mweidner037/list-positions#bunches).
    *
    * The Positions start at `startPos` and have the same `bunchID` but increasing `innerIndex`.
    * Note that these Positions might not be contiguous anymore, if later
@@ -101,25 +96,15 @@ export class List<T> {
    *
    * @see Order.startPosToArray
    */
-  set(startPos: Position, ...sameBunchValues: T[]): void;
-  set(startPos: Position, ...values: T[]): void {
-    this.itemList.set(startPos, values);
+  add(startPos: Position, sameBunchCount?: number): void;
+  add(startPos: Position, count = 1): void {
+    this.itemList.set(startPos, count);
   }
 
   /**
-   * Sets the value at the given index (equivalently, at Position `this.positionAt(index)`),
-   * overwriting the existing value.
+   * Deletes the given position, making it no longer present in the list.
    *
-   * @throws If index is not in `[0, this.length)`.
-   */
-  setAt(index: number, value: T): void {
-    this.set(this.positionAt(index), value);
-  }
-
-  /**
-   * Deletes the given position, making it and its value no longer present in the list.
-   *
-   * If the position was indeed present, later values in the list shift left (decrement their index).
+   * If the position was indeed present, later positions in the list shift left (decrement their index).
    */
   delete(pos: Position): void;
   /**
@@ -137,7 +122,7 @@ export class List<T> {
   }
 
   /**
-   * Deletes `count` values starting at `index`.
+   * Deletes `count` positions starting at `index`.
    *
    * @throws If any of `index`, ..., `index + count - 1` are not in `[0, this.length)`.
    */
@@ -146,11 +131,12 @@ export class List<T> {
     for (let i = 0; i < count; i++) {
       toDelete[i] = this.positionAt(index + i);
     }
+    // OPT: batch delta updates, like for same-node update.
     for (const pos of toDelete) this.itemList.delete(pos, 1);
   }
 
   /**
-   * Deletes every value in the list, making it empty.
+   * Deletes every Position in the list, making it empty.
    *
    * `this.order` is unaffected (retains all metadata).
    */
@@ -159,23 +145,20 @@ export class List<T> {
   }
 
   /**
-   * Inserts the given value just after prevPos, at a new Position.
+   * Inserts a new Position just after prevPos.
 
-   * Later values in the list shift right
+   * Later positions in the list shift right
    * (increment their index).
    * 
    * In a collaborative setting, the new Position is *globally unique*, even
-   * if other users call `List.insert` (or similar methods) concurrently.
+   * if other users call `Outline.insert` (or similar methods) concurrently.
    * 
    * @returns [insertion Position, [created bunch's](https://github.com/mweidner037/list-positions#createdBunch) BunchNode (or null)].
    * @throws If prevPos is Order.MAX_POSITION.
    */
-  insert(
-    prevPos: Position,
-    value: T
-  ): [pos: Position, createdBunch: BunchNode | null];
+  insert(prevPos: Position): [pos: Position, createdBunch: BunchNode | null];
   /**
-   * Inserts the given values just after prevPos, at a series of new Positions.
+   * Inserts `count` new Positions just after prevPos.
    *
    * The new Positions all use the same [bunch](https://github.com/mweidner037/list-positions#bunches), with sequential
    * `innerIndex` (starting at the returned startPos).
@@ -185,37 +168,34 @@ export class List<T> {
    * @returns [starting Position, [created bunch's](https://github.com/mweidner037/list-positions#createdBunch) BunchNode (or null)].
    * @throws If prevPos is Order.MAX_POSITION.
    * @throws If no values are provided.
-   * @see Order.startPosToArray To convert (startPos, values.length) to an array of Positions.
+   * @see Order.startPosToArray To convert (startPos, count) to an array of Positions.
    */
   insert(
     prevPos: Position,
-    ...values: T[]
+    count?: number
   ): [startPos: Position, createdBunch: BunchNode | null];
   insert(
     prevPos: Position,
-    ...values: T[]
+    count = 1
   ): [startPos: Position, createdBunch: BunchNode | null] {
-    return this.itemList.insert(prevPos, values);
+    return this.itemList.insert(prevPos, count);
   }
 
   /**
-   * Inserts the given value at `index` (i.e., between the values at `index - 1` and `index`), at a new Position.
+   * Inserts a new Position at `index` (i.e., between the positions at `index - 1` and `index`).
    *
-   * Later values in the list shift right
+   * Later positions in the list shift right
    * (increment their index).
    *
    * In a collaborative setting, the new Position is *globally unique*, even
-   * if other users call `List.insertAt` (or similar methods) concurrently.
+   * if other users call `Outline.insertAt` (or similar methods) concurrently.
    *
    * @returns [insertion Position, [created bunch's](https://github.com/mweidner037/list-positions#createdBunch) BunchNode (or null)].
    * @throws If index is not in `[0, this.length]`. The index `this.length` is allowed and will cause an append, unless this list's current last Position is Order.MAX_POSITION.
    */
-  insertAt(
-    index: number,
-    value: T
-  ): [pos: Position, createdBunch: BunchNode | null];
+  insertAt(index: number): [pos: Position, createdBunch: BunchNode | null];
   /**
-   * Inserts the given values at `index` (i.e., between the values at `index - 1` and `index`), at a series of new Positions.
+   * Inserts `count` new Positions at `index` (i.e., between the values at `index - 1` and `index`).
    *
    * The new Positions all use the same [bunch](https://github.com/mweidner037/list-positions#bunches), with sequential
    * `innerIndex` (starting at the returned startPos).
@@ -224,39 +204,23 @@ export class List<T> {
    *
    * @returns [insertion Position, [created bunch's](https://github.com/mweidner037/list-positions#createdBunch) BunchNode (or null)].
    * @throws If index is not in `[0, this.length]`. The index `this.length` is allowed and will cause an append, unless this list's current last Position is Order.MAX_POSITION.
-   * @throws If no values are provided.
-   * @see Order.startPosToArray To convert (startPos, values.length) to an array of Positions.
+   * @throws If count is 0.
+   * @see Order.startPosToArray To convert (startPos, count) to an array of Positions.
    */
   insertAt(
     index: number,
-    ...values: T[]
+    count?: number
   ): [startPos: Position, createdBunch: BunchNode | null];
   insertAt(
     index: number,
-    ...values: T[]
+    count = 1
   ): [startPos: Position, createdBunch: BunchNode | null] {
-    return this.itemList.insertAt(index, values);
+    return this.itemList.insertAt(index, count);
   }
 
   // ----------
   // Accessors
   // ----------
-
-  /**
-   * Returns the value at the given position, or undefined if it is not currently present.
-   */
-  get(pos: Position): T | undefined {
-    return this.itemList.get(pos);
-  }
-
-  /**
-   * Returns the value currently at index.
-   *
-   * @throws If index is not in `[0, this.length)`.
-   */
-  getAt(index: number): T {
-    return this.itemList.getAt(index);
-  }
 
   /**
    * Returns whether the given position is currently present in the list.
@@ -330,27 +294,11 @@ export class List<T> {
   // Iterators
   // ----------
 
-  /** Returns an iterator for values in the list, in list order. */
-  [Symbol.iterator](): IterableIterator<T> {
-    return this.values();
-  }
-
   /**
-   * Returns an iterator for values in the list, in list order.
-   *
-   * Arguments are as in [Array.slice](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/slice).
+   * Returns an iterator for present positions, in list order.
    */
-  *values(start?: number, end?: number): IterableIterator<T> {
-    for (const [, value] of this.entries(start, end)) yield value;
-  }
-
-  /**
-   * Returns a copy of a section of this list, as an array.
-   *
-   * Arguments are as in [Array.slice](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/slice).
-   */
-  slice(start?: number, end?: number): T[] {
-    return [...this.values(start, end)];
+  [Symbol.iterator](): IterableIterator<Position> {
+    return this.positions();
   }
 
   /**
@@ -359,19 +307,7 @@ export class List<T> {
    * Arguments are as in [Array.slice](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/slice).
    */
   *positions(start?: number, end?: number): IterableIterator<Position> {
-    for (const [pos] of this.entries(start, end)) yield pos;
-  }
-
-  /**
-   * Returns an iterator of [pos, value] tuples in the list, in list order. These are its entries as an ordered map.
-   *
-   * Arguments are as in [Array.slice](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/slice).
-   */
-  entries(
-    start?: number,
-    end?: number
-  ): IterableIterator<[pos: Position, value: T]> {
-    return this.itemList.entries(start, end);
+    for (const [pos] of this.itemList.entries(start, end)) yield pos;
   }
 
   // ----------
@@ -379,38 +315,34 @@ export class List<T> {
   // ----------
 
   /**
-   * Returns a saved state for this List.
+   * Returns a saved state for this Outline.
    *
-   * The saved state describes our current (Position -> value) map in JSON-serializable form.
-   * You can load these entries on another List by calling `load(savedState)`,
+   * The saved state describes our current set of Positions in JSON-serializable form.
+   * You can load these Positions on another Outline by calling `load(savedState)`,
    * possibly in a different session or on a different device.
    */
-  save(): ListSavedState<T> {
-    return this.itemList.save(deepCloneItems);
+  save(): OutlineSavedState {
+    return this.itemList.save(cloneItems);
   }
 
   /**
-   * Loads a saved state returned by another List's `save()` method.
+   * Loads a saved state returned by another Outline's `save()` method.
    *
-   * Loading sets our (Position -> value) map to match the saved List's, *overwriting*
+   * Loading sets our set of Positions to match the saved Outline's, *overwriting*
    * our current state.
    *
    * **Before loading a saved state, you must deliver its dependent metadata
    * to this.Order**. For example, you could save and load the Order's state
-   * alongside the List's state, making sure to load the Order first.
-   * See [Managing Metadata](https://github.com/mweidner037/list-positions#save-load) for an example.
+   * alongside the Outline's state, making sure to load the Order first.
+   * See [Managing Metadata](https://github.com/mweidner037/list-positions#save-load) for an example
+   * with List (Outline is analogous).
    */
-  load(savedState: ListSavedState<T>): void {
-    this.itemList.load(savedState, deepCloneItems);
+  load(savedState: OutlineSavedState): void {
+    this.itemList.load(savedState, cloneItems);
   }
 }
 
-function deepCloneItems<T>(items: SparseItems<T[]>): SparseItems<T[]> {
-  // Defensive deep copy
-  const copy = new Array<T[] | number>(items.length);
-  for (let i = 0; i < items.length; i++) {
-    if (i % 2 === 0) copy[i] = (items[i] as T[]).slice();
-    else copy[i] = items[i];
-  }
-  return copy;
+function cloneItems(items: number[]): number[] {
+  // Defensive copy
+  return items.slice();
 }
