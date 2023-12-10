@@ -132,6 +132,8 @@ export class SparseItemsManager<I, T> {
     startIndex: number,
     item: I
   ): [items: SparseItems<I>, replaced: SparseItems<I>] {
+    if (this.itemMan.length(item) === 0) return [items, this.new(0)];
+
     const [before, replaced, after] = this.split(
       items,
       startIndex,
@@ -151,6 +153,8 @@ export class SparseItemsManager<I, T> {
     startIndex: number,
     count: number
   ): [items: SparseItems<I>, replaced: SparseItems<I>] {
+    if (count === 0) return [items, this.new(0)];
+
     const [before, replaced, after] = this.split(
       items,
       startIndex,

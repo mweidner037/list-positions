@@ -1,5 +1,6 @@
 import { assert } from "chai";
 import { describe, test } from "mocha";
+import seedrandom from "seedrandom";
 import {
   ArrayItemManager,
   SparseItems,
@@ -18,7 +19,7 @@ function validate(items: SparseItems<string[]>, trimmed = false): void {
   // No empty items except the first.
   for (let i = 1; i < items.length; i++) {
     if (i % 2 === 0) assert.isNotEmpty(items[i]);
-    else assert.notStrictEqual(items[i], 0);
+    else assert.notStrictEqual(items[i], 0, JSON.stringify(items));
   }
 
   if (trimmed && items.length !== 0) {
@@ -37,14 +38,13 @@ function getLength(items: SparseItems<string[]>): number {
   return ans;
 }
 
-function checkEquals(
+function check(
   items: SparseItems<string[]>,
   values: (string | null)[],
   trimmed = false
 ) {
   validate(items, trimmed);
 
-  assert.strictEqual(getLength(items), values.length, "length");
   let beforeCount = 0;
   for (let i = 0; i < values.length; i++) {
     const info = man.getInfo(items, i);
@@ -54,6 +54,14 @@ function checkEquals(
       assert.deepStrictEqual(info, [values[i]!, true, beforeCount]);
       beforeCount++;
     }
+  }
+  assert.strictEqual(
+    man.size(items),
+    values.filter((value) => value != null).length,
+    "size"
+  );
+  if (trimmed) {
+    assert.strictEqual(getLength(items), values.length, "length");
   }
 
   // getInfo should also work on indexes past the length.
@@ -70,13 +78,13 @@ class Checker {
   items: SparseItems<string[]>;
   values: (string | null)[];
 
-  constructor(length = 0) {
-    this.items = man.new(length);
-    this.values = new Array(length).fill(null);
+  constructor() {
+    this.items = man.new();
+    this.values = [];
   }
 
   check() {
-    checkEquals(this.items, this.values);
+    check(this.items, this.values);
   }
 
   trim() {
@@ -106,7 +114,10 @@ class Checker {
 
     // Check agreement.
     this.check();
-    checkEquals(replaced, replacedValues);
+    check(replaced, replacedValues);
+
+    // Always trim, to match ItemList.
+    this.trim();
   }
 
   delete(index: number, count: number) {
@@ -128,38 +139,89 @@ class Checker {
 
     // Check agreement.
     this.check();
-    checkEquals(replaced, replacedValues);
+    check(replaced, replacedValues);
+
+    // Always trim, to match ItemList.
+    this.trim();
+  }
+
+  /**
+   * Test all findPresentIndex inputs and some newSlicer walks.
+   *
+   * More expensive (O(length^2) ops), so only call occasionally,
+   * in "interesting" states.
+   */
+  testQueries(rng: seedrandom.prng) {
+    // Test findPresentIndex.
+    for (let startIndex = 0; startIndex < this.values.length; startIndex++) {
+      for (let count = 0; ; count++) {
+        // Find the count-th present value starting at startIndex, in values.
+        let remaining = count;
+        let i = startIndex;
+        for (; i < this.values.length; i++) {
+          if (this.values[i] !== null) {
+            remaining--;
+            if (remaining === 0) break;
+          }
+        }
+        if (remaining !== 0) {
+          // count is too large; go to the next startIndex.
+          break;
+        } else {
+          // Answer is i.
+          assert.strictEqual(
+            man.findPresentIndex(this.items, startIndex, count),
+            i
+          );
+        }
+      }
+    }
+
+    // Test newSlicer 10x with random slices.
+    for (let trial = 0; trial < 10; trial++) {
+      const slicer = man.newSlicer(this.items);
+      let lastEnd = 0;
+      while (rng() >= 0.75) {
+        // Length 0 to 20 (0 can happen w/ concurrent or L/R dual siblings).
+        const len = Math.floor(rng() * 21);
+        const actual = slicer.nextSlice(lastEnd + len);
+        const expected = [...this.values.entries()]
+          .slice(lastEnd, lastEnd + len)
+          .filter(([, value]) => value != null);
+        assert.deepStrictEqual(actual, expected);
+        lastEnd += len;
+      }
+      // Finish.
+      slicer.nextSlice(null);
+    }
   }
 }
 
 describe("Sparse Array", () => {
+  let rng!: seedrandom.prng;
+
+  beforeEach(() => {
+    rng = seedrandom("42");
+  });
+
   test("new", () => {
-    checkEquals(man.new(), []);
-    checkEquals(man.new(3), [null, null, null]);
+    check(man.new(), []);
+    check(man.new(3), [null, null, null]);
   });
 
   test("set once", () => {
-    let items = man.new();
-    let replaced: SparseItems<string[]>;
-
-    [items, replaced] = man.set(items, 0, ["a", "b", "c"]);
-    checkEquals(items, ["a", "b", "c"]);
-    checkEquals(replaced, [null, null, null]);
+    const checker = new Checker();
+    checker.set(0, ["a", "b", "c"]);
+    checker.testQueries(rng);
   });
 
   test("delete once", () => {
-    let items = man.new();
-    let replaced: SparseItems<string[]>;
+    const checker = new Checker();
+    checker.delete(0, 3);
+    checker.testQueries(rng);
 
-    [items, replaced] = man.delete(items, 0, 3);
-    items = man.trim(items);
-    checkEquals(items, [], true);
-    checkEquals(replaced, [null, null, null]);
-
-    [items, replaced] = man.delete(items, 2, 3);
-    items = man.trim(items);
-    checkEquals(items, [], true);
-    checkEquals(replaced, [null, null, null]);
+    checker.delete(2, 3);
+    checker.testQueries(rng);
   });
 
   test("set twice", () => {
@@ -169,8 +231,8 @@ describe("Sparse Array", () => {
       for (let j = 1; j < 5 - i; j++) {
         const checker = new Checker();
         checker.set(0, values);
-
         checker.set(i, new Array(j).fill("x"));
+        checker.testQueries(rng);
       }
     }
   });
@@ -182,9 +244,99 @@ describe("Sparse Array", () => {
       for (let j = 1; j < 5 - i; j++) {
         const checker = new Checker();
         checker.set(0, values);
-
         checker.delete(i, j);
+        checker.testQueries(rng);
       }
     }
+  });
+
+  test("push and pop", () => {
+    // Simulate typing and backspacing in a single bunch.
+    const checker = new Checker();
+    let cursor = 0;
+    let push = true;
+    for (let i = 0; i < 100; i++) {
+      if (cursor === 0) push = true;
+      else if (rng() < 0.1) push = !push;
+
+      if (push) {
+        checker.set(cursor, [String.fromCharCode(96 + Math.floor(rng() * 26))]);
+        cursor++;
+      } else {
+        checker.delete(cursor - 1, 1);
+        cursor--;
+      }
+
+      if (i % 10 === 0) checker.testQueries(rng);
+    }
+  });
+
+  test("push and shift", () => {
+    const checker = new Checker();
+    for (let i = 0; i < 100; i++) {
+      checker.set(i, [String.fromCharCode(96 + Math.floor(rng() * 26))]);
+      if (i >= 20) checker.delete(i - 20, 1);
+      if (i % 10 === 0) checker.testQueries(rng);
+    }
+  });
+
+  describe("fuzz", () => {
+    test("single char ops", () => {
+      const checker = new Checker();
+      for (let i = 0; i < 200; i++) {
+        const index = Math.floor(rng() * 30);
+        if (rng() < 0.5) {
+          checker.set(index, [
+            String.fromCharCode(96 + Math.floor(rng() * 26)),
+          ]);
+        } else checker.delete(index, 1);
+        if (i % 20 === 0) checker.testQueries(rng);
+      }
+    });
+
+    test("bulk set, single delete", () => {
+      const checker = new Checker();
+      for (let i = 0; i < 200; i++) {
+        const index = Math.floor(rng() * 30);
+        if (rng() < 0.2) {
+          checker.set(
+            index,
+            new Array(Math.floor(rng() * 10)).fill(
+              String.fromCharCode(96 + Math.floor(rng() * 26))
+            )
+          );
+        } else checker.delete(index, 1);
+        if (i % 20 === 0) checker.testQueries(rng);
+      }
+    });
+
+    test("single set, bulk delete", () => {
+      const checker = new Checker();
+      for (let i = 0; i < 200; i++) {
+        const index = Math.floor(rng() * 30);
+        if (rng() < 0.8) {
+          checker.set(index, [
+            String.fromCharCode(96 + Math.floor(rng() * 26)),
+          ]);
+        } else checker.delete(index, Math.floor(rng() * 10));
+        if (i % 20 === 0) checker.testQueries(rng);
+      }
+    });
+
+    test("bulk ops", () => {
+      const checker = new Checker();
+      for (let i = 0; i < 200; i++) {
+        const index = Math.floor(rng() * 30);
+        if (rng() < 0.5) {
+          checker.set(
+            index,
+            new Array(Math.floor(rng() * 10)).fill(
+              String.fromCharCode(96 + Math.floor(rng() * 26))
+            )
+          );
+        } else checker.delete(index, Math.floor(rng() * 10));
+        if (i % 20 === 0) checker.testQueries(rng);
+      }
+    });
   });
 });
