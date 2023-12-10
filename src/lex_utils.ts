@@ -72,7 +72,7 @@ export const LexUtils = {
    * Returns a bunch's prefix (see LexUtils.splitPos), given the
    * BunchMetas of its ancestors in order from
    * the root downwards (excluding the root and including the bunch, unless root).
-   * 
+   *
    * Usually you will just call `bunchNode.lexPrefix()` to get a bunch's prefix.
    * This function is instead meant as a reference for working with LexPositions
    * in other languages.
@@ -225,14 +225,16 @@ function decodeInnerIndex(encoded: string): number {
  * [Elias gamma coding](https://en.wikipedia.org/wiki/Elias_gamma_coding).
  */
 
+// Exports below are only for tests.
+
 // Must be even and > 2. If you use toString(BASE), must be <= 36.
-const BASE = 36;
-const LOG_BASE = Math.log(BASE);
+export const BASE = 36;
+export const LOG_BASE = Math.log(BASE);
 
 /**
  * Returns the n-th number in the sequence.
  */
-function sequence(n: number): number {
+export function sequence(n: number): number {
   // Each digit-length d has (BASE/2)^d values. Subtract these
   // out until we can't anymore (reached the right length).
   let remaining = n;
@@ -252,7 +254,7 @@ function sequence(n: number): number {
 /**
  * Inverse of sequence: returns the index n of seq in the sequence.
  */
-function sequenceInv(seq: number): number {
+export function sequenceInv(seq: number): number {
   const d = seq === 0 ? 1 : Math.floor(Math.log(seq) / LOG_BASE) + 1;
   // First d-digit number is BASE^d - BASE * (BASE/2)^(d-1); check how far
   // we are from there (= index in d-digit sub-sequence)

@@ -116,8 +116,8 @@ export class SparseItemsManager<I, T> {
   trim(items: SparseItems<I>): SparseItems<I> {
     // Omit last deleted item.
     if (items.length !== 0 && items.length % 2 === 0) items.pop();
-    // Omit only item if it's empty.
-    if (items.length === 0 && this.itemMan.isEmpty(items[0] as I)) items.pop();
+    // Omit only item if the whole thing is empty.
+    if (items.length === 1 && this.itemMan.isEmpty(items[0] as I)) items.pop();
     return items;
   }
 
@@ -180,7 +180,7 @@ export class SparseItemsManager<I, T> {
         // Last slice; consume the rest of arr.
         remaining = Number.MAX_SAFE_INTEGER;
       } else remaining = indexes[i] - indexes[i - 1];
-      while (itemsI < items.length) {
+      while (remaining !== 0 && itemsI < items.length) {
         const length =
           itemsI % 2 === 0
             ? this.itemMan.length(items[itemsI] as I)
@@ -191,24 +191,25 @@ export class SparseItemsManager<I, T> {
           continue;
         }
 
+        // # of values in item to consume (starting at withinItem).
+        const consume = Math.min(remaining, length - withinItem);
         if (itemsI % 2 === 0) {
-          let item = items[itemsI] as I;
-          if (remaining < length - withinItem) {
-            item = this.itemMan.slice(item, withinItem, withinItem + remaining);
-            withinItem += remaining;
+          const item = items[itemsI] as I;
+          if (withinItem === 0 && consume === length) {
+            // Common case opt: avoid cloning item.
+            slice.push(item);
+          } else {
+            slice.push(
+              this.itemMan.slice(item, withinItem, withinItem + consume)
+            );
           }
-          slice.push(item);
-          remaining -= this.itemMan.length(item);
         } else {
-          let item = items[itemsI] as number;
-          if (remaining < length - withinItem) {
-            item = remaining;
-            withinItem += remaining;
-          }
+          // If the slice would start with a deleted item, push an empty I instead.
           if (slice.length === 0) slice.push(this.itemMan.empty());
-          slice.push(item);
-          remaining -= item;
+          slice.push(consume);
         }
+        withinItem += consume;
+        remaining -= consume;
       }
 
       // If arr doesn't go all the way, pad with deleted items.
