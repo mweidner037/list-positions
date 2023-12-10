@@ -257,7 +257,7 @@ export class Order {
     for (let i = bNode.depth; i > aNode.depth; i--) {
       if (bAnc.parent === aNode) {
         if (bAnc.nextInnerIndex === a.innerIndex + 1) return -1;
-        else return -(bAnc.nextInnerIndex - (b.innerIndex + 1));
+        else return -(bAnc.nextInnerIndex - (a.innerIndex + 1));
       }
       bAnc = bAnc.parent!;
     }

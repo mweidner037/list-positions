@@ -15,8 +15,9 @@ describe("lists - fuzz", () => {
       );
     });
 
-    it("single-char at methods", () => {
-      for (let i = 0; i < 100; i++) {
+    it("single-char at methods", function () {
+      this.timeout(5000);
+      for (let i = 0; i < 500; i++) {
         if (checker.list.length === 0 || rng() < 0.5) {
           // 1/2: insertAt
           checker.insertAt(
