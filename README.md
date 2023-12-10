@@ -34,18 +34,18 @@ This library provides positions (types `Position`/`LexPosition`) and correspondi
 3. In a **text editor with suggested changes** (from collaborators, AI, or local drafts), store each suggestion as a collection of `(position, char)` pairs to insert or delete. When the user accepts a suggestion, apply those changes to the main List.
 4. To make a **collaborative text editor**, you just need a way to collaborate on the map `(position -> char)`. This is easy to DIY, and more flexible than using an Operational Transformation or CRDT library. For example:
    - When a user types `char` at `index`, call `[position] = list.insertAt(index, char)` to insert the char into their local List at a (new) Position `position`. Then broadcast `(position, char)` to all collaborators. Recipients call `list.set(position, char)` on their own Lists.
-   - Or, store the map in a cloud database. You can do this efficiently by understanding the [structure of Positions](TODO).
+   - Or, store the map in a cloud database. You can do this efficiently by understanding the [structure of Positions](#bunches).
    - Or, send each `(position, char)` pair to a central server. The server can choose to accept, reject, or modify the change before forwarding it to other users - e.g., enforcing per-paragraph permissions. It can also choose to store the map in a database table, instead of loading each active document into memory.
 
 ### Features
 
 **Performance** Our list data structures have a small memory footprint, fast edits, and small saved states. <!-- See our [performance measurements](TODO) for a 260k op text-editing trace. -->
 
-**Collaboration** Lists can share the same positions even across devices. Even in the face of concurrent edits, Positions are always globally unique, and you can insert a new position anywhere in a list. To make this possible, the library essentially implements a list CRDT ([Fugue](TODO)), but with a more flexible API.
+**Collaboration** Lists can share the same positions even across devices. Even in the face of concurrent edits, Positions are always globally unique, and you can insert a new position anywhere in a list. To make this possible, the library essentially implements a list CRDT ([Fugue](https://arxiv.org/abs/2305.00583)), but with a more flexible API.
 
 **Non-interleaving** In collaborative scenarios, if two users concurrently insert a (forward or backward) sequence at the same place, their sequences will not be interleaved. For example, in a collaborative text editor, if Alice types "Hello" while Bob types "World" at the same place, then the resulting order will be "HelloWorld" or "WorldHello", not "HWeolrllod".
 
-**Flexible usage** There are multiple inter-compatible ways to work with our positions and lists. For example, you can ask for a [lexicographically-sortable version of a position](TODO: lex) to use indendently of this library, or [store list values in your own data structure](TODO: outline) instead of our default List class.
+**Flexible usage** There are multiple inter-compatible ways to work with our positions and lists. For example, you can ask for a [lexicographically-sortable version of a position](#lexlist-and-lexposition) to use indendently of this library, or [store list values in your own data structure](#outline) instead of our default List class.
 
 ### Related Work
 
@@ -56,6 +56,12 @@ This library provides positions (types `Position`/`LexPosition`) and correspondi
 
 ## Usage
 
+Install with npm:
+
+```bash
+npm i --save list-positions
+```
+
 ### LexList and LexPosition
 
 An easy way to get started with the library is using the `LexList<T>` class. It is a list-as-ordered map with value type `T` and positions (keys) of type `LexPosition`.
@@ -63,16 +69,40 @@ An easy way to get started with the library is using the `LexList<T>` class. It 
 Example code:
 
 ```ts
-TODO;
+import { LexList, LexPosition } from "list-positions";
+
+// Make an empty LexList.
+const list = new LexList();
+
+// Insert some values into the list.
+list.insertAt(0, "x");
+list.insertAt(1, "a", "b", "c");
+list.insertAt(3, "y");
+console.log([...list.values()]); // Prints ['x', 'a', 'b', 'y', 'c']
+
+// Other ways to manipulate a LexList:
+list.setAt(1, "A");
+list.deleteAt(0);
+console.log([...list.values()]); // Prints ['A', 'b', 'y', 'c']
+
+// 2nd way to insert values: insert after an existing position,
+// e.g., the current cursor.
+const cursorPos: LexPosition = list.positionAt(2);
+const [newPos] = list.insert(cursorPos, "z");
+console.log([...list.values()]); // Prints ['A', 'b', 'y', 'z', 'c'];
+
+// Map-like API:
+list.set(newPos, "Z");
+list.delete(newPos);
 ```
 
 Internally, LexPositions are just strings. LexPositions have the nice property that **their lexicographic order matches the list order**. So you can `ORDER BY` LexPositions in a database table, or store them in a different [ordered](https://www.npmjs.com/package/functional-red-black-tree) [map](https://docs.oracle.com/javase/8/docs/api/java/util/TreeMap.html) [data](https://en.cppreference.com/w/cpp/container/map) [structure](https://doc.rust-lang.org/std/collections/struct.BTreeMap.html).
 
 The downside of using LexPositions is metadata overhead - they have variable length and can become long in certain scenarios<!-- (TODO in our benchmarks)-->. Also, if you store all of the literal pairs `(lexPosition, value)`, then you have per-value metadata overhead. Nonetheless, LexPositions are a convenient option for short lists of perhaps <1,000 values - e.g., the items in a todo list, or the scenarios where [Figma uses fractional indexing](https://www.figma.com/blog/how-figmas-multiplayer-technology-works/#syncing-trees-of-objects).
 
-> Using LexList is more efficient than storing all of the literal pairs `(lexPosition, value)` - in fact, it is as memory-efficient as the next section's List class. Likewise, LexList's saved states (type [LexListSavedState](TODO)) are more compact than the naive representation, though they are larger than the equivalent List/Order saved states. <!-- GZIP mostly closes the gap (TODO: data). -->
+> Using LexList is more efficient than storing all of the literal pairs `(lexPosition, value)` - in fact, it is as memory-efficient as the next section's List class. Likewise, LexList's saved states are more compact than the naive representation, though they are larger than the equivalent List/Order saved states. <!-- GZIP mostly closes the gap (TODO: data). -->
 
-See also: [LexUtils](TODO)
+See also: [LexUtils](#lexutils)
 
 ### List, Position, and Order
 
@@ -81,10 +111,50 @@ The library's main class is `List<T>`. It is a list-as-ordered-map with value ty
 Example code:
 
 ```ts
-TODO;
+import { List, Order, Position } from "list-positions";
+
+// Make an empty Order and an empty List on top of it.
+const order = new Order();
+const list = new List(order);
+
+// Insert some values into the list.
+list.insertAt(0, "x");
+list.insertAt(1, "a", "b", "c");
+list.insertAt(3, "y");
+console.log([...list.values()]); // Prints ['x', 'a', 'b', 'y', 'c']
+
+// Other ways to manipulate a LexList:
+list.setAt(1, "A");
+list.deleteAt(0);
+console.log([...list.values()]); // Prints ['A', 'b', 'y', 'c']
+
+// 2nd way to insert values: insert after an existing position,
+// e.g., the current cursor.
+const cursorPos: Position = list.positionAt(2);
+const [newPos] = list.insert(cursorPos, "z");
+console.log([...list.values()]); // Prints ['A', 'b', 'y', 'z', 'c'];
+
+// Map-like API:
+list.set(newPos, "Z");
+list.delete(newPos);
+
+// You can create and compare Positions directly in the Order,
+// without affecting its Lists.
+const [otherPos] = order.createPositions(
+  Order.MIN_POSITION,
+  list.positionAt(0),
+  1
+);
+console.log(order.compare(Order.MIN_POSITION, otherPos) < 0); // Prints true
+console.log(order.compare(otherPos, list.positionAt(0)) < 0); // Prints true
+
+// Optionally, set the value at otherPos sometime later.
+// This "inserts" the value at the appropriate index for otherPos.
+list.set(otherPos, "w");
+console.log([...list.values()]); // Prints ['w', 'A', 'b', 'y', 'c'];
 ```
 
-Unlike LexPositions, Positions aren't directly comparable. Instead, their sort order depends on some extra metadata, described in [Managing Metadata](TODO) below. The upside is that Positions have nearly constant size, so they are more efficient to share and store than LexPositions (which embed all of their dependent metadata).
+Unlike LexPositions, Positions aren't directly comparable. Instead, their sort order depends on some extra metadata, described in [Managing Metadata](#managing-metadata) below. The upside is that Positions have nearly constant size, so they are more efficient to share and store than LexPositions (which embed all of their dependent metadata).
 
 Positions are JSON objects with the following format:
 
@@ -97,8 +167,6 @@ type Position = {
 
 <a id="bunches"></a>
 The `bunchID` identifies a _bunch_ of Positions that were share metadata (for efficiency). Each bunch has Positions with `innerIndex` 0, 1, 2, ...; these were originally inserted contiguously (e.g., by a user typing left-to-right) but might not be contiguous anymore. Regardless, bunches makes it easy to store a List's map `(Position -> value)` compactly:
-
-<a id="compact-map"></a>
 
 ```ts
 // As a double map:
@@ -127,7 +195,7 @@ Notes:
 
 - A Position's `innerIndex` is unrelated to its current list index. Indeed, Positions are immutable, but their list index can change over time.
 - Do not create a never-seen-before Position from a bunchID and innerIndex unless you know what you're doing. Instead, use a method like `List.insertAt`, `List.insert`, or `Order.createPositions` to obtain new Positions. (Reconstructing previously-created Positions is fine, e.g., deserializing a Position received from a collaborator.)
-- A similar bunch-to-sparse-array representation is also possible with LexPositions: instead of keying each bunch by its bunchID, use its "bunchPrefix", which can be combined with an innerIndex to yield a LexPosition. See [LexUtils](TODO).
+- A similar bunch-to-sparse-array representation is also possible with LexPositions: instead of keying each bunch by its bunchID, use its "bunch prefix", which can be combined with an innerIndex to yield a LexPosition. See [below](#bunch-prefix).
 
 #### Managing Metadata
 
@@ -214,7 +282,8 @@ If you ever want to extract all of a Position's dependencies for sending to anot
 
 > Errors you might get if you mis-manage metadata:
 >
-> - TODO
+> - "Position references missing bunchID: {...}. You must call Order.receive before referencing a bunch."
+> - "Received BunchMeta {...}, but we have not yet received a BunchMeta for its parent node."
 
 ### Outline
 
@@ -310,7 +379,7 @@ Convert indices to cursors and back using methods `cursorAt` and `indexOfCursor`
 Utilities for manipulating [LexPositions](#lexlist-and-lexposition).
 
 <a id="bunch-prefix"></a>
-For example, `LexUtils.splitPos` and `LexUtils.combinePos` let you convert between a LexPosition and a pair `(bunchPrefix, innerIndex)`, where the *bunch prefix* is a string that embeds all of its bunch's dependencies (including ancestors' BunchMetas). This lets you use the same [compact map representations](#compact-map) as with List, just replacing each `bunchID` with a `bunchPrefix`. Indeed, LexListSavedState uses such a representation.
+For example, `LexUtils.splitPos` and `LexUtils.combinePos` let you convert between a LexPosition and a pair `(bunchPrefix, innerIndex)`, where the _bunch prefix_ is a string that embeds all of its bunch's dependencies (including ancestors' BunchMetas). This lets you use the same [compact map representations](#bunches) as with List, just replacing each `bunchID` with a `bunchPrefix`. Indeed, LexListSavedState uses such a representation.
 
 (Given a BunchNode, you can obtain its bunch's prefix using the `lexPrefix()` method - e.g., `order.getBunch(bunchID)!.lexPrefix()`.)
 
