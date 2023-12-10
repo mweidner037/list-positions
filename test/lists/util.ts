@@ -35,14 +35,12 @@ export class Checker {
     assert.deepStrictEqual([...this.lexList.positions()], this.tree.keys);
     const positions = this.tree.keys.map((lexPos) => this.order.unlex(lexPos));
     assert.deepStrictEqual([...this.list.positions()], positions);
-    // TODO: uncomment
-    //assert.deepStrictEqual([...this.outline.positions()], positions);
+    assert.deepStrictEqual([...this.outline.positions()], positions);
 
     // Check that individual accessors agree.
     // We skip LexList b/c it is the same code as List.
     assert.strictEqual(this.list.length, this.tree.length);
-    // TODO: uncomment
-    //assert.strictEqual(this.outline.length, this.tree.length);
+    assert.strictEqual(this.outline.length, this.tree.length);
     for (let i = 0; i < this.tree.length; i++) {
       const iter = this.tree.at(i);
       const pos = this.order.unlex(iter.key!);
@@ -50,7 +48,8 @@ export class Checker {
       assert.deepStrictEqual(this.list.positionAt(i), pos);
       assert.strictEqual(this.list.get(pos), iter.value!);
       assert.strictEqual(this.list.indexOfPosition(pos), i);
-      // TODO: also Outline
+      assert.deepStrictEqual(this.outline.positionAt(i), pos);
+      assert.strictEqual(this.outline.indexOfPosition(pos), i);
     }
   }
 
@@ -98,6 +97,7 @@ export class Checker {
   deleteAt(index: number, count = 1) {
     // console.log("\tdeleteAt", index, this.list.slice());
     this.list.deleteAt(index, count);
+    this.outline.deleteAt(index, count);
     this.lexList.deleteAt(index, count);
     const keys: LexPosition[] = [];
     for (let i = 0; i < count; i++) {

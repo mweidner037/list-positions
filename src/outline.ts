@@ -131,7 +131,6 @@ export class Outline {
     for (let i = 0; i < count; i++) {
       toDelete[i] = this.positionAt(index + i);
     }
-    // OPT: batch delta updates, like for same-node update.
     for (const pos of toDelete) this.itemList.delete(pos, 1);
   }
 
