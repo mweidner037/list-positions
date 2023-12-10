@@ -17,7 +17,7 @@ function sequential(numUsers: number) {
   });
 
   it("random", () => {
-    const orders = newOrders(rng, numUsers);
+    const orders = newOrders(rng, numUsers, true);
 
     // Randomly create positions in a single list, simulating sequential access.
     const list: Position[] = [];
@@ -37,7 +37,7 @@ function sequential(numUsers: number) {
   });
 
   it("random LtR runs", () => {
-    const orders = newOrders(rng, numUsers);
+    const orders = newOrders(rng, numUsers, true);
 
     // Randomly create positions in a single list, simulating sequential access.
     // This time, create short LtR runs at a time.
@@ -58,7 +58,7 @@ function sequential(numUsers: number) {
   });
 
   it("random RtL runs", () => {
-    const orders = newOrders(rng, numUsers);
+    const orders = newOrders(rng, numUsers, true);
 
     // Randomly create positions in a single list, simulating sequential access.
     // This time, create short RtL runs at a time.
@@ -79,7 +79,7 @@ function sequential(numUsers: number) {
   });
 
   it("biased", () => {
-    const orders = newOrders(rng, numUsers);
+    const orders = newOrders(rng, numUsers, true);
 
     // Randomly create positions in a single list, simulating sequential access.
     // This time, bias towards smaller indices using a sqrt.

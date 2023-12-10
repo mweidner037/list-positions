@@ -22,14 +22,21 @@ export function assertIsOrdered(positions: Position[], order: Order) {
   }
 }
 
-export function newOrders(rng: seedrandom.prng, count: number): Order[] {
+export function newOrders(
+  rng: seedrandom.prng,
+  count: number,
+  linkedMeta: boolean
+): Order[] {
   const orders: Order[] = [];
   for (let i = 0; i < count; i++) {
-    orders.push(
-      new Order({
-        newBunchID: BunchIDs.usingReplicaID(BunchIDs.newReplicaID({ rng })),
-      })
-    );
+    const order = new Order({
+      newBunchID: BunchIDs.usingReplicaID(BunchIDs.newReplicaID({ rng })),
+    });
+    if (linkedMeta) {
+      order.onCreateNode = (node) =>
+        orders.forEach((o) => o.receive([node.meta()]));
+    }
+    orders.push(order);
   }
   return orders;
 }

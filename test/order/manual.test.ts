@@ -75,7 +75,7 @@ function testSingleUser(replicaID: string) {
     const list: Position[] = [];
     for (let j = 0; j < 5; j++) {
       let previous = Order.MIN_POSITION;
-      let after = list[0]; // Out-of-bounds okay
+      const after = list[0] ?? Order.MAX_POSITION;
       for (let i = 0; i < 10; i++) {
         [previous] = alice.createPositions(previous, after, 1);
         list.splice(i, 0, previous);
@@ -232,7 +232,7 @@ function testTwoUsers(replicaID1: string, replicaID2: string) {
     const list: Position[] = [];
     for (let j = 0; j < 5; j++) {
       let previous = Order.MIN_POSITION;
-      let after = list[0]; // out-of-bounds okay
+      const after = list[0] ?? Order.MAX_POSITION;
       for (let i = 0; i < 10; i++) {
         const user = i % 2 === 0 ? bob : alice;
         [previous] = user.createPositions(previous, after, 1);
@@ -307,8 +307,8 @@ function testTwoUsers(replicaID1: string, replicaID2: string) {
     if (alice.compare(d, c) < 0) [c, d] = [d, c];
 
     // Try making e on both alice and bob.
-    let [e1] = alice.createPositions(a, b, 1);
-    let [e2] = bob.createPositions(a, b, 1);
+    let [e1] = alice.createPositions(c, d, 1);
+    let [e2] = bob.createPositions(c, d, 1);
 
     assert.notDeepEqual(e1, e2);
     assertIsOrdered([a, c, e1, d, b], alice);
@@ -321,7 +321,7 @@ function testTwoUsers(replicaID1: string, replicaID2: string) {
     const list: Position[] = [];
     for (let j = 0; j < 5; j++) {
       let previous = Order.MIN_POSITION;
-      let after = list[0]; // out-of-bounds okay
+      const after = list[0] ?? Order.MAX_POSITION;
       for (let i = 0; i < 10; i++) {
         const user = i % 2 === 0 ? bob : alice;
         [previous] = user.createPositions(previous, after, 1);

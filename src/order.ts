@@ -319,7 +319,9 @@ export class Order {
       }
       if (bunchMeta.parentID === BunchIDs.ROOT && bunchMeta.offset !== 1) {
         throw new Error(
-          `Received invalid BunchMeta (child of the root with offset != 1): ${bunchMeta}`
+          `Received invalid BunchMeta (child of the root with offset != 1): ${JSON.stringify(
+            bunchMeta
+          )}`
         );
       }
       const existing = this.tree.get(bunchMeta.bunchID);
@@ -483,8 +485,9 @@ export class Order {
         )}, nextPos=${JSON.stringify(nextPos)}`
       );
     }
-    if (count < 1)
+    if (count < 1) {
       throw new Error(`Invalid count: ${count} (must be positive)`);
+    }
 
     /* 
       Unlike in the Fugue paper, we don't track all tombstones (in particular,
@@ -580,6 +583,13 @@ export class Order {
    * in which a bunch's Positions form a rightward chain.
    */
   private isDescendant(a: Position, b: Position): boolean {
+    if (Order.equalsPosition(a, Order.MAX_POSITION)) {
+      // Special case: We don't consider a to be a real node in the
+      // implied Fugue tree. So it is never a descendant of b,
+      // even when b is MIN_POSITION.
+      return false;
+    }
+
     const aNode = this.tree.get(a.bunchID)!;
     const bNode = this.tree.get(b.bunchID)!;
 
