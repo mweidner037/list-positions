@@ -98,7 +98,7 @@ type Position = {
 <a id="bunches"></a>
 The `bunchID` identifies a _bunch_ of Positions that were share metadata (for efficiency). Each bunch has Positions with `innerIndex` 0, 1, 2, ...; these were originally inserted contiguously (e.g., by a user typing left-to-right) but might not be contiguous anymore. Regardless, bunches makes it easy to store a List's map `(Position -> value)` compactly:
 
-<a id="compact-list"></a>
+<a id="compact-map"></a>
 
 ```ts
 // As a double map:
@@ -180,7 +180,7 @@ function load<T>(savedState: string): List<T> {
 ```
 
 <a id="createdBunch"></a>
-**Multiple users** The most complicated scenarios involve multiple users and a single list order, e.g., a collaborative text editor. Any time a user creates a new Position by calling `list.insertAt`, `list.insert`, or `list.order.createPositions`, they might create a new bunch. The new bunch will be returned; you must distribute its BunchMeta before/together with the new Position. For example:
+**Multiple users** The most complicated scenarios involve multiple users and a single list order, e.g., a collaborative text editor. Any time a user creates a new Position by calling `list.insertAt`, `list.insert`, or `list.order.createPositions`, they might create a new bunch. The created bunch will be returned; you must distribute its BunchMeta before/together with the new Position. For example:
 
 ```ts
 // When a user types "x" at index 7:
@@ -309,17 +309,10 @@ Convert indices to cursors and back using methods `cursorAt` and `indexOfCursor`
 
 Utilities for manipulating [LexPositions](#lexlist-and-lexposition).
 
-For example, `LexUtils.splitPos` and `LexUtils.combinePos` let you split a LexPosition into its `innerIndex` and a _bunch prefix_ - a string that embeds all of its bunch's dependencies (including its ancestors' BunchMetas). That lets you store a LexList's map `(LexPosition -> value)` almost as [compactly](#compact-list) as a List's map `(Position -> value)` while still embedding all metadata. E.g., use a double map
+<a id="bunch-prefix"></a>
+For example, `LexUtils.splitPos` and `LexUtils.combinePos` let you convert between a LexPosition and a pair `(bunchPrefix, innerIndex)`, where the *bunch prefix* is a string that embeds all of its bunch's dependencies (including ancestors' BunchMetas). This lets you use the same [compact map representations](#compact-map) as with List, just replacing each `bunchID` with a `bunchPrefix`. Indeed, LexListSavedState uses such a representation.
 
-```ts
-{
-  [bunchPrefix: string]: {
-    [innerIndex: number]: T;
-  };
-};
-```
-
-(You can also obtain a bunch's prefix from its BunchNode using the `lexPrefix()` method - e.g., `order.getBunch(bunchID)!.lexPrefix()`.)
+(Given a BunchNode, you can obtain its bunch's prefix using the `lexPrefix()` method - e.g., `order.getBunch(bunchID)!.lexPrefix()`.)
 
 LexUtil's [source code](./src/lex_utils.ts) is deliberately simple and dependency-less, so that you can easily re-implement it in another language. That way, you can manipulate LexPositions on a non-JavaScript backend - e.g., generate new LexPositions when a server programmatically inserts text.
 

@@ -4,15 +4,11 @@ import { LexUtils } from "./lex_utils";
 import { LexPosition, Position } from "./position";
 
 /**
- * A JSON-serializable saved state for an `Order<T>`.
+ * A JSON-serializable saved state for an Order.
+ * 
+ * See Order.save and Order.load.
  *
- * To save an Order's current state, call `order.save()`. You can then call
- * `order2.load(savedState)` to load that state into a different Order `order2`,
- * possibly in a different session or on a different device.
- * Doing so is equivalent to delivering all of the first Order's BunchMetas
- * to `order2.receive`.
- *
- * ## Format
+ * ### Format
  *
  * For advanced usage, you may read and write OrderSavedStates directly.
  *
@@ -463,19 +459,14 @@ export class Order {
    * create Positions at a specific spot in a list.
    *
    * In a collaborative setting, the new Positions are *globally unique*, even
-   * if other users call `Order.createPositions` concurrently.
+   * if other users call `Order.createPositions` (or similar methods) concurrently.
    *
-   * Sometimes, creating new Positions will create a new [bunch](https://github.com/mweidner037/position-structs#bunches).
-   * In that case, its BunchNode is returned as the second value.
-   * Other collaborators will need to receive its BunchMeta before they can use
-   * the new Positions; see [Managing Metadata](https://github.com/mweidner037/position-structs#createdBunch).
-   *
-   * When count > 1, the new Positions all use the same bunch, with sequential
+   * The new Positions all use the same bunch, with sequential
    * `innerIndex` (starting at the returned startPos).
    * They are originally contiguous, but may become non-contiguous in the future,
    * if new Positions are created between them.
    *
-   * @returns [starting Position, created bunch's BunchNode (or null)].
+   * @returns [starting Position, [created bunch's](https://github.com/mweidner037/position-structs#createdBunch) BunchNode (or null)].
    * @throws If prevPos >= nextPos (i.e., `this.compare(prevPos, nextPos) >= 0`).
    * @see Order.startPosToArray To convert (startPos, count) to an array of Positions.
    */
@@ -641,8 +632,10 @@ export class Order {
   /**
    * Returns a saved state for this Order.
    *
-   * The saved state describes all of our known BunchMetas.
+   * The saved state describes all of our known BunchMetas in JSON-serializable form.
    * (In fact, it is merely the array (`[...this.bunchMetas()]`.)
+   * You can call `order2.load(savedState)` to load the saved state into a different Order `order2`,
+   * possibly in a different session or on a collaborator's device.
    */
   save(): OrderSavedState {
     return [...this.bunchMetas()];

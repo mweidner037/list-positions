@@ -171,7 +171,7 @@ export class ItemList<I, T> {
   /**
    * Deletes every value in the list.
    *
-   * The Order is unaffected (retains all BunchNodes).
+   * `this.order` is unaffected (retains all BunchNodes).
    */
   clear() {
     this.state.clear();
