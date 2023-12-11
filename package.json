@@ -1,6 +1,6 @@
 {
   "name": "list-positions",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "Efficient \"positions\" for lists and text - enabling rich documents and collaboration",
   "author": "Matthew Weidner",
   "license": "MIT",
@@ -13,9 +13,10 @@
     "url": "git+https://github.com/mweidner037/list-positions.git"
   },
   "keywords": [
-    "CRDT",
     "text editing",
-    "collaboration"
+    "ordered map",
+    "collaboration",
+    "CRDT"
   ],
   "module": "build/esm/index.js",
   "browser": "build/esm/index.js",

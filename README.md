@@ -412,11 +412,27 @@ Obtain BunchNodes using `Order.getNode` or `Order.getNodeFor`.
 
 ## Performance
 
-Benchmarks are a WIP and will be reported here.
+Basic benchmark results for the [automerge-perf](https://github.com/automerge/automerge-perf) 260k edit text trace, modeled on the [crdt-benchmarks](https://github.com/dmonad/crdt-benchmarks/) B4 experiment:
 
-<!--
-TODO: benchmarks
--->
+```
+Sender time (ms): 1039
+Update size (bytes): 19088629
+Receiver time (ms): 715
+Save time (ms): 7
+Saved size (bytes): 689516
+Load time (ms): 17
+Save time gzip (ms): 116
+Saved size gzip (bytes): 87355
+Load time gzip (ms): 39
+```
+
+Memory usage according to the Node inspector is 2.75 MB (retained size).
+
+Notes:
+
+- The saved state is a simple JSON string combining the OrderSavedState and ListSavedState. The gzip numbers apply gzip to that string, reducing the size at the cost of longer save and load times.
+- From past experience, the Node inspector might underestimate the change in heapUsed (what crdt-benchmarks measures). I am working on measuring that.
+- The benchmarks use a basic op-based CRDT around a `List<string>`. It does not have features seen in other CRDT libraries like causal-order enforcement or state-based merging, which may make the numbers worse once I add them.
 
 ### Performance Considerations
 

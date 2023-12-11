@@ -72,9 +72,9 @@ export const BunchIDs = {
    * [causal dots](https://mattweidner.com/2022/10/21/basic-list-crdt.html#causal-dot):
    * pairs (replicaID, counter), where replicaID is a globally-unique random
    * string and the counter counts from 0.
-   * 
+   *
    * Specifically, each pair is encoded as `replicaID + "_" + counter.toString(36)`.
-   * 
+   *
    * @param replicaID The replicaID to use. Default: `BunchIDs.newReplicaID()`.
    * @see BunchIDs.parseUsingReplicaID
    */
