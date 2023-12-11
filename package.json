@@ -40,6 +40,7 @@
     "@types/chai": "^4.3.4",
     "@types/functional-red-black-tree": "^1.0.6",
     "@types/mocha": "^10.0.1",
+    "@types/pako": "^2.0.3",
     "@typescript-eslint/eslint-plugin": "^5.52.0",
     "@typescript-eslint/parser": "^5.52.0",
     "chai": "^4.3.7",
@@ -51,6 +52,7 @@
     "mocha": "^10.2.0",
     "npm-run-all": "^4.1.5",
     "nyc": "^15.1.0",
+    "pako": "^2.1.0",
     "prettier": "^2.8.4",
     "seedrandom": "^3.0.5",
     "ts-node": "^10.9.1",
@@ -71,7 +73,7 @@
     "fix": "npm-run-all fix:*",
     "fix:format": "prettier --write .",
     "docs": "typedoc --options typedoc.json src/index.ts",
-    "benchmarks": "ts-node --project tsconfig.dev.json benchmarks/main.ts",
+    "benchmarks": "cross-env TS_NODE_PROJECT='./tsconfig.dev.json' node -r ts-node/register --expose-gc benchmarks/main.ts",
     "clean": "rm -rf build docs coverage .nyc_output"
   }
 }
