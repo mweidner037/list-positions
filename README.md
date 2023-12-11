@@ -320,13 +320,13 @@ This section gives a high-level overview of the library's exports. The implement
 
 #### `List<T>`
 
-A list of values of type `T`, represented as an ordered map with [Position](#position) keys.
+A list of values of type `T`, represented as an ordered map with Position keys.
 
 List's API is a hybrid between `Array<T>` and `Map<Position, T>`. Use `insertAt` or `insert` to insert new values into the list in the style of `Array.splice`.
 
 #### `Order`
 
-A total order on [Positions](#position), independent of any specific assignment of values.
+A total order on Positions, independent of any specific assignment of values.
 
 An Order manages metadata (bunches) for any number of Lists, LexLists, and Outlines. You can also use an Order to create Positions independent of a List (`createPositions`), convert between Positions and LexPositions (`lex` and `unlex`), and directly view the tree of bunches (`getBunch`, `getBunchFor`).
 
@@ -334,13 +334,13 @@ Static utilities include `Order.MIN_POSITION` and `Order.MAX_POSITION`.
 
 #### `Outline`
 
-An outline for a list of values. It represents an ordered map with [Position](#type-position) keys, but unlike [List](#class-listt), it only tracks which Positions are present - not their associated values.
+An outline for a list of values. It represents an ordered map with Position keys, but unlike List, it only tracks which Positions are present - not their associated values.
 
 Outline is useful when you are already storing a list's values in a different sequence data structure, but you still need to convert between Positions and list indices.
 
 #### `LexList<T>`
 
-A list of values of type `T`, represented as an ordered map with [LexPosition](#type-lexposition) keys.
+A list of values of type `T`, represented as an ordered map with LexPosition keys.
 
 LexList's API is a hybrid between `Array<T>` and `Map<LexPosition, T>`. Use `insertAt` or `insert` to insert new values into the list in the style of `Array.splice`.
 
