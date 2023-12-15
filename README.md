@@ -412,27 +412,24 @@ Obtain BunchNodes using `Order.getNode` or `Order.getNodeFor`.
 
 ## Performance
 
-Basic benchmark results for the [automerge-perf](https://github.com/automerge/automerge-perf) 260k edit text trace, modeled on the [crdt-benchmarks](https://github.com/dmonad/crdt-benchmarks/) B4 experiment:
+The `benchmarks/` folder contains benchmarks using List/Outline/LexList directly (modeling single-user or clien-server collaboration) and using text CRDTs built around a List+Outline.
 
-```
-Sender time (ms): 1039
-Update size (bytes): 19088629
-Receiver time (ms): 715
-Save time (ms): 7
-Saved size (bytes): 689516
-Load time (ms): 17
-Save time gzip (ms): 116
-Saved size gzip (bytes): 87355
-Load time gzip (ms): 39
-```
+Each benchmark applies the [automerge-perf](https://github.com/automerge/automerge-perf) 260k edit text trace, modeled on the [crdt-benchmarks](https://github.com/dmonad/crdt-benchmarks/) B4 experiment.
 
-Memory usage according to the Node inspector is 2.75 MB (retained size).
+Results for one of the text CRDTs (`PositionCRDT`) on my laptop:
 
-Notes:
+- Sender time (ms): 1035
+- Avg update size (bytes): 73.5
+- Receiver time (ms): 897
+- Save time (ms): 9
+- Save size (bytes): 752573
+- Load time (ms): 14
+- Save time GZIP'd (ms): 92
+- Save size GZIP'd (bytes): 100016
+- Load time GZIP'd (ms): 35
+- Mem used (MB): 2.5
 
-- The saved state is a simple JSON string combining the OrderSavedState and ListSavedState. The gzip numbers apply gzip to that string, reducing the size at the cost of longer save and load times.
-- From past experience, the Node inspector might underestimate the change in heapUsed (what crdt-benchmarks measures). I am working on measuring that.
-- The benchmarks use a basic op-based CRDT around a `List<string>`. It does not have features seen in other CRDT libraries like causal-order enforcement or state-based merging, which may make the numbers worse once I add them.
+For more results, see [benchmark_results.md](./benchmark_results.md).
 
 ### Performance Considerations
 
