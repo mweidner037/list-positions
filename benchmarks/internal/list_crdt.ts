@@ -4,7 +4,7 @@ import {
   ListSavedState,
   OrderSavedState,
   Position,
-} from "../src";
+} from "../../src";
 
 type Message<T> =
   | {
