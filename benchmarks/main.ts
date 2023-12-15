@@ -1,5 +1,6 @@
 import { assert } from "chai";
 import pako from "pako";
+import { LexList } from "../src";
 import { ListCRDT } from "./list_crdt";
 import realTextTraceEdits from "./real_text_trace_edits.json";
 const { edits, finalText } = realTextTraceEdits as unknown as {
@@ -75,4 +76,24 @@ const { edits, finalText } = realTextTraceEdits as unknown as {
     assert.strictEqual(crdt3.list.slice().join(""), finalText);
     console.log("Load time " + desc + "(ms):", loadTimeMS);
   }
+
+  // LexPosition lengths.
+  // TODO: also timing, message size, save size; check order.
+  const lexList = new LexList<string>();
+  let lengths: number[] = [];
+  for (const edit of edits) {
+    if (edit[2] !== undefined) {
+      const [pos] = lexList.insertAt(edit[0], edit[2]);
+      lengths.push(pos.length);
+    } else lexList.deleteAt(edit[0]);
+  }
+  lengths.sort((a, b) => a - b);
+  const sum = lengths.reduce((a, b) => a + b, 0);
+  console.log(
+    `LexList lengths: avg=${Math.round(sum / lengths.length)}, max=${lengths.at(
+      -1
+    )}, median=${lengths[Math.floor(lengths.length / 2)]}, total=${(
+      sum / 1000000
+    ).toFixed(1)}MB`
+  );
 })();
