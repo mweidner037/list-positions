@@ -21,21 +21,18 @@ type Update =
 // No OrderSavedState because LexListSavedState embeds all dependencies.
 type SavedState = LexListSavedState<string>;
 
-export async function lexListDirect(gzip: boolean) {
-  console.log("\n## LexList Direct" + (gzip ? " - Gzip" : "") + "\n");
+export async function lexListDirect() {
+  console.log("\n## LexList Direct\n");
   console.log(
     "Use `LexList` and send updates directly over a reliable link (e.g. WebSocket)."
   );
   console.log(
-    "Updates use plain JSON encoding; saved states use",
-    gzip ? "gzip'd" : "plain",
-    "JSON encoding.\n"
+    "Updates and saved states use JSON encoding, with optional GZIP for saved states.\n"
   );
 
-  // Perform the whole trace, sending all updates.
-  // Out of curiosity, also store the distribution of LexPosition sizes.
+  // Out of curiosity, also store the distribution of LexPosition lengths.
   const updates: string[] = [];
-  const lexPositionSizes: number[] = [];
+  const lexPosLengths: number[] = [];
   let startTime = process.hrtime.bigint();
   const sender = new LexList<string>();
   for (const edit of edits) {
@@ -43,7 +40,7 @@ export async function lexListDirect(gzip: boolean) {
     if (edit[2] !== undefined) {
       const [pos] = sender.insertAt(edit[0], edit[2]);
       updateObj = { type: "set", pos, value: edit[2] };
-      lexPositionSizes.push(pos.length);
+      lexPosLengths.push(pos.length);
     } else {
       const pos = sender.positionAt(edit[0]);
       sender.delete(pos);
@@ -67,10 +64,10 @@ export async function lexListDirect(gzip: boolean) {
   );
   assert.strictEqual(sender.slice().join(""), finalText);
   console.log(
-    `- LexPosition length stats: avg = ${avg(lexPositionSizes).toFixed(
+    `- LexPosition length stats: avg = ${avg(lexPosLengths).toFixed(
       1
     )}, percentiles [25, 50, 75, 100] = ${percentiles(
-      lexPositionSizes,
+      lexPosLengths,
       [25, 50, 75, 100]
     )}`
   );
@@ -102,55 +99,74 @@ export async function lexListDirect(gzip: boolean) {
   );
   assert.strictEqual(receiver.slice().join(""), finalText);
 
-  // Save the receiver's state.
-  startTime = process.hrtime.bigint();
-  const savedStateObj: SavedState = receiver.save();
+  const savedState = (await saveLoad(receiver, false)) as string;
+  await saveLoad(receiver, true);
+
+  await memory(savedState);
+}
+
+async function saveLoad(
+  saver: LexList<string>,
+  gzip: boolean
+): Promise<string | Uint8Array> {
+  // Save.
+  let startTime = process.hrtime.bigint();
+  const savedStateObj: SavedState = saver.save();
   const savedState = gzip
     ? pako.gzip(JSON.stringify(savedStateObj))
     : JSON.stringify(savedStateObj);
 
   console.log(
-    "- Save time (ms):",
+    `- Save time ${gzip ? "GZIP'd " : ""}(ms):`,
     Math.round(
       new Number(process.hrtime.bigint() - startTime).valueOf() / 1000000
     )
   );
-  console.log("- Save size (bytes):", savedState.length);
+  console.log(
+    `- Save size ${gzip ? "GZIP'd " : ""}(bytes):`,
+    savedState.length
+  );
 
-  // Load the saved state. Measure time and memory usage.
-  await measureLoad(gzip, savedState);
+  // Load the saved state.
+  startTime = process.hrtime.bigint();
+  const loader = new LexList<string>();
+  const toLoadStr = gzip
+    ? pako.ungzip(savedState as Uint8Array, { to: "string" })
+    : (savedState as string);
+  const toLoadObj: SavedState = JSON.parse(toLoadStr);
+  loader.load(toLoadObj);
+
+  console.log(
+    `- Load time ${gzip ? "GZIP'd " : ""}(ms):`,
+    Math.round(
+      new Number(process.hrtime.bigint() - startTime).valueOf() / 1000000
+    )
+  );
+
+  return savedState;
 }
 
-async function measureLoad(gzip: boolean, savedState: string | Uint8Array) {
+async function memory(savedState: string) {
+  // Measure memory usage of loading the saved state.
+
   // Pause (& separate function)seems to make GC more consistent -
   // less likely to get negative diffs.
   await sleep(1000);
   const startMem = getMemUsed();
 
-  const startTime = process.hrtime.bigint();
   const loader = new LexList<string>();
   // Keep the parsed saved state in a separate scope so it can be GC'd
   // before we measure memory.
   (function () {
-    const savedStateStr = gzip
-      ? pako.ungzip(savedState as Uint8Array, { to: "string" })
-      : (savedState as string);
-    const savedStateObj: SavedState = JSON.parse(savedStateStr);
-    // Important to load Order first.
+    const savedStateObj: SavedState = JSON.parse(savedState);
     loader.load(savedStateObj);
   })();
 
   console.log(
-    "- Load time (ms):",
-    Math.round(
-      new Number(process.hrtime.bigint() - startTime).valueOf() / 1000000
-    )
-  );
-  console.log(
     "- Mem used (MB):",
     ((getMemUsed() - startMem) / 1000000).toFixed(1)
   );
-  assert.strictEqual(loader.slice().join(""), finalText);
+
   // Keep savedState in scope so we don't accidentally subtract its memory usage.
   void savedState;
 }
