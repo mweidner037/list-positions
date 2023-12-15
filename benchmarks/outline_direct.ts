@@ -53,8 +53,6 @@ export async function outlineDirect() {
       updateObj = { type: "delete", pos };
     }
 
-    // Experimentally, GZIP doesn't actually reduce update sizes, and it makes
-    // things way slower. So we only GZIP saved states when gzip = true.
     updates.push(JSON.stringify(updateObj));
   }
 
@@ -171,6 +169,7 @@ async function memory(savedState: string) {
     ((getMemUsed() - startMem) / 1000000).toFixed(1)
   );
 
-  // Keep savedState in scope so we don't accidentally subtract its memory usage.
+  // Keep stuff in scope so we don't accidentally subtract its memory usage.
+  void loader;
   void savedState;
 }

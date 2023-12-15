@@ -47,8 +47,7 @@ export async function lexListDirect() {
       updateObj = { type: "delete", pos };
     }
 
-    // Experimentally, GZIP doesn't actually reduce update sizes, and it makes
-    // things way slower. So we only GZIP saved states when gzip = true.
+    // TODO: try gzip? See comment in list_direct.ts.
     updates.push(JSON.stringify(updateObj));
   }
 
@@ -71,6 +70,7 @@ export async function lexListDirect() {
       [25, 50, 75, 100]
     )}`
   );
+  // TODO: could also gzip LexPositions, either in updates or just for percentiles.
 
   // Receive all updates.
   startTime = process.hrtime.bigint();
@@ -167,6 +167,7 @@ async function memory(savedState: string) {
     ((getMemUsed() - startMem) / 1000000).toFixed(1)
   );
 
-  // Keep savedState in scope so we don't accidentally subtract its memory usage.
+  // Keep stuff in scope so we don't accidentally subtract its memory usage.
+  void loader;
   void savedState;
 }
