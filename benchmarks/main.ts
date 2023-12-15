@@ -1,4 +1,6 @@
+import { lexListDirect } from "./lex_list_direct";
 import { listDirect } from "./list_direct";
+import { outlineDirect } from "./outline_direct";
 
 (async function () {
   console.log("# Benchmark Results");
@@ -8,4 +10,8 @@ import { listDirect } from "./list_direct";
 
   await listDirect(false);
   await listDirect(true);
+  await outlineDirect(false);
+  await outlineDirect(true);
+  await lexListDirect(false);
+  await lexListDirect(true);
 })();
