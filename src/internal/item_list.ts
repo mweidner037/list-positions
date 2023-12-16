@@ -253,11 +253,7 @@ export class ItemList<I, T> {
    * which would instead return undefined.
    */
   getAt(index: number): T {
-    // TODO: revert
-    const pos = this.positionAt(index);
-    const ret = this.get(pos);
-    return ret!;
-    // return this.get(this.positionAt(index))!;
+    return this.get(this.positionAt(index))!;
   }
 
   /**
@@ -326,7 +322,6 @@ export class ItemList<I, T> {
       // Shortcut: We already computed beforeNode and it has not changed.
       // Use its cached value to prevent re-walking up the tree when
       // our caller loops over the same node's Positions.
-      // TODO: test
       beforeNode = this.cachedIndex;
     } else {
       // Walk up the tree and add totals for ancestors' values & siblings
@@ -600,8 +595,6 @@ export class ItemList<I, T> {
           `List/Outline savedState references missing bunchID: "${bunchID}". You must call Order.receive before referencing a bunch.`
         );
       }
-      // TODO: wait until end to compute all parentValuesBefores, totals.
-      // To avoid ?? complexity.
       // Defensive trim, in case user hand-wrote the save.
       const values = this.itemsMan.trim(loadItems(savedArr));
       const size = this.itemsMan.size(values);

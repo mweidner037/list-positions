@@ -39,7 +39,7 @@ This library provides positions (types `Position`/`LexPosition`) and correspondi
 
 ### Features
 
-**Performance** Our list data structures have a small memory footprint, fast edits, and small saved states. <!-- See our [performance measurements](TODO) for a 260k op text-editing trace. -->
+**Performance** Our list data structures have a small memory footprint, fast edits, and small saved states. See our [benchmark results](#performance) for a 260k op text-editing trace.
 
 **Collaboration** Lists can share the same positions even across devices. Even in the face of concurrent edits, Positions are always globally unique, and you can insert a new position anywhere in a list. To make this possible, the library essentially implements a list CRDT ([Fugue](https://arxiv.org/abs/2305.00583)), but with a more flexible API.
 
@@ -98,9 +98,9 @@ list.delete(newPos);
 
 Internally, LexPositions are just strings. LexPositions have the nice property that **their lexicographic order matches the list order**. So you can `ORDER BY` LexPositions in a database table, or store them in a different [ordered](https://www.npmjs.com/package/functional-red-black-tree) [map](https://docs.oracle.com/javase/8/docs/api/java/util/TreeMap.html) [data](https://en.cppreference.com/w/cpp/container/map) [structure](https://doc.rust-lang.org/std/collections/struct.BTreeMap.html).
 
-The downside of using LexPositions is metadata overhead - they have variable length and can become long in certain scenarios<!-- (TODO in our benchmarks)-->. Also, if you store all of the literal pairs `(lexPosition, value)`, then you have per-value metadata overhead. Nonetheless, LexPositions are a convenient option for short lists of perhaps <1,000 values - e.g., the items in a todo list, or the scenarios where [Figma uses fractional indexing](https://www.figma.com/blog/how-figmas-multiplayer-technology-works/#syncing-trees-of-objects).
+The downside of using LexPositions is metadata overhead - they have variable length and can become long in certain scenarios (an average of 127 characters in our [benchmarks](./benchmark_results.md#lexlist-direct)). Also, if you store all of the literal pairs `(lexPosition, value)` in your own DB table or ordered map, then you have per-value metadata overhead. Nonetheless, that is a convenient option for short lists of perhaps <1,000 values - e.g., the items in a todo list, or the scenarios where [Figma uses fractional indexing](https://www.figma.com/blog/how-figmas-multiplayer-technology-works/#syncing-trees-of-objects).
 
-> Using LexList is more efficient than storing all of the literal pairs `(lexPosition, value)` - in fact, it is as memory-efficient as the next section's List class. Likewise, LexList's saved states are more compact than the naive representation, though they are larger than the equivalent List/Order saved states. <!-- GZIP mostly closes the gap (TODO: data). -->
+> Using LexList is more efficient than storing all of the literal pairs `(lexPosition, value)`. In fact, it is nearly as efficient as the next section's List class, and arguably practical even for long text documents. See [LexList benchmark results](./benchmark_results.md#lexlist-direct).
 
 See also: [LexUtils](#lexutils)
 
@@ -391,6 +391,7 @@ Utitilies for generating `bunchIDs`.
 
 When a method like `List.insertAt` creates a new Position (or LexPosition), it may create a new [bunch](#bunches) internally. This bunch is assigned a new bunchID which should be globally unique - or at least, unique among all bunches that this bunch will ever appear alongside (i.e., in the same Order).
 
+<a id="replica-ids"></a>
 By default, the library uses `BunchIDs.usingReplicaID()`, which returns [causal dots](https://mattweidner.com/2022/10/21/basic-list-crdt.html#causal-dot). You can supply a different bunchID generator in Order's constructor. E.g., to get reproducible bunchIDs in a test environment:
 
 ```ts
@@ -414,27 +415,25 @@ Obtain BunchNodes using `Order.getNode` or `Order.getNodeFor`.
 
 The `benchmarks/` folder contains benchmarks using List/Outline/LexList directly (modeling single-user or clien-server collaboration) and using text CRDTs built around a List+Outline.
 
-Each benchmark applies the [automerge-perf](https://github.com/automerge/automerge-perf) 260k edit text trace, modeled on the [crdt-benchmarks](https://github.com/dmonad/crdt-benchmarks/) B4 experiment.
+Each benchmark applies the [automerge-perf](https://github.com/automerge/automerge-perf) 260k edit text trace and measures various stats, modeled on [crdt-benchmarks](https://github.com/dmonad/crdt-benchmarks/)' B4 experiment.
 
 Results for one of the text CRDTs (`PositionCRDT`) on my laptop:
 
-- Sender time (ms): 1035
+- Sender time (ms): 1004
 - Avg update size (bytes): 73.5
-- Receiver time (ms): 897
+- Receiver time (ms): 887
 - Save time (ms): 9
 - Save size (bytes): 752573
-- Load time (ms): 14
-- Save time GZIP'd (ms): 92
-- Save size GZIP'd (bytes): 100016
-- Load time GZIP'd (ms): 35
-- Mem used (MB): 2.5
+- Load time (ms): 15
+- Save time GZIP'd (ms): 96
+- Save size GZIP'd (bytes): 100013
+- Load time GZIP'd (ms): 44
+- Mem used (MB): 2.6
 
 For more results, see [benchmark_results.md](./benchmark_results.md).
 
 ### Performance Considerations
 
-- The library is optimized for forward (left-to-right) insertions. If you primarily insert backward (right-to-left) or at random, you will see worse efficiency - especially storage overhead. (Internally, only forward insertions reuse [bunches](#bunches), so other patterns lead to fewer Positions per bunch.)
-
-<!-- TODO
-Custom serialization: protobufs; parse default bunchID format; exploit recurrences in replicaIDs.
--->
+1. The library is optimized for forward (left-to-right) insertions. If you primarily insert backward (right-to-left) or at random, you will see worse efficiency - especially storage overhead. (Internally, only forward insertions reuse [bunches](#bunches), so other patterns lead to fewer Positions per bunch.)
+2. LexPositions and Positions are interchangeable, via the `Order.lex` and `Order.unlex` methods. So you could always start off using the simpler-but-larger LexPositions, then do a data migration to switch to Positions if performance demands it. <!-- TODO: likewise for List/Outline/LexList, via save-conversion methods. -->
+3. The saved states are designed for simplicity, not size. This is why GZIP shrinks them a lot (at the cost of longer save and load times). You can improve on the default performance in various ways: binary encodings, deduplicating [replica IDs](#replica-ids), etc. <!-- TODO: using List.saveOutline and gzipping each separately. --> Before putting too much effort in to this, though, keep in mind that human-written text is small. E.g., the 750 KB CRDT save size above is the size of one image file, even though it represents a 15-page LaTeX paper with 7.5x overhead.
