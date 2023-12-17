@@ -2,12 +2,12 @@ import { assert } from "chai";
 import { describe, test } from "mocha";
 import seedrandom from "seedrandom";
 import {
-  ArrayItemManager,
   SparseItems,
   SparseItemsManager,
+  arrayItemManager,
 } from "../src/internal/sparse_items";
 
-const man = new SparseItemsManager(new ArrayItemManager<string>());
+const man = new SparseItemsManager(arrayItemManager<string>());
 
 function validate(items: SparseItems<string[]>, trimmed = false): void {
   // Alternation rule.

@@ -1,6 +1,6 @@
 import { BunchNode } from "./bunch";
 import { ItemList } from "./internal/item_list";
-import { ArrayItemManager, SparseItems } from "./internal/sparse_items";
+import { arrayItemManager, SparseItems } from "./internal/sparse_items";
 import { Order } from "./order";
 import { Position } from "./position";
 
@@ -59,7 +59,7 @@ export class List<T> {
    */
   constructor(order?: Order) {
     this.order = order ?? new Order();
-    this.itemList = new ItemList(this.order, new ArrayItemManager());
+    this.itemList = new ItemList(this.order, arrayItemManager());
   }
 
   /**

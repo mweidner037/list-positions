@@ -1,6 +1,6 @@
 import { BunchNode } from "./bunch";
 import { ItemList } from "./internal/item_list";
-import { NumberItemManager } from "./internal/sparse_items";
+import { numberItemManager } from "./internal/sparse_items";
 import { Order } from "./order";
 import { Position } from "./position";
 
@@ -58,7 +58,7 @@ export class Outline {
    */
   constructor(order?: Order) {
     this.order = order ?? new Order();
-    this.itemList = new ItemList(this.order, new NumberItemManager());
+    this.itemList = new ItemList(this.order, numberItemManager);
   }
 
   /**
