@@ -109,7 +109,9 @@ class NodeInternal implements BunchNode {
 }
 
 /**
- * A total order on [Positions](#position), independent of any specific assignment of values.
+ * A total order on Positions, independent of any specific assignment of values.
+ * 
+ * See [List, Position, and Order](https://github.com/mweidner037/list-positions#list-position-and-order) in the readme.
  *
  * An Order manages metadata ([bunches](https://github.com/mweidner037/list-positions#bunches))
  * for any number of Lists, LexLists, and Outlines.
@@ -156,8 +158,8 @@ export class Order {
    * automatically share the same total order on Positions.
    * To share total orders between Order instances (possibly on different devices),
    * you will need to
-   * [Manage Metadata](https://github.com/mweidner037/list-positions#managing-metadata)
-   * or limit yourself to [LexList and LexPosition](https://github.com/mweidner037/list-positions#lexlist-and-lexposition).
+   * [Manage Metadata](https://github.com/mweidner037/list-positions#managing-metadata),
+   * or communicate using LexPositions instead of Positions.
    *
    * @param options.newBunchID Used to assign the bunchID when this Order creates a new
    * [bunch](https://github.com/mweidner037/list-positions#bunches) of Positions.

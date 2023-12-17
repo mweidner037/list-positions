@@ -41,8 +41,8 @@ export type BunchMeta = {
  * An Order's internal tree node corresponding to a [bunch](https://github.com/mweidner037/list-positions#bunches) of Positions.
  *
  * You can access a bunch's BunchNode to retrieve its dependent metadata, using the `meta()` and `ancestors()` methods.
- * For [Advanced](https://github.com/mweidner037/list-positions#advanced) usage,
- * BunchNode also gives low-level access to an Order's tree of bunches.
+ * For advanced usage, BunchNode also gives low-level access to an Order's
+ * [internal tree](https://github.com/mweidner037/list-positions/blob/master/internals.md).
  *
  * Obtain BunchNodes using `Order.getNode` or `Order.getNodeFor`.
  *

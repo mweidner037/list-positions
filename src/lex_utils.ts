@@ -4,6 +4,9 @@ import type { LexPosition } from "./position";
 
 /**
  * Utilities for manipulating LexPositions.
+ * 
+ * For info about the format of LexPositions, see
+ * [Internals](https://github.com/mweidner037/list-positions/blob/master/internals.md).
  */
 export const LexUtils = {
   /**

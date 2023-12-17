@@ -49,6 +49,7 @@ This library provides positions (types `Position`/`LexPosition`) and correspondi
 
 ### Related Work
 
+- [position-strings](https://www.npmjs.com/package/position-strings), a bare-bones version of this library's LexPositions. (Note: Its positions are *not* compatible with this library's.)
 - [Fractional indexing](https://www.figma.com/blog/realtime-editing-of-ordered-sequences/#fractional-indexing),
   a related but less general idea.
 - [Blog post](https://mattweidner.com/2022/10/21/basic-list-crdt.html) describing the Fugue list CRDT and how it relates to the "list position" abstraction. This library implements optimized versions of that post's tree implementation (List/Position) and string implementation (LexList/LexPosition).
@@ -407,7 +408,7 @@ const list = new List(order);
 
 An Order's internal tree node corresponding to a [bunch](#bunches) of Positions.
 
-You can access a bunch's BunchNode to retrieve its dependent metadata, using the `meta()` and `ancestors()` methods. For [Advanced](#advanced) usage, BunchNode also gives low-level access to an Order's internal tree.
+You can access a bunch's BunchNode to retrieve its dependent metadata, using the `meta()` and `ancestors()` methods. For advanced usage, BunchNode also gives low-level access to an Order's [internal tree](./internals.md).
 
 Obtain BunchNodes using `Order.getNode` or `Order.getNodeFor`.
 
@@ -441,4 +442,4 @@ Here are some general performance considerations:
 1. The library is optimized for forward (left-to-right) insertions. If you primarily insert backward (right-to-left) or at random, you will see worse efficiency - especially storage overhead. (Internally, only forward insertions reuse [bunches](#bunches), so other patterns lead to fewer Positions per bunch.)
 2. LexPositions and Positions are interchangeable, via the `Order.lex` and `Order.unlex` methods. So you could always start off using the simpler-but-larger LexPositions, then do a data migration to switch to Positions if performance demands it. <!-- TODO: likewise for List/Outline/LexList, via save-conversion methods. -->
 3. The saved states are designed for simplicity, not size. This is why GZIP shrinks them a lot (at the cost of longer save and load times). You can improve on the default performance in various ways: binary encodings, deduplicating [replica IDs](#replica-ids), etc. <!-- TODO: using List.saveOutline and gzipping each separately. --> Before putting too much effort in to this, though, keep in mind that human-written text is small. E.g., the 750 KB CRDT save size above is the size of one image file, even though it represents a 15-page LaTeX paper with 7.5x overhead.
-4. For very large lists, you can choose to call `List.set` on only the Position-value pairs that are currently  scrolled into view. This reduces memory and potentially network usage. Likewise, you can choose to deliver only the corresponding BunchMetas to Order.
+4. For very large lists, you can choose to call `List.set` on only the Position-value pairs that are currently scrolled into view. This reduces memory and potentially network usage. Likewise, you can choose to deliver only the corresponding BunchMetas to Order.
