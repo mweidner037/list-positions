@@ -126,17 +126,17 @@ export const LexUtils = {
     // Other parts are "offset.bunchID".
     let parentID = parts[0];
     for (let i = 1; i < parts.length; i++) {
-      const dot = parts[i].indexOf(".");
-      if (dot === -1) {
+      const period = parts[i].indexOf(".");
+      if (period === -1) {
         throw new Error(
           `Bad bunchPrefix format; did you pass a LexPosition instead? (bunchPrefix="${bunchPrefix}", missing "." in part ${parts[i]})`
         );
       }
-      const id = parts[i].slice(dot + 1);
+      const id = parts[i].slice(period + 1);
       metas.push({
         bunchID: id,
         parentID,
-        offset: decodeOffset(parts[i].slice(0, dot)),
+        offset: decodeOffset(parts[i].slice(0, period)),
       });
       parentID = id;
     }
@@ -156,13 +156,13 @@ export const LexUtils = {
     } else {
       // lastPart is "offset.bunchID".
       const lastPart = bunchPrefix.slice(lastComma + 1);
-      const dot = lastPart.indexOf(".");
-      if (dot === -1) {
+      const period = lastPart.indexOf(".");
+      if (period === -1) {
         throw new Error(
           `Invalid bunchPrefix; did you pass a LexPosition instead? (bunchPrefix="${bunchPrefix}", missing "." in part ${lastPart})`
         );
       }
-      return lastPart.slice(dot + 1);
+      return lastPart.slice(period + 1);
     }
   },
 } as const;
@@ -191,6 +191,12 @@ function decodeInnerIndex(encoded: string): number {
   // (n - 1) / 2
   return sequenceInv(seq) >> 1;
 }
+
+// Exports below are only for unit tests (not re-exported by index.ts).
+
+// Must be even and > 2. If you use toString(BASE), must be <= 36.
+export const BASE = 36;
+export const LOG_BASE = Math.log(BASE);
 
 /**
  * These functions deal with a special sequence that has
@@ -225,11 +231,25 @@ function decodeInnerIndex(encoded: string): number {
  * [Elias gamma coding](https://en.wikipedia.org/wiki/Elias_gamma_coding).
  */
 
-// Exports below are only for tests.
-
-// Must be even and > 2. If you use toString(BASE), must be <= 36.
-export const BASE = 36;
-export const LOG_BASE = Math.log(BASE);
+// /**
+//  * Given a number in the sequence, outputs the next number in the sequence.
+//  *
+//  * To yield the sequence in order, call this function repeatedly starting at 0.
+//  *
+//  * This function is commented because it is not actually called, but you can
+//  * use it as a reference or to test sequence/sequenceInv.
+//  */
+// function nextInLexSequence(n: number): number {
+//   const d = n === 0 ? 1 : Math.floor(Math.log(n) / LOG_BASE) + 1;
+//   // You can calculate that the last d-digit number is BASE^d - (BASE/2)^d - 1.
+//   if (n === Math.pow(BASE, d) - Math.pow(BASE / 2, d) - 1) {
+//     // New length: n -> (n + 1) * BASE.
+//     return (n + 1) * BASE;
+//   } else {
+//     // n -> n + 1.
+//     return n + 1;
+//   }
+// }
 
 /**
  * Returns the n-th number in the sequence.
@@ -265,15 +285,3 @@ export function sequenceInv(seq: number): number {
   }
   return ans;
 }
-
-// function nextInLexSequence(n: number): number {
-//   const d = n === 0 ? 1 : Math.floor(Math.log(n) / LOG_BASE) + 1;
-//   // You can calculate that the last d-digit number is BASE^d - (BASE/2)^d - 1.
-//   if (n === Math.pow(BASE, d) - Math.pow(BASE / 2, d) - 1) {
-//     // New length: n -> (n + 1) * BASE.
-//     return (n + 1) * BASE;
-//   } else {
-//     // n -> n + 1.
-//     return n + 1;
-//   }
-// }
