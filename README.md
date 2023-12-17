@@ -101,7 +101,7 @@ Internally, LexPositions are just strings. LexPositions have the nice property t
 
 The downside of using LexPositions is metadata overhead - they have variable length and can become long in certain scenarios (an average of 127 characters in our [benchmarks](./benchmark_results.md#lexlist-direct)). Also, if you store all of the literal pairs `(lexPosition, value)` in your own DB table or ordered map, then you have per-value metadata overhead. Nonetheless, that is a convenient option for short lists of perhaps <1,000 values - e.g., the items in a todo list, or the scenarios where [Figma uses fractional indexing](https://www.figma.com/blog/how-figmas-multiplayer-technology-works/#syncing-trees-of-objects).
 
-> Using LexList is more efficient than storing all of the literal pairs `(lexPosition, value)`. In fact, it is nearly as efficient as the next section's List class, and arguably practical even for long text documents. See [LexList benchmark results](./benchmark_results.md#lexlist-direct).
+> Using LexList is more efficient than storing all of the literal pairs `(lexPosition, value)`. In fact, it is nearly as efficient as the next section's List class. See [LexList benchmark results](./benchmark_results.md#lexlist-direct).
 
 See also: [LexUtils](#lexutils)
 
@@ -249,7 +249,13 @@ function load<T>(savedState: string): List<T> {
 ```
 
 <a id="createdBunch"></a>
-**Multiple users** The most complicated scenarios involve multiple users and a single list order, e.g., a collaborative text editor. Any time a user creates a new Position by calling `list.insertAt`, `list.insert`, or `list.order.createPositions`, they might create a new bunch. The created bunch's BunchMeta will be returned; you must distribute this before/together with the new Position. For example:
+**Multiple users** Suppose you have multiple users and a single list order, e.g., a collaborative text editor. Any time a user creates a new Position by calling `list.insertAt`, `list.insert`, or `list.order.createPositions`, they might create a new bunch. Other users must learn of the created bunch's BunchMeta before they can use the new Position.
+
+One option is to always send LexPositions over the network instead of Positions. Use `list.order.lex` and `list.order.unlex` to translate between the two. This is almost as simple as using [LexList and LexPosition](#lexlist-and-lexposition), but with the same cost in metadata overhead - in our [list CRDT benchmarks](./benchmark_results.md#lexpositioncrdt), it about doubles the size of network messages relative to the second option below. However, the messages are still small in absolute terms (156.6 vs 73.5 bytes/op).
+
+> Equivalently, you could always send Positions together with all of their dependent BunchMetas - extract these using `list.order.getNodeFor(position).ancestors().map(node => node.meta())`.
+
+A second option is to distribute a created BunchMeta immediately when it is created, before/together with its new Position. For example:
 
 ```ts
 // When a user types "x" at index 7:
@@ -279,7 +285,7 @@ function onMessage(message: string) {
 }
 ```
 
-If you ever want to extract all of a Position's dependencies for sending to another device, you can use `list.order.lex(position)` to convert it to a LexPosition (and `unlex` on the other side). Or, you can directly obtain the dependent BunchMetas using `list.order.getNodeFor(position).ancestors().map(node => node.meta())`.
+This works best if your network has ordering guarantees that ensure you won't accidentally receive a Position before a BunchMeta that was sent earlier (e.g., causal-order delivery).
 
 > Errors you might get if you mis-manage metadata:
 >
