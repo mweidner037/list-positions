@@ -49,7 +49,7 @@ This library provides positions (types `Position`/`LexPosition`) and correspondi
 
 ### Related Work
 
-- [position-strings](https://www.npmjs.com/package/position-strings), a bare-bones version of this library's LexPositions. (Note: Its positions are *not* compatible with this library's.)
+- [position-strings](https://www.npmjs.com/package/position-strings), a bare-bones version of this library's LexPositions. (Note: Its positions are _not_ compatible with this library's.)
 - [Fractional indexing](https://www.figma.com/blog/realtime-editing-of-ordered-sequences/#fractional-indexing),
   a related but less general idea.
 - [Blog post](https://mattweidner.com/2022/10/21/basic-list-crdt.html) describing the Fugue list CRDT and how it relates to the "list position" abstraction. This library implements optimized versions of that post's tree implementation (List/Position) and string implementation (LexList/LexPosition).

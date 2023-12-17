@@ -110,7 +110,7 @@ class NodeInternal implements BunchNode {
 
 /**
  * A total order on Positions, independent of any specific assignment of values.
- * 
+ *
  * See [List, Position, and Order](https://github.com/mweidner037/list-positions#list-position-and-order) in the readme.
  *
  * An Order manages metadata ([bunches](https://github.com/mweidner037/list-positions#bunches))

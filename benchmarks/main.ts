@@ -13,7 +13,9 @@ import { outlineDirect } from "./outline_direct";
   console.log(
     "Each benchmark applies the [automerge-perf](https://github.com/automerge/automerge-perf) 260k edit text trace and measures various stats, modeled on [crdt-benchmarks](https://github.com/dmonad/crdt-benchmarks/)' B4 experiment.\n"
   );
-  console.log("For perspective on the save sizes: the final text (excluding deleted chars) is 104,852 bytes, or 27556 bytes GZIP'd. It is \~15 pages of two-column text (in LaTeX).\n");
+  console.log(
+    "For perspective on the save sizes: the final text (excluding deleted chars) is 104,852 bytes, or 27556 bytes GZIP'd. It is ~15 pages of two-column text (in LaTeX).\n"
+  );
 
   await listDirect();
   await lexListDirect();
