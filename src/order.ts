@@ -470,7 +470,7 @@ export class Order {
    * They are originally contiguous, but may become non-contiguous in the future,
    * if new Positions are created between them.
    *
-   * @returns [starting Position, [created bunch's](https://github.com/mweidner037/list-positions#createdBunch) BunchNode (or null)].
+   * @returns [starting Position, [created bunch's](https://github.com/mweidner037/list-positions#createdBunch) BunchMeta (or null)].
    * @throws If prevPos >= nextPos (i.e., `this.compare(prevPos, nextPos) >= 0`).
    * @see Order.startPosToArray To convert (startPos, count) to an array of Positions.
    */
@@ -478,7 +478,7 @@ export class Order {
     prevPos: Position,
     nextPos: Position,
     count: number
-  ): [startPos: Position, createdBunch: BunchNode | null] {
+  ): [startPos: Position, createdBunch: BunchMeta | null] {
     // Also validates the positions.
     if (this.compare(prevPos, nextPos) >= 0) {
       throw new Error(
@@ -551,29 +551,29 @@ export class Order {
       return [startPos, null];
     }
 
-    const createdBunchMeta: BunchMeta = {
+    const createdBunch: BunchMeta = {
       bunchID: this.newBunchID(),
       parentID: newNodeParent.bunchID,
       offset: newNodeOffset,
     };
-    if (this.tree.has(createdBunchMeta.bunchID)) {
+    if (this.tree.has(createdBunch.bunchID)) {
       throw new Error(
-        `newBunchID() returned node ID that already exists: ${createdBunchMeta.bunchID}`
+        `newBunchID() returned node ID that already exists: ${createdBunch.bunchID}`
       );
     }
 
-    const createdBunch = this.newNode(createdBunchMeta);
-    createdBunch.createdCounter = count;
+    const createdBunchNode = this.newNode(createdBunch);
+    createdBunchNode.createdCounter = count;
     if (newNodeParent.createdChildren === undefined) {
       newNodeParent.createdChildren = new Map();
     }
-    newNodeParent.createdChildren.set(createdBunchMeta.offset, createdBunch);
+    newNodeParent.createdChildren.set(createdBunch.offset, createdBunchNode);
 
-    this.onCreateNode?.(createdBunch);
+    this.onCreateNode?.(createdBunchNode);
 
     return [
       {
-        bunchID: createdBunch.bunchID,
+        bunchID: createdBunchNode.bunchID,
         innerIndex: 0,
       },
       createdBunch,

@@ -249,14 +249,14 @@ function load<T>(savedState: string): List<T> {
 ```
 
 <a id="createdBunch"></a>
-**Multiple users** The most complicated scenarios involve multiple users and a single list order, e.g., a collaborative text editor. Any time a user creates a new Position by calling `list.insertAt`, `list.insert`, or `list.order.createPositions`, they might create a new bunch. The created bunch will be returned; you must distribute its BunchMeta before/together with the new Position. For example:
+**Multiple users** The most complicated scenarios involve multiple users and a single list order, e.g., a collaborative text editor. Any time a user creates a new Position by calling `list.insertAt`, `list.insert`, or `list.order.createPositions`, they might create a new bunch. The created bunch's BunchMeta will be returned; you must distribute this before/together with the new Position. For example:
 
 ```ts
 // When a user types "x" at index 7:
 const [position, createdBunch] = list.insertAt(7, "x");
 if (createdBunch !== null) {
   // Distribute the new bunch's BunchMeta.
-  broadcast(JSON.stringify({ type: "meta", meta: createdBunch.meta() }));
+  broadcast(JSON.stringify({ type: "meta", meta: createdBunch }));
 } // Else position reused an old bunch - no new metadata.
 // Now you can distribute position:
 broadcast(JSON.stringify({ type: "set", position, value: "x" }));
