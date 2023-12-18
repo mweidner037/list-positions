@@ -46,7 +46,7 @@ export async function outlineDirect() {
     if (edit[2] !== undefined) {
       const [pos, createdBunch] = sender.insertAt(edit[0]);
       updateObj = { type: "set", pos };
-      if (createdBunch !== null) updateObj.meta = createdBunch.meta();
+      if (createdBunch !== null) updateObj.meta = createdBunch;
     } else {
       const pos = sender.positionAt(edit[0]);
       sender.delete(pos);

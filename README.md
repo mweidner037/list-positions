@@ -426,16 +426,16 @@ Each benchmark applies the [automerge-perf](https://github.com/automerge/automer
 
 Results for one of the text CRDTs (`PositionCRDT`) on my laptop:
 
-- Sender time (ms): 1004
+- Sender time (ms): 1134
 - Avg update size (bytes): 73.5
-- Receiver time (ms): 887
-- Save time (ms): 9
+- Receiver time (ms): 1091
+- Save time (ms): 8
 - Save size (bytes): 752573
 - Load time (ms): 15
-- Save time GZIP'd (ms): 96
-- Save size GZIP'd (bytes): 100013
+- Save time GZIP'd (ms): 99
+- Save size GZIP'd (bytes): 100014
 - Load time GZIP'd (ms): 44
-- Mem used (MB): 2.6
+- Mem used (MB): 2.5
 
 For more results, see [benchmark_results.md](./benchmark_results.md).
 
