@@ -4,16 +4,16 @@
 
 list-positions' core concept is a special kind of tree. Here is an example:
 
-TODO: figure. Ensure LtR order matches tree order.
+![Example tree](./images/tree.png)
 
 In general, the tree alternates between two kinds of layers:
 
-- **Bunch layers** in which each node is labeled by a _bunch ID_ - a string that is unique among the whole tree.
-- **Offset layers** in which each node is labeled by a nonnegative integer _offset_.
+- **Bunch layers** in which each node is labeled by a _bunch ID_ - a string that is unique among the whole tree. (Blue nodes in the image.)
+- **Offset layers** in which each node is labeled by a nonnegative integer _offset_. (Orange nodes in the image.)
 
 The tree's root is a bunch node with bunch ID `"ROOT"` (`BunchIDs.ROOT`).
 
-The tree's nodes are totally ordered using a depth-first search: visit the root, then traverse each of its child nodes recursively. The child nodes are traversed in the order:
+The tree's nodes are totally ordered using a depth-first search: visit the root, then traverse each of its child nodes recursively. A node's children are traversed in the order:
 
 - For bunch layers, visit the children in order by bunch ID. Specifically, use the lexicographic order on the strings `bunchID + ","`. (We'll explain the extra comma [later](#lexpositions).)
 - For offset layers, visit the children in order by offset.
@@ -22,7 +22,7 @@ Each Order instance stores a tree of the above form. The tree's bunch nodes corr
 
 The Position `{ bunchID, innerIndex }` indicates the offset node that is a child of `bunchID` and has offset `2 * innerIndex + 1`. Note that its offset is _not_ `innerIndex` (for reasons explained [later](#details)), but we still get an infinite sequence of Positions for each bunch. The sort order on Positions is just their order in the tree.
 
-TODO: Positions in the above tree.
+![Positions in the above example tree](./images/positions.png)
 
 Now you can see why a Position depends on the BunchMeta of its bunch and all ancestors: you need these to know where the Position is in the tree. Once two Orders agree on some Positions' BunchMeta, they'll agree on the relative order of those Positions.
 
@@ -105,7 +105,7 @@ The conversion from list-position's tree to a Fugue tree is:
   - If `offset` is even, then `pos` is a _left_ child of `{ bunchID: parentID, innerIndex: offset / 2 }`.
   - If `offset` is odd, then `pos` is a _right_ child of `{ bunchID: parentID, innerIndex: (offset - 1) / 2 }`.
 
-TODO: figure from my notebook. Also a figure about the chain.
+![Fugue subtree corresponding to a bunch's Positions](./images/fugue_tree.png)
 
 Observe that the relation `offset = 2 * innerIndex + 1` lets each Position have both left and right children. Furthermore, there is a distinction between `innerIndex`'s right children and `(innerIndex + 1)`'s left children; that is necessary to prevent some backward interleaving.
 
