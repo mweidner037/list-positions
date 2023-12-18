@@ -55,7 +55,7 @@ export class PositionCRDT<T> {
   insertAt(index: number, value: T): void {
     const [pos, createdBunch] = this.list.insertAt(index, value);
     const messageObj: Message<T> = { type: "set", pos, value };
-    if (createdBunch !== null) messageObj.meta = createdBunch.meta();
+    if (createdBunch !== null) messageObj.meta = createdBunch;
     this.send(JSON.stringify(messageObj));
   }
 

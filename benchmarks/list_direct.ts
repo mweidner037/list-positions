@@ -47,7 +47,7 @@ export async function listDirect() {
     if (edit[2] !== undefined) {
       const [pos, createdBunch] = sender.insertAt(edit[0], edit[2]);
       updateObj = { type: "set", pos, value: edit[2] };
-      if (createdBunch !== null) updateObj.meta = createdBunch.meta();
+      if (createdBunch !== null) updateObj.meta = createdBunch;
     } else {
       const pos = sender.positionAt(edit[0]);
       sender.delete(pos);

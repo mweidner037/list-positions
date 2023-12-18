@@ -109,7 +109,9 @@ class NodeInternal implements BunchNode {
 }
 
 /**
- * A total order on [Positions](#position), independent of any specific assignment of values.
+ * A total order on Positions, independent of any specific assignment of values.
+ *
+ * See [List, Position, and Order](https://github.com/mweidner037/list-positions#list-position-and-order) in the readme.
  *
  * An Order manages metadata ([bunches](https://github.com/mweidner037/list-positions#bunches))
  * for any number of Lists, LexLists, and Outlines.
@@ -156,8 +158,8 @@ export class Order {
    * automatically share the same total order on Positions.
    * To share total orders between Order instances (possibly on different devices),
    * you will need to
-   * [Manage Metadata](https://github.com/mweidner037/list-positions#managing-metadata)
-   * or limit yourself to [LexList and LexPosition](https://github.com/mweidner037/list-positions#lexlist-and-lexposition).
+   * [Manage Metadata](https://github.com/mweidner037/list-positions#managing-metadata),
+   * or communicate using LexPositions instead of Positions.
    *
    * @param options.newBunchID Used to assign the bunchID when this Order creates a new
    * [bunch](https://github.com/mweidner037/list-positions#bunches) of Positions.
@@ -468,7 +470,7 @@ export class Order {
    * They are originally contiguous, but may become non-contiguous in the future,
    * if new Positions are created between them.
    *
-   * @returns [starting Position, [created bunch's](https://github.com/mweidner037/list-positions#createdBunch) BunchNode (or null)].
+   * @returns [starting Position, [created bunch's](https://github.com/mweidner037/list-positions#createdBunch) BunchMeta (or null)].
    * @throws If prevPos >= nextPos (i.e., `this.compare(prevPos, nextPos) >= 0`).
    * @see Order.startPosToArray To convert (startPos, count) to an array of Positions.
    */
@@ -476,7 +478,7 @@ export class Order {
     prevPos: Position,
     nextPos: Position,
     count: number
-  ): [startPos: Position, createdBunch: BunchNode | null] {
+  ): [startPos: Position, createdBunch: BunchMeta | null] {
     // Also validates the positions.
     if (this.compare(prevPos, nextPos) >= 0) {
       throw new Error(
@@ -549,29 +551,29 @@ export class Order {
       return [startPos, null];
     }
 
-    const createdBunchMeta: BunchMeta = {
+    const createdBunch: BunchMeta = {
       bunchID: this.newBunchID(),
       parentID: newNodeParent.bunchID,
       offset: newNodeOffset,
     };
-    if (this.tree.has(createdBunchMeta.bunchID)) {
+    if (this.tree.has(createdBunch.bunchID)) {
       throw new Error(
-        `newBunchID() returned node ID that already exists: ${createdBunchMeta.bunchID}`
+        `newBunchID() returned node ID that already exists: ${createdBunch.bunchID}`
       );
     }
 
-    const createdBunch = this.newNode(createdBunchMeta);
-    createdBunch.createdCounter = count;
+    const createdBunchNode = this.newNode(createdBunch);
+    createdBunchNode.createdCounter = count;
     if (newNodeParent.createdChildren === undefined) {
       newNodeParent.createdChildren = new Map();
     }
-    newNodeParent.createdChildren.set(createdBunchMeta.offset, createdBunch);
+    newNodeParent.createdChildren.set(createdBunch.offset, createdBunchNode);
 
-    this.onCreateNode?.(createdBunch);
+    this.onCreateNode?.(createdBunchNode);
 
     return [
       {
-        bunchID: createdBunch.bunchID,
+        bunchID: createdBunchNode.bunchID,
         innerIndex: 0,
       },
       createdBunch,

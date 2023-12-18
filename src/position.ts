@@ -6,7 +6,7 @@
  *
  * Type Position is used with the library's List and Outline data structures.
  * You can also work with Positions independent of a specific list using an Order.
- * See the [readme](https://github.com/mweidner037/list-positions#readme)
+ * See the [readme](https://github.com/mweidner037/list-positions#list-position-and-order)
  * for details.
  *
  * See also:
@@ -34,7 +34,7 @@ export type Position = {
  *
  * The list order on LexPositions matches their lexicographic order as strings.
  * That makes it easy to work with LexPositions outside of this library, but it has a cost in metadata overhead.
- * See the [readme](https://github.com/mweidner037/list-positions#readme)
+ * See the [readme](https://github.com/mweidner037/list-positions#lexlist-and-lexposition)
  * for details.
  *
  * See also:

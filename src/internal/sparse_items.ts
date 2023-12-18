@@ -19,58 +19,64 @@ export interface ItemManager<I, T> {
   slice(item: I, start: number, end: number): I;
 }
 
-export class ArrayItemManager<T> implements ItemManager<T[], T> {
-  get(item: T[], index: number): T {
+// Think: unknown -> T.
+const theArrayItemManager: ItemManager<unknown[], unknown> = {
+  get(item: unknown[], index: number): unknown {
     return item[index];
-  }
+  },
 
-  length(item: T[]): number {
+  length(item: unknown[]): number {
     return item.length;
-  }
+  },
 
-  isEmpty(item: T[]): boolean {
+  isEmpty(item: unknown[]): boolean {
     return item.length === 0;
-  }
+  },
 
-  empty(): T[] {
+  empty(): unknown[] {
     return [];
-  }
+  },
 
-  merge(a: T[], b: T[]): T[] {
+  merge(a: unknown[], b: unknown[]): unknown[] {
     a.push(...b);
     return a;
-  }
+  },
 
-  slice(item: T[], start: number, end: number): T[] {
+  slice(item: unknown[], start: number, end: number): unknown[] {
     return item.slice(start, end);
-  }
+  },
+} as const;
+
+export function arrayItemManager<T>(): ItemManager<T[], T> {
+  return theArrayItemManager as ItemManager<T[], T>;
 }
 
-export class NumberItemManager implements ItemManager<number, true> {
+export const numberItemManager: ItemManager<number, true> = {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   get(item: number, index: number): true {
     return true;
-  }
+  },
 
   length(item: number): number {
     return item;
-  }
+  },
 
   isEmpty(item: number): boolean {
     return item === 0;
-  }
+  },
 
   empty(): number {
     return 0;
-  }
+  },
 
   merge(a: number, b: number): number {
     return a + b;
-  }
+  },
 
   slice(item: number, start: number, end: number): number {
     return end - start;
-  }
-}
+  },
+} as const;
 
 /**
  * A representation of a sparse array in which runs of present values

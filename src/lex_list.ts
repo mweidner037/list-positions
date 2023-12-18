@@ -66,8 +66,16 @@ export class LexList<T> {
    *
    * @see LexList.from To construct a LexList from an initial set of entries.
    */
-  constructor(order?: Order) {
-    this.list = new List(order);
+  constructor(order?: Order);
+  /**
+   * Constructs a LexList wrapping the given List, which is used as `this.list`.
+   *
+   * Changes to the List affect this LexList and vice-versa.
+   */
+  constructor(list: List<T>);
+  constructor(orderOrList?: Order | List<T>) {
+    this.list =
+      orderOrList instanceof List ? orderOrList : new List(orderOrList);
     this.order = this.list.order;
   }
 

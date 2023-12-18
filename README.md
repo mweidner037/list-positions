@@ -39,7 +39,7 @@ This library provides positions (types `Position`/`LexPosition`) and correspondi
 
 ### Features
 
-**Performance** Our list data structures have a small memory footprint, fast edits, and small saved states. <!-- See our [performance measurements](TODO) for a 260k op text-editing trace. -->
+**Performance** Our list data structures have a small memory footprint, fast edits, and small saved states. See our [benchmark results](#performance) for a 260k op text-editing trace.
 
 **Collaboration** Lists can share the same positions even across devices. Even in the face of concurrent edits, Positions are always globally unique, and you can insert a new position anywhere in a list. To make this possible, the library essentially implements a list CRDT ([Fugue](https://arxiv.org/abs/2305.00583)), but with a more flexible API.
 
@@ -49,6 +49,7 @@ This library provides positions (types `Position`/`LexPosition`) and correspondi
 
 ### Related Work
 
+- [position-strings](https://www.npmjs.com/package/position-strings), a bare-bones version of this library's LexPositions. (Note: Its positions are _not_ compatible with this library's.)
 - [Fractional indexing](https://www.figma.com/blog/realtime-editing-of-ordered-sequences/#fractional-indexing),
   a related but less general idea.
 - [Blog post](https://mattweidner.com/2022/10/21/basic-list-crdt.html) describing the Fugue list CRDT and how it relates to the "list position" abstraction. This library implements optimized versions of that post's tree implementation (List/Position) and string implementation (LexList/LexPosition).
@@ -98,9 +99,9 @@ list.delete(newPos);
 
 Internally, LexPositions are just strings. LexPositions have the nice property that **their lexicographic order matches the list order**. So you can `ORDER BY` LexPositions in a database table, or store them in a different [ordered](https://www.npmjs.com/package/functional-red-black-tree) [map](https://docs.oracle.com/javase/8/docs/api/java/util/TreeMap.html) [data](https://en.cppreference.com/w/cpp/container/map) [structure](https://doc.rust-lang.org/std/collections/struct.BTreeMap.html).
 
-The downside of using LexPositions is metadata overhead - they have variable length and can become long in certain scenarios<!-- (TODO in our benchmarks)-->. Also, if you store all of the literal pairs `(lexPosition, value)`, then you have per-value metadata overhead. Nonetheless, LexPositions are a convenient option for short lists of perhaps <1,000 values - e.g., the items in a todo list, or the scenarios where [Figma uses fractional indexing](https://www.figma.com/blog/how-figmas-multiplayer-technology-works/#syncing-trees-of-objects).
+The downside of using LexPositions is metadata overhead - they have variable length and can become long in certain scenarios (an average of 127 characters in our [benchmarks](./benchmark_results.md#lexlist-direct)). Also, if you store all of the literal pairs `(lexPosition, value)` in your own DB table or ordered map, then you have per-value metadata overhead. Nonetheless, that is a convenient option for short lists of perhaps <1,000 values - e.g., the items in a todo list, or the scenarios where [Figma uses fractional indexing](https://www.figma.com/blog/how-figmas-multiplayer-technology-works/#syncing-trees-of-objects).
 
-> Using LexList is more efficient than storing all of the literal pairs `(lexPosition, value)` - in fact, it is as memory-efficient as the next section's List class. Likewise, LexList's saved states are more compact than the naive representation, though they are larger than the equivalent List/Order saved states. <!-- GZIP mostly closes the gap (TODO: data). -->
+> Using LexList is more efficient than storing all of the literal pairs `(lexPosition, value)`. In fact, it is nearly as efficient as the next section's List class. See [LexList benchmark results](./benchmark_results.md#lexlist-direct).
 
 See also: [LexUtils](#lexutils)
 
@@ -248,14 +249,20 @@ function load<T>(savedState: string): List<T> {
 ```
 
 <a id="createdBunch"></a>
-**Multiple users** The most complicated scenarios involve multiple users and a single list order, e.g., a collaborative text editor. Any time a user creates a new Position by calling `list.insertAt`, `list.insert`, or `list.order.createPositions`, they might create a new bunch. The created bunch will be returned; you must distribute its BunchMeta before/together with the new Position. For example:
+**Multiple users** Suppose you have multiple users and a single list order, e.g., a collaborative text editor. Any time a user creates a new Position by calling `list.insertAt`, `list.insert`, or `list.order.createPositions`, they might create a new bunch. Other users must learn of the created bunch's BunchMeta before they can use the new Position.
+
+One option is to always send LexPositions over the network instead of Positions. Use `list.order.lex` and `list.order.unlex` to translate between the two. This is almost as simple as using [LexList and LexPosition](#lexlist-and-lexposition), but with the same cost in metadata overhead - in our [list CRDT benchmarks](./benchmark_results.md#lexpositioncrdt), it about doubles the size of network messages relative to the second option below. However, the messages are still small in absolute terms (156.6 vs 73.5 bytes/op).
+
+> Equivalently, you could always send Positions together with all of their dependent BunchMetas - extract these using `list.order.getNodeFor(position).ancestors().map(node => node.meta())`.
+
+A second option is to distribute a created BunchMeta immediately when it is created, before/together with its new Position. For example:
 
 ```ts
 // When a user types "x" at index 7:
 const [position, createdBunch] = list.insertAt(7, "x");
 if (createdBunch !== null) {
   // Distribute the new bunch's BunchMeta.
-  broadcast(JSON.stringify({ type: "meta", meta: createdBunch.meta() }));
+  broadcast(JSON.stringify({ type: "meta", meta: createdBunch }));
 } // Else position reused an old bunch - no new metadata.
 // Now you can distribute position:
 broadcast(JSON.stringify({ type: "set", position, value: "x" }));
@@ -278,7 +285,7 @@ function onMessage(message: string) {
 }
 ```
 
-If you ever want to extract all of a Position's dependencies for sending to another device, you can use `list.order.lex(position)` to convert it to a LexPosition (and `unlex` on the other side). Or, you can directly obtain the dependent BunchMetas using `list.order.getNodeFor(position).ancestors().map(node => node.meta())`.
+This works best if your network has ordering guarantees that ensure you won't accidentally receive a Position before a BunchMeta that was sent earlier (e.g., causal-order delivery).
 
 > Errors you might get if you mis-manage metadata:
 >
@@ -391,6 +398,7 @@ Utitilies for generating `bunchIDs`.
 
 When a method like `List.insertAt` creates a new Position (or LexPosition), it may create a new [bunch](#bunches) internally. This bunch is assigned a new bunchID which should be globally unique - or at least, unique among all bunches that this bunch will ever appear alongside (i.e., in the same Order).
 
+<a id="replica-ids"></a>
 By default, the library uses `BunchIDs.usingReplicaID()`, which returns [causal dots](https://mattweidner.com/2022/10/21/basic-list-crdt.html#causal-dot). You can supply a different bunchID generator in Order's constructor. E.g., to get reproducible bunchIDs in a test environment:
 
 ```ts
@@ -406,7 +414,7 @@ const list = new List(order);
 
 An Order's internal tree node corresponding to a [bunch](#bunches) of Positions.
 
-You can access a bunch's BunchNode to retrieve its dependent metadata, using the `meta()` and `ancestors()` methods. For [Advanced](#advanced) usage, BunchNode also gives low-level access to an Order's tree of bunches.
+You can access a bunch's BunchNode to retrieve its dependent metadata, using the `meta()` and `ancestors()` methods. For advanced usage, BunchNode also gives low-level access to an Order's [internal tree](./internals.md).
 
 Obtain BunchNodes using `Order.getNode` or `Order.getNodeFor`.
 
@@ -414,27 +422,30 @@ Obtain BunchNodes using `Order.getNode` or `Order.getNodeFor`.
 
 The `benchmarks/` folder contains benchmarks using List/Outline/LexList directly (modeling single-user or clien-server collaboration) and using text CRDTs built around a List+Outline.
 
-Each benchmark applies the [automerge-perf](https://github.com/automerge/automerge-perf) 260k edit text trace, modeled on the [crdt-benchmarks](https://github.com/dmonad/crdt-benchmarks/) B4 experiment.
+Each benchmark applies the [automerge-perf](https://github.com/automerge/automerge-perf) 260k edit text trace and measures various stats, modeled on [crdt-benchmarks](https://github.com/dmonad/crdt-benchmarks/)' B4 experiment.
 
 Results for one of the text CRDTs (`PositionCRDT`) on my laptop:
 
-- Sender time (ms): 1035
+- Sender time (ms): 1134
 - Avg update size (bytes): 73.5
-- Receiver time (ms): 897
-- Save time (ms): 9
+- Receiver time (ms): 1091
+- Save time (ms): 8
 - Save size (bytes): 752573
-- Load time (ms): 14
-- Save time GZIP'd (ms): 92
-- Save size GZIP'd (bytes): 100016
-- Load time GZIP'd (ms): 35
+- Load time (ms): 15
+- Save time GZIP'd (ms): 99
+- Save size GZIP'd (bytes): 100014
+- Load time GZIP'd (ms): 44
 - Mem used (MB): 2.5
 
 For more results, see [benchmark_results.md](./benchmark_results.md).
 
 ### Performance Considerations
 
-- The library is optimized for forward (left-to-right) insertions. If you primarily insert backward (right-to-left) or at random, you will see worse efficiency - especially storage overhead. (Internally, only forward insertions reuse [bunches](#bunches), so other patterns lead to fewer Positions per bunch.)
+For questions about performance, optimizations, or specific use cases, feel free to open an [issue](https://github.com/mweidner037/list-positions/issues).
 
-<!-- TODO
-Custom serialization: protobufs; parse default bunchID format; exploit recurrences in replicaIDs.
--->
+Here are some general performance considerations:
+
+1. The library is optimized for forward (left-to-right) insertions. If you primarily insert backward (right-to-left) or at random, you will see worse efficiency - especially storage overhead. (Internally, only forward insertions reuse [bunches](#bunches), so other patterns lead to fewer Positions per bunch.)
+2. LexPositions and Positions are interchangeable, via the `Order.lex` and `Order.unlex` methods. So you could always start off using the simpler-but-larger LexPositions, then do a data migration to switch to Positions if performance demands it. <!-- TODO: likewise for List/Outline/LexList, via save-conversion methods. -->
+3. The saved states are designed for simplicity, not size. This is why GZIP shrinks them a lot (at the cost of longer save and load times). You can improve on the default performance in various ways: binary encodings, deduplicating [replica IDs](#replica-ids), etc. <!-- TODO: using List.saveOutline and gzipping each separately. --> Before putting too much effort in to this, though, keep in mind that human-written text is small. E.g., the 750 KB CRDT save size above is the size of one image file, even though it represents a 15-page LaTeX paper with 7.5x overhead.
+4. For very large lists, you can choose to call `List.set` on only the Position-value pairs that are currently scrolled into view. This reduces memory and potentially network usage. Likewise, you can choose to deliver only the corresponding BunchMetas to Order.
