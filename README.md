@@ -267,8 +267,8 @@ if (createdBunch !== null) {
 // Now you can distribute position:
 broadcast(JSON.stringify({ type: "set", position, value: "x" }));
 
-// Alt: Use an Order.onCreatedBunch callback.
-// list.order.onCreatedBunch = (createdBunch) => { /* Broadcast createdBunch.meta()... */ }
+// Alt: Use an Order.onCreateBunch callback.
+// list.order.onCreateBunch = (createdBunch) => { /* Broadcast createdBunch... */ }
 
 // When a user receives a message:
 function onMessage(message: string) {

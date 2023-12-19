@@ -146,10 +146,10 @@ export class Order {
    * creates a new bunch.
    *
    * It is called with the same `createdBunch` that is returned by the createPositions call.
-   * Other collaborators will need to receive the createdBunch's BunchMeta before they can use
+   * Other collaborators will need to receive that BunchMeta before they can use
    * the new Positions; see [Managing Metadata](https://github.com/mweidner037/list-positions#createdBunch).
    */
-  onCreateNode: ((createdBunch: BunchNode) => void) | undefined = undefined;
+  onCreateBunch: ((createdBunch: BunchMeta) => void) | undefined = undefined;
 
   /**
    * Constructs a new Order.
@@ -569,7 +569,7 @@ export class Order {
     }
     newNodeParent.createdChildren.set(createdBunch.offset, createdBunchNode);
 
-    this.onCreateNode?.(createdBunchNode);
+    this.onCreateBunch?.(createdBunch);
 
     return [
       {
