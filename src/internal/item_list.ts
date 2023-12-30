@@ -16,6 +16,9 @@ type NodeData<I> = {
    * The number of present values in this node's parent that appear
    * prior to this node. Part of the index offset between this node
    * and its parent (the other part is from prior siblings).
+   *
+   * For nodes without NodeData, call ItemList.parentValuesBefore instead
+   * of defaulting to 0.
    */
   parentValuesBefore: number;
   /**
@@ -129,6 +132,29 @@ export class ItemList<I, T> {
   }
 
   /**
+   * The number of present values in this node's parent that appear
+   * prior to this node. Part of the index offset between this node
+   * and its parent (the other part is from prior siblings).
+   *
+   * Note that this value may be nonzero even if we don't have data for node.
+   * So it is *not* safe to default to 0
+   * instead of calling this method.
+   */
+  private parentValuesBefore(node: BunchNode): number {
+    const data = this.state.get(node);
+    if (data !== undefined) return data.parentValuesBefore;
+    else if (node.parent !== null) {
+      // We haven't cached parentValuesBefore for node, but it still might
+      // be nonzero, if the parent has values.
+      const parentData = this.state.get(node.parent);
+      if (parentData !== undefined) {
+        return this.itemsMan.getInfo(parentData.values, node.nextInnerIndex)[2];
+      }
+    }
+    return 0;
+  }
+
+  /**
    * Call when changing the outline of node's values, i.e., which
    * innerIndexes are present.
    *
@@ -151,7 +177,7 @@ export class ItemList<I, T> {
       }
     }
 
-    // Update child.parentValuesBefore for node's children.
+    // Update child.parentValuesBefore for node's *known* children.
     const nodeData = this.state.get(node);
     if (nodeData !== undefined) {
       for (let i = 0; i < node.childrenLength; i++) {
@@ -333,7 +359,7 @@ export class ItemList<I, T> {
         current = current.parent
       ) {
         // Parent's values that come before current.
-        beforeNode += this.state.get(current)?.parentValuesBefore ?? 0;
+        beforeNode += this.parentValuesBefore(current);
         // Sibling nodes that come before current.
         for (let i = 0; i < current.parent.childrenLength; i++) {
           const child = current.parent.getChild(i);
