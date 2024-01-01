@@ -201,7 +201,7 @@ export class Outline {
    * They are originally contiguous, but may become non-contiguous in the future,
    * if new Positions are created between them.
    *
-   * @returns [insertion Position, [created bunch's](https://github.com/mweidner037/list-positions#createdBunch) BunchMeta (or null)].
+   * @returns [starting Position, [created bunch's](https://github.com/mweidner037/list-positions#createdBunch) BunchMeta (or null)].
    * @throws If index is not in `[0, this.length]`. The index `this.length` is allowed and will cause an append, unless this list's current last Position is Order.MAX_POSITION.
    * @throws If count is 0.
    * @see Order.startPosToArray To convert (startPos, count) to an array of Positions.
@@ -317,7 +317,7 @@ export class Outline {
    * Returns a saved state for this Outline.
    *
    * The saved state describes our current set of Positions in JSON-serializable form.
-   * You can load these Positions on another Outline by calling `load(savedState)`,
+   * You can load this state on another Outline by calling `load(savedState)`,
    * possibly in a different session or on a different device.
    */
   save(): OutlineSavedState {

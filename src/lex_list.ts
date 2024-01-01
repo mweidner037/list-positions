@@ -346,13 +346,13 @@ export class LexList<T> {
   // ----------
 
   /**
-   * Returns a saved state for this List.
+   * Returns a saved state for this LexList.
    *
    * The saved state describes our current (LexPosition -> value) map in JSON-serializable form.
-   * You can load these entries on another List by calling `load(savedState)`,
+   * You can load this state on another LexList by calling `load(savedState)`,
    * possibly in a different session or on a different device.
    *
-   * Note: You can also use `Object.fromEntries(this.entries())` as a simple,
+   * Note: You can instead use `Object.fromEntries(this.entries())` as a simple,
    * easy-to-interpret saved state, and load it with `LexList.from`.
    * However, `save` and `load` use a more compact representation.
    */

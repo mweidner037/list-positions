@@ -152,7 +152,7 @@ export class Order {
   onCreateBunch: ((createdBunch: BunchMeta) => void) | undefined = undefined;
 
   /**
-   * Constructs a new Order.
+   * Constructs an Order.
    *
    * Any data structures (List, Outline, LexList) that share this Order
    * automatically share the same total order on Positions.
@@ -646,7 +646,7 @@ export class Order {
    *
    * The saved state describes all of our known BunchMetas in JSON-serializable form.
    * (In fact, it is merely the array (`[...this.bunchMetas()]`.)
-   * You can call `order2.load(savedState)` to load the saved state into a different Order `order2`,
+   * You can load this state on another Order by calling `load(savedState)`,
    * possibly in a different session or on a collaborator's device.
    */
   save(): OrderSavedState {
