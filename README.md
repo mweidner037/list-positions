@@ -6,6 +6,8 @@ Efficient "positions" for lists and text - enabling rich documents and collabora
 - [Usage](#usage)
 - [API](#api)
 - [Performance](#performance)
+- [Demos ↗️](https://github.com/mweidner037/list-demos)
+- [list-formatting ↗️](https://github.com/mweidner037/list-formatting), a companion library that adds inline formatting (e.g. rich text)
 
 ## About
 
