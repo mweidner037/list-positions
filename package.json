@@ -36,7 +36,7 @@
   "dependencies": {
     "lex-sequence": "1.0.0",
     "maybe-random-string": "1.0.0",
-    "sparse-array-rled": "0.2.0"
+    "sparse-array-rled": "file:../sparse-array-rled/"
   },
   "devDependencies": {
     "@istanbuljs/nyc-config-typescript": "^1.0.2",

@@ -1,8 +1,21 @@
+import { SparseIndices } from "sparse-array-rled";
 import { BunchMeta } from "./bunch";
-import { ItemList } from "./internal/item_list";
-import { numberItemManager } from "./internal/sparse_items";
+import { ItemList, SparseItemsFactory } from "./internal/item_list";
 import { Order } from "./order";
 import { Position } from "./position";
+
+const sparseIndicesFactory: SparseItemsFactory<number, SparseIndices> = {
+  // eslint-disable-next-line @typescript-eslint/unbound-method
+  new: SparseIndices.new,
+  // eslint-disable-next-line @typescript-eslint/unbound-method
+  deserialize: SparseIndices.deserialize,
+  length(item) {
+    return item;
+  },
+  slice(_item, start, end) {
+    return end - start;
+  },
+} as const;
 
 /**
  * A JSON-serializable saved state for an Outline.
@@ -45,7 +58,7 @@ export class Outline {
    * See [Managing Metadata](https://github.com/mweidner037/list-positions#managing-metadata).
    */
   readonly order: Order;
-  private readonly itemList: ItemList<number, true>;
+  private readonly itemList: ItemList<number, SparseIndices>;
 
   /**
    * Constructs an Outline, initially empty.
@@ -58,7 +71,7 @@ export class Outline {
    */
   constructor(order?: Order) {
     this.order = order ?? new Order();
-    this.itemList = new ItemList(this.order, numberItemManager);
+    this.itemList = new ItemList(this.order, sparseIndicesFactory);
   }
 
   /**
@@ -306,7 +319,14 @@ export class Outline {
    * Arguments are as in [Array.slice](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/slice).
    */
   *positions(start?: number, end?: number): IterableIterator<Position> {
-    for (const [pos] of this.itemList.entries(start, end)) yield pos;
+    for (const [
+      { bunchID, innerIndex: startInnerIndex },
+      item,
+    ] of this.itemList.items(start, end)) {
+      for (let i = 0; i < item; i++) {
+        yield { bunchID, innerIndex: startInnerIndex + i };
+      }
+    }
   }
 
   // ----------
@@ -321,7 +341,7 @@ export class Outline {
    * possibly in a different session or on a different device.
    */
   save(): OutlineSavedState {
-    return this.itemList.save(cloneItems);
+    return this.itemList.save();
   }
 
   /**
@@ -337,11 +357,6 @@ export class Outline {
    * with List (Outline is analogous).
    */
   load(savedState: OutlineSavedState): void {
-    this.itemList.load(savedState, cloneItems);
+    this.itemList.load(savedState);
   }
-}
-
-function cloneItems(items: number[]): number[] {
-  // Defensive copy
-  return items.slice();
 }

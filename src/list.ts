@@ -1,8 +1,24 @@
+import { SerializedSparseArray, SparseArray } from "sparse-array-rled";
 import { BunchMeta } from "./bunch";
-import { ItemList } from "./internal/item_list";
-import { SparseItems, arrayItemManager } from "./internal/sparse_items";
+import { ItemList, SparseItemsFactory } from "./internal/item_list";
 import { Order } from "./order";
 import { Position } from "./position";
+
+const sparseArrayFactory: SparseItemsFactory<
+  unknown[],
+  SparseArray<unknown>
+> = {
+  // eslint-disable-next-line @typescript-eslint/unbound-method
+  new: SparseArray.new,
+  // eslint-disable-next-line @typescript-eslint/unbound-method
+  deserialize: SparseArray.deserialize,
+  length(item) {
+    return item.length;
+  },
+  slice(item, start, end) {
+    return item.slice(start, end);
+  },
+} as const;
 
 /**
  * A JSON-serializable saved state for a `List<T>`.
@@ -25,9 +41,12 @@ import { Position } from "./position";
  * values. Each even index is an array of present values; each odd
  * index is a count of deleted values.
  * E.g. `[["a", "b"], 3, ["c"]]` means `["a", "b", null, null, null, "c"]`.
+ *
+ * TODO: use SerializedSparseArray instead? Likewise for Outline.
+ * TODO: "serialized" names instead of saved/save/load? Probably not.
  */
 export type ListSavedState<T> = {
-  [bunchID: string]: (T[] | number)[];
+  [bunchID: string]: SerializedSparseArray<T>;
 };
 
 /**
@@ -46,7 +65,7 @@ export class List<T> {
    * See [Managing Metadata](https://github.com/mweidner037/list-positions#managing-metadata).
    */
   readonly order: Order;
-  private readonly itemList: ItemList<T[], T>;
+  private readonly itemList: ItemList<T[], SparseArray<T>>;
 
   /**
    * Constructs a List, initially empty.
@@ -59,7 +78,10 @@ export class List<T> {
    */
   constructor(order?: Order) {
     this.order = order ?? new Order();
-    this.itemList = new ItemList(this.order, arrayItemManager());
+    this.itemList = new ItemList(
+      this.order,
+      sparseArrayFactory as SparseItemsFactory<T[], SparseArray<T>>
+    );
   }
 
   /**
@@ -246,7 +268,10 @@ export class List<T> {
    * Returns the value at the given position, or undefined if it is not currently present.
    */
   get(pos: Position): T | undefined {
-    return this.itemList.get(pos);
+    const located = this.itemList.getItem(pos);
+    if (located === null) return undefined;
+    const [item, offset] = located;
+    return item[offset];
   }
 
   /**
@@ -255,7 +280,8 @@ export class List<T> {
    * @throws If index is not in `[0, this.length)`.
    */
   getAt(index: number): T {
-    return this.itemList.getAt(index);
+    const [item, offset] = this.itemList.getItemAt(index);
+    return item[offset];
   }
 
   /**
@@ -341,7 +367,7 @@ export class List<T> {
    * Arguments are as in [Array.slice](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/slice).
    */
   *values(start?: number, end?: number): IterableIterator<T> {
-    for (const [, value] of this.entries(start, end)) yield value;
+    for (const [, item] of this.itemList.items(start, end)) yield* item;
   }
 
   /**
@@ -362,16 +388,25 @@ export class List<T> {
     for (const [pos] of this.entries(start, end)) yield pos;
   }
 
+  // TODO: items (direct expose)
+
   /**
    * Returns an iterator of [pos, value] tuples in the list, in list order. These are its entries as an ordered map.
    *
    * Arguments are as in [Array.slice](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/slice).
    */
-  entries(
+  *entries(
     start?: number,
     end?: number
   ): IterableIterator<[pos: Position, value: T]> {
-    return this.itemList.entries(start, end);
+    for (const [
+      { bunchID, innerIndex: startInnerIndex },
+      item,
+    ] of this.itemList.items(start, end)) {
+      for (let i = 0; i < item.length; i++) {
+        yield [{ bunchID, innerIndex: startInnerIndex + i }, item[i]];
+      }
+    }
   }
 
   // ----------
@@ -386,7 +421,7 @@ export class List<T> {
    * possibly in a different session or on a different device.
    */
   save(): ListSavedState<T> {
-    return this.itemList.save(deepCloneItems);
+    return this.itemList.save();
   }
 
   /**
@@ -401,16 +436,6 @@ export class List<T> {
    * See [Managing Metadata](https://github.com/mweidner037/list-positions#save-load) for an example.
    */
   load(savedState: ListSavedState<T>): void {
-    this.itemList.load(savedState, deepCloneItems);
+    this.itemList.load(savedState);
   }
-}
-
-function deepCloneItems<T>(items: SparseItems<T[]>): SparseItems<T[]> {
-  // Defensive deep copy
-  const copy = new Array<T[] | number>(items.length);
-  for (let i = 0; i < items.length; i++) {
-    if (i % 2 === 0) copy[i] = (items[i] as T[]).slice();
-    else copy[i] = items[i];
-  }
-  return copy;
 }

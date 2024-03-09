@@ -1,12 +1,22 @@
+import { SparseItems } from "sparse-array-rled";
 import { BunchMeta, BunchNode } from "../bunch";
 import { Order } from "../order";
 import { Position } from "../position";
-import { ItemManager, SparseItems, SparseItemsManager } from "./sparse_items";
+
+export interface SparseItemsFactory<I, S extends SparseItems<I>> {
+  "new"(): S;
+  deserialize(serialized: (I | number)[]): S;
+  length(item: I): number;
+  /**
+   * Guaranteed 0 <= start < end <= item.length (TODO: check)
+   */
+  slice(item: I, start: number, end: number): I;
+}
 
 /**
  * List data associated to a BunchNode.
  */
-type NodeData<I> = {
+type NodeData<S> = {
   /**
    * The total number of present values at this
    * node and its descendants.
@@ -25,27 +35,24 @@ type NodeData<I> = {
    * The values at the node's positions,
    * in order from left to right.
    *
-   * Always trimmed - length is meaningless.
-   *
-   * OPT: omit before use, with ?? arrMan.empty()? Or could add null
-   * as option to SparseItems type (8 bytes vs size of []).
+   * OPT: omit when empty (replace with null).
+   * OPT: delete parents of empty nodes (if not already).
    */
-  values: SparseItems<I>;
+  values: S;
 };
 
-export class ItemList<I, T> {
-  private readonly itemsMan: SparseItemsManager<I, T>;
-
+export class ItemList<I, S extends SparseItems<I>> {
   /**
    * Map from BunchNode to its data (total & values).
    *
    * Always omits entries with total = 0.
    */
-  private state = new Map<BunchNode, NodeData<I>>();
+  private state = new Map<BunchNode, NodeData<S>>();
 
-  constructor(readonly order: Order, readonly itemMan: ItemManager<I, T>) {
-    this.itemsMan = new SparseItemsManager(this.itemMan);
-  }
+  constructor(
+    readonly order: Order,
+    private readonly itemsFactory: SparseItemsFactory<I, S>
+  ) {}
 
   // ----------
   // Mutators
@@ -54,11 +61,11 @@ export class ItemList<I, T> {
   /**
    * @returns Replaced values
    */
-  set(startPos: Position, item: I): SparseItems<I> {
+  set(startPos: Position, item: I): S {
     // Validate startPos even if length = 0.
     const node = this.order.getNodeFor(startPos);
-    const length = this.itemMan.length(item);
-    if (length === 0) return this.itemsMan.new();
+    const length = this.itemsFactory.length(item);
+    if (length === 0) return this.itemsFactory.new();
     if (node === this.order.rootNode && startPos.innerIndex + length - 1 > 1) {
       throw new Error(
         `Last value's Position is invalid (rootNode only allows innerIndex 0 or 1): startPos=${JSON.stringify(
@@ -68,14 +75,9 @@ export class ItemList<I, T> {
     }
 
     const data = this.getOrCreateData(node);
-    const [newItems, replaced] = this.itemsMan.set(
-      data.values,
-      startPos.innerIndex,
-      item
-    );
-    data.values = this.itemsMan.trim(newItems);
+    const replaced = data.values._set(startPos.innerIndex, item);
 
-    const oldSize = this.itemsMan.size(replaced);
+    const oldSize = replaced.count();
     if (oldSize !== length) this.onUpdate(node, length - oldSize);
     return replaced;
   }
@@ -83,10 +85,10 @@ export class ItemList<I, T> {
   /**
    * @returns Replaced values
    */
-  delete(startPos: Position, count: number): SparseItems<I> {
+  delete(startPos: Position, count: number): S {
     // Validate startPos even if count = 0.
     const node = this.order.getNodeFor(startPos);
-    if (count === 0) return this.itemsMan.new();
+    if (count === 0) return this.itemsFactory.new();
     if (node === this.order.rootNode && startPos.innerIndex + count - 1 > 1) {
       throw new Error(
         `Last value's Position is invalid (rootNode only allows innerIndex 0 or 1): startPos=${JSON.stringify(
@@ -98,34 +100,25 @@ export class ItemList<I, T> {
     const data = this.state.get(node);
     if (data === undefined) {
       // Already deleted.
-      return this.itemsMan.new(count);
+      return this.itemsFactory.new();
     }
-    const [newItems, replaced] = this.itemsMan.delete(
-      data.values,
-      startPos.innerIndex,
-      count
-    );
-    data.values = this.itemsMan.trim(newItems);
-
-    const oldSize = this.itemsMan.size(replaced);
+    const replaced = data.values.delete(startPos.innerIndex, count);
+    const oldSize = replaced.count();
     if (oldSize !== 0) this.onUpdate(node, 0 - oldSize);
     return replaced;
   }
 
-  private getOrCreateData(node: BunchNode): NodeData<I> {
+  private getOrCreateData(node: BunchNode): NodeData<S> {
     let data = this.state.get(node);
     if (data === undefined) {
       let parentValuesBefore = 0;
       if (node.parent !== null) {
         const parentData = this.state.get(node.parent);
         if (parentData !== undefined) {
-          parentValuesBefore = this.itemsMan.getInfo(
-            parentData.values,
-            node.nextInnerIndex
-          )[2];
+          parentValuesBefore = parentData.values.countAt(node.nextInnerIndex);
         }
       }
-      data = { total: 0, parentValuesBefore, values: this.itemsMan.new() };
+      data = { total: 0, parentValuesBefore, values: this.itemsFactory.new() };
       this.state.set(node, data);
     }
     return data;
@@ -148,7 +141,7 @@ export class ItemList<I, T> {
       // be nonzero, if the parent has values.
       const parentData = this.state.get(node.parent);
       if (parentData !== undefined) {
-        return this.itemsMan.getInfo(parentData.values, node.nextInnerIndex)[2];
+        return parentData.values.countAt(node.nextInnerIndex);
       }
     }
     return 0;
@@ -186,10 +179,9 @@ export class ItemList<I, T> {
         if (childData === undefined) continue;
         // OPT: in principle can make this loop O((# runs) + (# children)) instead
         // of O((# runs) * (# children)), e.g., using itemsMan.split.
-        childData.parentValuesBefore = this.itemsMan.getInfo(
-          nodeData.values,
+        childData.parentValuesBefore = nodeData.values.countAt(
           child.nextInnerIndex
-        )[2];
+        );
       }
     }
   }
@@ -229,7 +221,7 @@ export class ItemList<I, T> {
     const ret = this.order.createPositions(
       prevPos,
       nextPos,
-      this.itemMan.length(item)
+      this.itemsFactory.length(item)
     );
     this.set(ret[0], item);
     return ret;
@@ -254,7 +246,7 @@ export class ItemList<I, T> {
     const ret = this.order.createPositions(
       prevPos,
       nextPos,
-      this.itemMan.length(item)
+      this.itemsFactory.length(item)
     );
     this.set(ret[0], item);
     return ret;
@@ -265,21 +257,23 @@ export class ItemList<I, T> {
   // ----------
 
   /**
-   * Returns the value at position, or undefined if it is not currently present.
+   * Returns the [item, offset] at position, or null if it is not currently present.
    */
-  get(pos: Position): T | undefined {
-    return this.getInNode(this.order.getNodeFor(pos), pos.innerIndex)[0];
+  getItem(pos: Position): [item: I, offset: number] | null {
+    const data = this.state.get(this.order.getNodeFor(pos));
+    if (data === undefined) return null;
+    return data.values._get(pos.innerIndex);
   }
 
   /**
-   * Returns the value currently at index.
+   * Returns the [item, offset] currently at index.
    *
    * @throws If index is not in `[0, this.length)`.
    * Note that this differs from an ordinary Array,
    * which would instead return undefined.
    */
-  getAt(index: number): T {
-    return this.get(this.positionAt(index))!;
+  getItemAt(index: number): [item: I, offset: number] {
+    return this.getItem(this.positionAt(index))!;
   }
 
   /**
@@ -287,21 +281,7 @@ export class ItemList<I, T> {
    * i.e., its value is present.
    */
   has(pos: Position): boolean {
-    return this.getInNode(this.order.getNodeFor(pos), pos.innerIndex)[1];
-  }
-
-  /**
-   * Returns info about the value at innerIndex in node:
-   * [value - undefined if not present, whether it's present,
-   * count of node's present values before it]
-   */
-  private getInNode(
-    node: BunchNode,
-    innerIndex: number
-  ): [value: T | undefined, isPresent: boolean, nodeValuesBefore: number] {
-    const data = this.state.get(node);
-    if (data === undefined) return [undefined, false, 0];
-    return this.itemsMan.getInfo(data.values, innerIndex);
+    return this.getItem(pos) !== null;
   }
 
   private cachedIndexNode: BunchNode | null = null;
@@ -328,10 +308,10 @@ export class ItemList<I, T> {
     searchDir: "none" | "left" | "right" = "none"
   ): number {
     const node = this.order.getNodeFor(pos);
-    const [, isPresent, nodeValuesBefore] = this.getInNode(
-      node,
-      pos.innerIndex
-    );
+    const [nodeValuesBefore, isPresent] = this.state
+      .get(node)
+      ?.values?._countHas(pos.innerIndex) ?? [0, false];
+
     // Will be the total number of values prior to position.
     let valuesBefore = nodeValuesBefore;
 
@@ -403,7 +383,7 @@ export class ItemList<I, T> {
       // currentData is defined because current has nonzero total (contains index).
       const currentData = this.state.get(current)!;
       // prev = previous child-with-data. We remember its values.
-      let prevNextinnerIndex = 0;
+      let prevNextInnerIndex = 0;
       let prevParentValuesBefore = 0;
       currentSearch: {
         for (let i = 0; i < current.childrenLength; i++) {
@@ -418,11 +398,10 @@ export class ItemList<I, T> {
             // previous child-with-data.
             return {
               bunchID: current.bunchID,
-              innerIndex: this.itemsMan.findPresentIndex(
-                currentData.values,
-                prevNextinnerIndex,
-                remaining
-              ),
+              innerIndex: currentData.values._findCount(
+                remaining,
+                prevNextInnerIndex
+              )![0],
             };
           } else {
             remaining -= valuesBetween;
@@ -433,18 +412,17 @@ export class ItemList<I, T> {
             } else remaining -= childData.total;
           }
 
-          prevNextinnerIndex = child.nextInnerIndex;
+          prevNextInnerIndex = child.nextInnerIndex;
           prevParentValuesBefore = childData.parentValuesBefore;
         }
 
         // The position is among current's values, after all children.
         return {
           bunchID: current.bunchID,
-          innerIndex: this.itemsMan.findPresentIndex(
-            currentData.values,
-            prevNextinnerIndex,
-            remaining
-          ),
+          innerIndex: currentData.values._findCount(
+            remaining,
+            prevNextInnerIndex
+          )![0],
         };
       }
     }
@@ -470,15 +448,15 @@ export class ItemList<I, T> {
   // ----------
 
   /**
-   * Returns an iterator of [pos, value] tuples for every
-   * value in the list, in list order.
+   * Returns an iterator of [startPos, item] tuples for every
+   * contiguous item in the list, in list order.
    *
    * Args as in Array.slice.
    */
-  *entries(
+  *items(
     start?: number,
     end?: number
-  ): IterableIterator<[pos: Position, value: T]> {
+  ): IterableIterator<[startPos: Position, item: I]> {
     const range = this.normalizeSliceRange(start, end);
     if (range === null) return;
     [start, end] = range;
@@ -493,7 +471,7 @@ export class ItemList<I, T> {
         node: this.order.rootNode,
         data: rootData,
         nextChildIndex: 0,
-        valuesSlicer: this.itemsMan.newSlicer(rootData.values),
+        valuesSlicer: rootData.values.newSlicer(),
       },
     ];
     while (stack.length !== 0) {
@@ -503,23 +481,41 @@ export class ItemList<I, T> {
       // Emit node values between the previous and next child.
       // Use nextinnerIndex b/c it's an exclusive end.
       // OPT: shortcut if we won't start by the end.
-      const endinnerIndex =
+      const endInnerIndex =
         top.nextChildIndex === node.childrenLength
           ? null
           : node.getChild(top.nextChildIndex).nextInnerIndex;
-      for (const [innerIndex, value] of top.valuesSlicer.nextSlice(
-        endinnerIndex
+      for (const [innerIndex, item] of top.valuesSlicer.nextSlice(
+        endInnerIndex
       )) {
-        if (index >= start) {
+        // Here it is guaranteed that index < end.
+        const itemLength = this.itemsFactory.length(item);
+        const itemEndIndex = index + itemLength;
+        if (start <= index) {
           yield [
             {
               bunchID: node.bunchID,
               innerIndex: innerIndex,
             },
-            value,
+            itemEndIndex <= end
+              ? item
+              : this.itemsFactory.slice(item, 0, end - index),
+          ];
+        } else if (start < itemEndIndex) {
+          yield [
+            {
+              bunchID: node.bunchID,
+              innerIndex: innerIndex + (start - index),
+            },
+            this.itemsFactory.slice(
+              item,
+              start - index,
+              Math.min(itemLength, end - index)
+            ),
           ];
         }
-        index++;
+
+        index = itemEndIndex;
         if (index >= end) return;
       }
 
@@ -541,7 +537,7 @@ export class ItemList<I, T> {
               node: child,
               data: childData,
               nextChildIndex: 0,
-              valuesSlicer: this.itemsMan.newSlicer(childData.values),
+              valuesSlicer: childData.values.newSlicer(),
             });
           }
         }
@@ -586,11 +582,11 @@ export class ItemList<I, T> {
    * Only saves values, not Order. bunchID order not guaranteed;
    * can sort if you care.
    */
-  save<S>(saveItems: (items: SparseItems<I>) => S): { [bunchID: string]: S } {
-    const savedState: { [bunchID: string]: S } = {};
+  save(): { [bunchID: string]: (I | number)[] } {
+    const savedState: { [bunchID: string]: (I | number)[] } = {};
     for (const [node, data] of this.state) {
-      if (!this.itemsMan.isEmpty(data.values)) {
-        savedState[node.bunchID] = saveItems(data.values);
+      if (!data.values.isEmpty()) {
+        savedState[node.bunchID] = data.values.serialize();
       }
     }
     return savedState;
@@ -608,10 +604,7 @@ export class ItemList<I, T> {
    * @param savedState Saved state from a List's
    * [[save]] call.
    */
-  load<S>(
-    savedState: { [bunchID: string]: S },
-    loadItems: (savedItems: S) => SparseItems<I>
-  ): void {
+  load(savedState: { [bunchID: string]: (I | number)[] }): void {
     this.clear();
 
     for (const [bunchID, savedArr] of Object.entries(savedState)) {
@@ -622,12 +615,12 @@ export class ItemList<I, T> {
         );
       }
       // Defensive trim, in case user hand-wrote the save.
-      const values = this.itemsMan.trim(loadItems(savedArr));
-      const size = this.itemsMan.size(values);
+      const values = this.itemsFactory.deserialize(savedArr);
+      const size = values.count();
       if (size !== 0) {
         const data = this.getOrCreateData(node);
         data.values = values;
-        this.onUpdate(node, this.itemsMan.size(values));
+        this.onUpdate(node, size);
       }
     }
   }
