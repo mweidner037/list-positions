@@ -41,13 +41,14 @@ const sparseArrayFactory: SparseItemsFactory<
  * values. Each even index is an array of present values; each odd
  * index is a count of deleted values.
  * E.g. `[["a", "b"], 3, ["c"]]` means `["a", "b", null, null, null, "c"]`.
- *
- * TODO: use SerializedSparseArray instead? Likewise for Outline.
- * TODO: "serialized" names instead of saved/save/load? Probably not.
  */
 export type ListSavedState<T> = {
+  // TODO: move docs so they show here, not on SparseArray.serialize.
+  // Also, ref sparse-array-rled in above docs.
+  // Likewise for Outline.
   [bunchID: string]: SerializedSparseArray<T>;
 };
+// TODO: re-export SparseArray etc?
 
 /**
  * A list of values of type `T`, represented as an ordered map with Position keys.

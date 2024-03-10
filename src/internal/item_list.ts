@@ -8,7 +8,7 @@ export interface SparseItemsFactory<I, S extends SparseItems<I>> {
   deserialize(serialized: (I | number)[]): S;
   length(item: I): number;
   /**
-   * Guaranteed 0 <= start < end <= item.length (TODO: check)
+   * Guaranteed 0 <= start < end <= item.length.
    */
   slice(item: I, start: number, end: number): I;
 }
@@ -64,21 +64,19 @@ export class ItemList<I, S extends SparseItems<I>> {
   set(startPos: Position, item: I): S {
     // Validate startPos even if length = 0.
     const node = this.order.getNodeFor(startPos);
-    const length = this.itemsFactory.length(item);
-    if (length === 0) return this.itemsFactory.new();
-    if (node === this.order.rootNode && startPos.innerIndex + length - 1 > 1) {
+    const count = this.itemsFactory.length(item);
+    if (count === 0) return this.itemsFactory.new();
+    if (node === this.order.rootNode && startPos.innerIndex + count - 1 > 1) {
       throw new Error(
         `Last value's Position is invalid (rootNode only allows innerIndex 0 or 1): startPos=${JSON.stringify(
           startPos
-        )}, length=${length}`
+        )}, length=${count}`
       );
     }
 
     const data = this.getOrCreateData(node);
     const replaced = data.values._set(startPos.innerIndex, item);
-
-    const oldSize = replaced.count();
-    if (oldSize !== length) this.onUpdate(node, length - oldSize);
+    this.updateMeta(node, startPos.innerIndex, count, true, replaced);
     return replaced;
   }
 
@@ -103,9 +101,67 @@ export class ItemList<I, S extends SparseItems<I>> {
       return this.itemsFactory.new();
     }
     const replaced = data.values.delete(startPos.innerIndex, count);
-    const oldSize = replaced.count();
-    if (oldSize !== 0) this.onUpdate(node, 0 - oldSize);
+    this.updateMeta(node, startPos.innerIndex, count, false, replaced);
     return replaced;
+  }
+
+  /**
+   * Updates all of our metadata (total and parentValuesBefore)
+   * in response to a set or delete operation on node.
+   */
+  private updateMeta(
+    node: BunchNode,
+    startIndex: number,
+    count: number,
+    isSet: boolean,
+    replaced: S
+  ): void {
+    const delta = (isSet ? count : 0) - replaced.count();
+    if (delta !== 0) {
+      this.updateTotals(node, delta);
+
+      // Update child.parentValuesBefore for node's *known* children.
+      for (let i = 0; i < node.childrenLength; i++) {
+        const child = node.getChild(i);
+        const childData = this.state.get(child);
+        if (childData === undefined) continue;
+
+        const relIndex = child.nextInnerIndex - startIndex;
+        if (relIndex > 0) {
+          if (relIndex >= count) {
+            childData.parentValuesBefore += delta;
+          } else {
+            // TODO: test (needs count > 1)
+            childData.parentValuesBefore +=
+              (isSet ? relIndex : 0) - replaced.countAt(relIndex);
+          }
+        }
+      }
+    }
+  }
+
+  /**
+   * Updates all NodeData.total fields in response to any change to the given node,
+   * _without_ updating any parentValuesBefore fields.
+   *
+   * Assumes delta != 0.
+   *
+   * @param delta The change in the number of present values at node.
+   */
+  private updateTotals(node: BunchNode, delta: number): void {
+    // Invalidate caches.
+    if (this.cachedIndexNode !== node) this.cachedIndexNode = null;
+
+    // Update total for node and its ancestors.
+    for (
+      let current: BunchNode | null = node;
+      current !== null;
+      current = current.parent
+    ) {
+      const data = this.getOrCreateData(current);
+      data.total += delta;
+      if (data.total === 0) this.state.delete(current);
+    }
   }
 
   private getOrCreateData(node: BunchNode): NodeData<S> {
@@ -122,68 +178,6 @@ export class ItemList<I, S extends SparseItems<I>> {
       this.state.set(node, data);
     }
     return data;
-  }
-
-  /**
-   * The number of present values in this node's parent that appear
-   * prior to this node. Part of the index offset between this node
-   * and its parent (the other part is from prior siblings).
-   *
-   * Note that this value may be nonzero even if we don't have data for node.
-   * So it is *not* safe to default to 0
-   * instead of calling this method.
-   */
-  private parentValuesBefore(node: BunchNode): number {
-    const data = this.state.get(node);
-    if (data !== undefined) return data.parentValuesBefore;
-    else if (node.parent !== null) {
-      // We haven't cached parentValuesBefore for node, but it still might
-      // be nonzero, if the parent has values.
-      const parentData = this.state.get(node.parent);
-      if (parentData !== undefined) {
-        return parentData.values.countAt(node.nextInnerIndex);
-      }
-    }
-    return 0;
-  }
-
-  /**
-   * Call when changing the outline of node's values, i.e., which
-   * innerIndexes are present.
-   *
-   * @param delta The change in the number of present values at node.
-   */
-  private onUpdate(node: BunchNode, delta: number): void {
-    // Invalidate caches.
-    if (this.cachedIndexNode !== node) this.cachedIndexNode = null;
-
-    // Update total for node and its ancestors.
-    if (delta !== 0) {
-      for (
-        let current: BunchNode | null = node;
-        current !== null;
-        current = current.parent
-      ) {
-        const data = this.getOrCreateData(current);
-        data.total += delta;
-        if (data.total === 0) this.state.delete(current);
-      }
-    }
-
-    // Update child.parentValuesBefore for node's *known* children.
-    const nodeData = this.state.get(node);
-    if (nodeData !== undefined) {
-      for (let i = 0; i < node.childrenLength; i++) {
-        const child = node.getChild(i);
-        const childData = this.state.get(child);
-        if (childData === undefined) continue;
-        // OPT: in principle can make this loop O((# runs) + (# children)) instead
-        // of O((# runs) * (# children)), e.g., using itemsMan.split.
-        childData.parentValuesBefore = nodeData.values.countAt(
-          child.nextInnerIndex
-        );
-      }
-    }
   }
 
   /**
@@ -366,6 +360,29 @@ export class ItemList<I, S extends SparseItems<I>> {
           return valuesBefore;
       }
     }
+  }
+
+  /**
+   * The number of present values in this node's parent that appear
+   * prior to this node. Part of the index offset between this node
+   * and its parent (the other part is from prior siblings).
+   *
+   * Note that this value may be nonzero even if we don't have data for node.
+   * So it is *not* safe to default to 0
+   * instead of calling this method.
+   */
+  private parentValuesBefore(node: BunchNode): number {
+    const data = this.state.get(node);
+    if (data !== undefined) return data.parentValuesBefore;
+    else if (node.parent !== null) {
+      // We haven't cached parentValuesBefore for node, but it still might
+      // be nonzero, if the parent has values.
+      const parentData = this.state.get(node.parent);
+      if (parentData !== undefined) {
+        return parentData.values.countAt(node.nextInnerIndex);
+      }
+    }
+    return 0;
   }
 
   /**
@@ -607,6 +624,10 @@ export class ItemList<I, S extends SparseItems<I>> {
   load(savedState: { [bunchID: string]: (I | number)[] }): void {
     this.clear();
 
+    // OPT: Wait to update all metadata in bottom-up order, so that we can
+    // compute all of a node's child parentValuesBefore and its own total in
+    // a single pass.
+
     for (const [bunchID, savedArr] of Object.entries(savedState)) {
       const node = this.order.getNode(bunchID);
       if (node === undefined) {
@@ -614,13 +635,27 @@ export class ItemList<I, S extends SparseItems<I>> {
           `List/Outline savedState references missing bunchID: "${bunchID}". You must call Order.receive before referencing a bunch.`
         );
       }
-      // Defensive trim, in case user hand-wrote the save.
+
       const values = this.itemsFactory.deserialize(savedArr);
       const size = values.count();
       if (size !== 0) {
         const data = this.getOrCreateData(node);
         data.values = values;
-        this.onUpdate(node, size);
+        this.updateTotals(node, size);
+
+        // Update child.parentValuesBefore for node's *known* children.
+        // (We can't use updateMetadata because it only works for contiguous
+        // set/delete operations.)
+        for (let i = 0; i < node.childrenLength; i++) {
+          const child = node.getChild(i);
+          const childData = this.state.get(child);
+          if (childData === undefined) continue;
+          // OPT: in principle can make this loop O((# runs) + (# children)) instead
+          // of O((# runs) * (# children)), e.g., using a loop with newSlicer.
+          childData.parentValuesBefore = data.values.countAt(
+            child.nextInnerIndex
+          );
+        }
       }
     }
   }
