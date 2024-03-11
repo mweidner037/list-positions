@@ -131,7 +131,6 @@ export class ItemList<I, S extends SparseItems<I>> {
           if (relIndex >= count) {
             childData.parentValuesBefore += delta;
           } else {
-            // TODO: test (needs count > 1)
             childData.parentValuesBefore +=
               (isSet ? relIndex : 0) - replaced.countAt(relIndex);
           }

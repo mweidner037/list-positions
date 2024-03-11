@@ -1,4 +1,4 @@
-import { SerializedSparseIndices, SparseIndices } from "sparse-array-rled";
+import { SparseIndices } from "sparse-array-rled";
 import { BunchMeta } from "./bunch";
 import { ItemList, SparseItemsFactory } from "./internal/item_list";
 import { Order } from "./order";
@@ -40,7 +40,7 @@ const sparseIndicesFactory: SparseItemsFactory<number, SparseIndices> = {
  * E.g. `[2, 3, 1]` means `[true, true, null, null, null, true]`.
  */
 export type OutlineSavedState = {
-  [bunchID: string]: SerializedSparseIndices;
+  [bunchID: string]: number[];
 };
 
 /**

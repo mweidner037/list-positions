@@ -43,12 +43,8 @@ const sparseArrayFactory: SparseItemsFactory<
  * E.g. `[["a", "b"], 3, ["c"]]` means `["a", "b", null, null, null, "c"]`.
  */
 export type ListSavedState<T> = {
-  // TODO: move docs so they show here, not on SparseArray.serialize.
-  // Also, ref sparse-array-rled in above docs.
-  // Likewise for Outline.
-  [bunchID: string]: SerializedSparseArray<T>;
+  [bunchID: string]: (T[] | number)[];
 };
-// TODO: re-export SparseArray etc?
 
 /**
  * A list of values of type `T`, represented as an ordered map with Position keys.

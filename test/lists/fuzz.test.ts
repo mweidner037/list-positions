@@ -36,5 +36,34 @@ describe("lists - fuzz", () => {
         }
       }
     });
+
+    it("bulk ops", function () {
+      this.timeout(10000);
+      for (let i = 0; i < 200; i++) {
+        if (checker.list.length === 0 || rng() < 0.5) {
+          // 1/2: insertAt bulk
+          checker.insertAt(
+            Math.floor(rng() * (checker.list.length + 1)),
+            ...new Array(1 + Math.floor(rng() * 10)).fill(
+              Math.floor(rng() * 10000)
+            )
+          );
+        } else if (rng() < 0.5) {
+          // 1/4: setAt
+          checker.setAt(
+            Math.floor(rng() * checker.list.length),
+            Math.floor(rng() * 10000)
+          );
+        } else {
+          // 1/4: deleteAt bulk
+          const index = Math.floor(rng() * checker.list.length);
+          const count = Math.min(
+            checker.list.length - index,
+            Math.floor(rng() * 10)
+          );
+          checker.deleteAt(index, count);
+        }
+      }
+    });
   });
 });
