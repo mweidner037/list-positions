@@ -1,4 +1,4 @@
-import { SparseItems } from "sparse-array-rled";
+import type { SparseItems } from "sparse-array-rled";
 import { BunchMeta, BunchNode } from "../bunch";
 import { Order } from "../order";
 import { Position } from "../position";
@@ -32,11 +32,9 @@ type NodeData<S> = {
    */
   parentValuesBefore: number;
   /**
-   * The values at the node's positions,
-   * in order from left to right.
+   * The values at the node's positions, in order from left to right.
    *
    * OPT: omit when empty (replace with null).
-   * OPT: delete parents of empty nodes (if not already).
    */
   values: S;
 };
@@ -62,7 +60,7 @@ export class ItemList<I, S extends SparseItems<I>> {
    * @returns Replaced values
    */
   set(startPos: Position, item: I): S {
-    // Validate startPos even if length = 0.
+    // Validate startPos even if count = 0.
     const node = this.order.getNodeFor(startPos);
     const count = this.itemsFactory.length(item);
     if (count === 0) return this.itemsFactory.new();
@@ -106,7 +104,7 @@ export class ItemList<I, S extends SparseItems<I>> {
   }
 
   /**
-   * Updates all of our metadata (total and parentValuesBefore)
+   * Updates all of our metadata fields (total and parentValuesBefore)
    * in response to a set or delete operation on node.
    */
   private updateMeta(
@@ -141,7 +139,7 @@ export class ItemList<I, S extends SparseItems<I>> {
 
   /**
    * Updates all NodeData.total fields in response to any change to the given node,
-   * _without_ updating any parentValuesBefore fields.
+   * _without_ updating any parentValuesBefore fields (update updateMeta).
    *
    * Assumes delta != 0.
    *
@@ -373,7 +371,7 @@ export class ItemList<I, S extends SparseItems<I>> {
   private parentValuesBefore(node: BunchNode): number {
     const data = this.state.get(node);
     if (data !== undefined) return data.parentValuesBefore;
-    else if (node.parent !== null) {
+    if (node.parent !== null) {
       // We haven't cached parentValuesBefore for node, but it still might
       // be nonzero, if the parent has values.
       const parentData = this.state.get(node.parent);
@@ -643,7 +641,7 @@ export class ItemList<I, S extends SparseItems<I>> {
         this.updateTotals(node, size);
 
         // Update child.parentValuesBefore for node's *known* children.
-        // (We can't use updateMetadata because it only works for contiguous
+        // (We can't use updateMeta because it only works for contiguous
         // set/delete operations.)
         for (let i = 0; i < node.childrenLength; i++) {
           const child = node.getChild(i);
