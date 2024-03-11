@@ -81,7 +81,7 @@ These two sort orders are a natural fit because they both sort by earlier layers
 
 1. We ban commas and periods in bunch IDs and offsets. Otherwise, the lexicographic order might not respect layer boundaries.
 2. In the tree's depth-first search, we order bunch nodes not by bunch ID, but by `bunchID + ","`. This matches the lexicographic order when there are sibling bunch IDs like `"abc"` vs `"abc "`: descendant nodes will end up comparing `"abc,<...>"` vs `"abc ,<...>"`; the former is greater because `"," > " "`, even though in isolation `"abc" < "abc "`.
-3. We can't encode offsets directly as strings, because the lexicographic order on numeric strings doesn't match the numeric order: `2 < 11` but `"2" > "11"`. Instead, we use a special encoding that does have the correct lexicographic order, while still growing slowly for large numbers (the encoding of `n` has `O(log(n))` chars). See the "special sequence" comment in [LexUtils' source code](./src/lex_utils.ts).
+3. We can't encode offsets directly as strings, because the lexicographic order on numeric strings doesn't match the numeric order: `2 < 11` but `"2" > "11"`. Instead, we use the [lex-sequence](https://github.com/mweidner037/lex-sequence/#readme) package to convert offsets to base-36 strings that have the correct lexicographic order, while still growing slowly for large numbers (the encoding of `n` has `O(log(n))` chars).
 
 ## Creating Positions
 

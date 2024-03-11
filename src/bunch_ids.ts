@@ -1,11 +1,4 @@
-import type * as crypto from "crypto";
-import type seedrandom from "seedrandom";
-
-/**
- * Default characters used by newReplicaID: the alphanumeric chars.
- */
-const REPLICA_ID_CHARS =
-  "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+import { maybeRandomString } from "maybe-random-string";
 
 // Rationale for value 8:
 // Each character of the ID gives us ~6 bits of entropy,
@@ -96,9 +89,10 @@ export const BunchIDs = {
   /**
    * Returns a random (or pseudorandom) new replicaID for BunchIDs.usingReplicaIDs.
    *
-   * @param options.rng If provided, generates a *pseudorandom* replicaID using the given rng (from package
-   * [seedrandom](https://www.npmjs.com/package/seedrandom)).
+   * @param options.rng If provided, generates a *pseudorandom* replicaID using the given rng.
    * Use this to get reproducible bunchIDs, e.g., in a test environment.
+   * It should output floating-point values in the range [0, 1.0), e.g.,
+   * using a PRNG from package [seedrandom](https://www.npmjs.com/package/seedrandom).
    * @param options.chars Characters to choose from.
    * Note that regardless of the characters in the replicaID, the resulting
    * bunchIDs may contain base-36 chars and "_".
@@ -109,48 +103,15 @@ export const BunchIDs = {
    * Default: 8.
    */
   newReplicaID(options?: {
-    rng?: seedrandom.prng;
+    rng?: () => number;
     chars?: string;
     length?: number;
   }): string {
-    const chars = options?.chars ?? REPLICA_ID_CHARS;
-    const length = options?.length ?? REPLICA_ID_LENGTH;
-
-    const arr = new Array<string>(length);
-    if (options?.rng === undefined) {
-      // Random replicaID.
-      let randomValues = new Uint8Array(length);
-      if (typeof window === "undefined") {
-        // Use Node crypto library.
-        // We use eval("require") to prevent Webpack from attempting
-        // to bundle the crypto module and complaining.
-        // In theory we should also be able to do this by
-        // adding "browser": {"crypto": false} to package.json, but every user
-        // of this package would have to remember to do so.
-        // See https://github.com/webpack/webpack/issues/8826
-        const cryptoReal = <typeof crypto>(
-          (<typeof require>eval("require"))("crypto")
-        );
-        const randomBuffer = cryptoReal.randomBytes(length);
-        randomValues = new Uint8Array(randomBuffer);
-      } else {
-        // Use browser crypto library.
-        window.crypto.getRandomValues(randomValues);
-      }
-      for (let i = 0; i < randomValues.length; i++) {
-        // This can be biased if chars.length does not divide 256, but
-        // it still gives at least floor(log_2(chars.length)) bits of entropy.
-        arr[i] = chars[randomValues[i] % chars.length];
-      }
-    } else {
-      // Pseudo-random replicaID.
-      for (let i = 0; i < length; i++) {
-        // Although we could pick chars without bias, we instead use the
-        // same bias as `random`, for consistency.
-        arr[i] = chars[Math.floor(options.rng() * 256) % chars.length];
-      }
-    }
-    return arr.join("");
+    return maybeRandomString({
+      prng: options?.rng,
+      chars: options?.chars,
+      length: options?.length ?? REPLICA_ID_LENGTH,
+    });
   },
 
   /**
