@@ -5,7 +5,7 @@ import { BunchIDs, List, Order } from "../../src";
 import { Checker } from "./util";
 
 describe("lists - manual", () => {
-  let rng!: seedrandom.prng;
+  let rng!: seedrandom.PRNG;
 
   beforeEach(() => {
     rng = seedrandom("42");

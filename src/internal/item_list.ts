@@ -414,10 +414,10 @@ export class ItemList<I, S extends SparseItems<I>> {
             // previous child-with-data.
             return {
               bunchID: current.bunchID,
-              innerIndex: currentData.values._findCount(
+              innerIndex: currentData.values.indexOfCount(
                 remaining,
                 prevNextInnerIndex
-              )![0],
+              ),
             };
           } else {
             remaining -= valuesBetween;
@@ -435,10 +435,10 @@ export class ItemList<I, S extends SparseItems<I>> {
         // The position is among current's values, after all children.
         return {
           bunchID: current.bunchID,
-          innerIndex: currentData.values._findCount(
+          innerIndex: currentData.values.indexOfCount(
             remaining,
             prevNextInnerIndex
-          )![0],
+          ),
         };
       }
     }

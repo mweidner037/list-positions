@@ -1,4 +1,4 @@
-import { SerializedSparseArray, SparseArray } from "sparse-array-rled";
+import { SparseArray } from "sparse-array-rled";
 import { BunchMeta } from "./bunch";
 import { ItemList, SparseItemsFactory } from "./internal/item_list";
 import { Order } from "./order";

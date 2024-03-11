@@ -10,7 +10,7 @@ describe("Order - fuzz", () => {
 });
 
 function sequential(numUsers: number) {
-  let rng!: seedrandom.prng;
+  let rng!: seedrandom.PRNG;
 
   beforeEach(() => {
     rng = seedrandom("42");

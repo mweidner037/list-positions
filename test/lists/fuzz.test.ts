@@ -4,7 +4,7 @@ import { Checker } from "./util";
 
 describe("lists - fuzz", () => {
   describe("single user", () => {
-    let rng!: seedrandom.prng;
+    let rng!: seedrandom.PRNG;
     let checker!: Checker;
 
     beforeEach(() => {

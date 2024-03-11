@@ -23,7 +23,7 @@ export function assertIsOrdered(positions: Position[], order: Order) {
 }
 
 export function newOrders(
-  rng: seedrandom.prng,
+  rng: seedrandom.PRNG,
   count: number,
   linkedMeta: boolean
 ): Order[] {

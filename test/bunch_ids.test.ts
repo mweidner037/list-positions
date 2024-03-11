@@ -4,7 +4,7 @@ import seedrandom from "seedrandom";
 import { BunchIDs } from "../src";
 
 describe("BunchIDs", () => {
-  let rng!: seedrandom.prng;
+  let rng!: seedrandom.PRNG;
 
   beforeEach(() => {
     rng = seedrandom("42");
