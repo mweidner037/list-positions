@@ -302,7 +302,10 @@ export class LexList<T> {
   /**
    * Returns an iterator for values in the list, in list order.
    *
-   * Arguments are as in [Array.slice](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/slice).
+   * Optionally, you may specify a range of indices `[start, end)` instead of
+   * iterating the entire list.
+   *
+   * @throws If `start < 0`, `end > this.length`, or `start > end`.
    */
   values(start?: number, end?: number): IterableIterator<T> {
     return this.list.values(start, end);
@@ -320,7 +323,10 @@ export class LexList<T> {
   /**
    * Returns an iterator for present positions, in list order.
    *
-   * Arguments are as in [Array.slice](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/slice).
+   * Optionally, you may specify a range of indices `[start, end)` instead of
+   * iterating the entire list.
+   *
+   * @throws If `start < 0`, `end > this.length`, or `start > end`.
    */
   *positions(start?: number, end?: number): IterableIterator<LexPosition> {
     for (const pos of this.list.positions(start, end))
@@ -330,7 +336,10 @@ export class LexList<T> {
   /**
    * Returns an iterator of [lexPos, value] tuples in the list, in list order. These are its entries as an ordered map.
    *
-   * Arguments are as in [Array.slice](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/slice).
+   * Optionally, you may specify a range of indices `[start, end)` instead of
+   * iterating the entire list.
+   *
+   * @throws If `start < 0`, `end > this.length`, or `start > end`.
    */
   *entries(
     start?: number,

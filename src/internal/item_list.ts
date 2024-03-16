@@ -465,15 +465,23 @@ export class ItemList<I, S extends SparseItems<I>> {
    * Returns an iterator of [startPos, item] pairs for every
    * contiguous item in the list, in list order.
    *
-   * Args as in Array.slice.
+   * Optionally, you may specify a range of indices `[start, end)` instead of
+   * iterating the entire list.
+   *
+   * @throws If `start < 0`, `end > this.length`, or `start > end`.
    */
   *items(
-    start?: number,
-    end?: number
+    start = 0,
+    end = this.length
   ): IterableIterator<[startPos: Position, item: I]> {
-    const range = this.normalizeSliceRange(start, end);
-    if (range === null) return;
-    [start, end] = range;
+    if (start < 0 || end > this.length || start > end) {
+      throw new Error(
+        `Invalid range: [${start}, ${end}) (length = ${this.length})`
+      );
+    }
+    // Note: start = end = this.length is okay.
+    // (used by normalizeSliceRange).
+    if (start === end) return;
 
     let index = 0;
     // Defined because the range is nontrivial, hence root's total != 0.
@@ -557,28 +565,6 @@ export class ItemList<I, S extends SparseItems<I>> {
         }
       }
     }
-  }
-
-  /**
-   * Normalizes the range so that start < end and they are both in bounds
-   * (possibly end=length), following Array.slice.
-   * If the range is empty, returns null.
-   */
-  private normalizeSliceRange(
-    start?: number,
-    end?: number
-  ): [start: number, end: number] | null {
-    const len = this.length;
-    if (start === undefined || start < -len) start = 0;
-    else if (start < 0) start += len;
-    else if (start >= len) return null;
-
-    if (end === undefined || end >= len) end = len;
-    else if (end < -len) end = 0;
-    else if (end < 0) end += len;
-
-    if (end <= start) return null;
-    return [start, end];
   }
 
   // ----------

@@ -334,7 +334,10 @@ export class Outline {
   /**
    * Returns an iterator for present positions, in list order.
    *
-   * Arguments are as in [Array.slice](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/slice).
+   * Optionally, you may specify a range of indices `[start, end)` instead of
+   * iterating the entire list.
+   *
+   * @throws If `start < 0`, `end > this.length`, or `start > end`.
    */
   *positions(start?: number, end?: number): IterableIterator<Position> {
     for (const [
@@ -358,7 +361,10 @@ export class Outline {
    * You can use this method as an optimized version of other iterators, or as
    * an alternative in-order save format (see Outline.fromItems).
    *
-   * Arguments are as in [Array.slice](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/slice).
+   * Optionally, you may specify a range of indices `[start, end)` instead of
+   * iterating the entire list.
+   *
+   * @throws If `start < 0`, `end > this.length`, or `start > end`.
    */
   items(
     start?: number,

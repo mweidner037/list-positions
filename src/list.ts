@@ -1,6 +1,7 @@
 import { SparseArray } from "sparse-array-rled";
 import { BunchMeta } from "./bunch";
 import { ItemList, SparseItemsFactory } from "./internal/item_list";
+import { normalizeSliceRange } from "./internal/util";
 import { Order } from "./order";
 import { Position } from "./position";
 
@@ -379,7 +380,10 @@ export class List<T> {
   /**
    * Returns an iterator for values in the list, in list order.
    *
-   * Arguments are as in [Array.slice](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/slice).
+   * Optionally, you may specify a range of indices `[start, end)` instead of
+   * iterating the entire list.
+   *
+   * @throws If `start < 0`, `end > this.length`, or `start > end`.
    */
   *values(start?: number, end?: number): IterableIterator<T> {
     for (const [, item] of this.itemList.items(start, end)) yield* item;
@@ -391,13 +395,21 @@ export class List<T> {
    * Arguments are as in [Array.slice](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/slice).
    */
   slice(start?: number, end?: number): T[] {
-    return [...this.values(start, end)];
+    [start, end] = normalizeSliceRange(this.length, start, end);
+    const ans: T[] = [];
+    for (const [, values] of this.itemList.items(start, end)) {
+      ans.push(...values);
+    }
+    return ans;
   }
 
   /**
    * Returns an iterator for present positions, in list order.
    *
-   * Arguments are as in [Array.slice](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/slice).
+   * Optionally, you may specify a range of indices `[start, end)` instead of
+   * iterating the entire list.
+   *
+   * @throws If `start < 0`, `end > this.length`, or `start > end`.
    */
   *positions(start?: number, end?: number): IterableIterator<Position> {
     for (const [pos] of this.entries(start, end)) yield pos;
@@ -406,7 +418,10 @@ export class List<T> {
   /**
    * Returns an iterator of [pos, value] tuples in the list, in list order. These are its entries as an ordered map.
    *
-   * Arguments are as in [Array.slice](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/slice).
+   * Optionally, you may specify a range of indices `[start, end)` instead of
+   * iterating the entire list.
+   *
+   * @throws If `start < 0`, `end > this.length`, or `start > end`.
    */
   *entries(
     start?: number,
@@ -433,7 +448,10 @@ export class List<T> {
    * You can use this method as an optimized version of other iterators, or as
    * an alternative in-order save format (see List.fromItems).
    *
-   * Arguments are as in [Array.slice](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/slice).
+   * Optionally, you may specify a range of indices `[start, end)` instead of
+   * iterating the entire list.
+   *
+   * @throws If `start < 0`, `end > this.length`, or `start > end`.
    */
   items(
     start?: number,
