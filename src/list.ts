@@ -71,7 +71,7 @@ export class List<T> {
    * Multiple Lists/Outlines/LexLists can share an Order; they then automatically
    * share metadata. If not provided, a `new Order()` is used.
    *
-   * @see List.from To construct a List from an initial set of entries.
+   * @see List.fromEntries To construct a List from an initial set of entries.
    */
   constructor(order?: Order) {
     this.order = order ?? new Order();
@@ -88,13 +88,31 @@ export class List<T> {
    * Like when loading a saved state, you must deliver all of the Positions'
    * dependent metadata to `order` before calling this method.
    */
-  static from<T>(
+  static fromEntries<T>(
     entries: Iterable<[pos: Position, value: T]>,
     order: Order
   ): List<T> {
     const list = new List<T>(order);
     for (const [pos, value] of entries) {
       list.set(pos, value);
+    }
+    return list;
+  }
+
+  /**
+   * Returns a new List using the given Order and with the given
+   * items (as defined by List.items).
+   *
+   * Like when loading a saved state, you must deliver all of the Positions'
+   * dependent metadata to `order` before calling this method.
+   */
+  static fromItems<T>(
+    items: Iterable<[startPos: Position, values: T[]]>,
+    order: Order
+  ): List<T> {
+    const list = new List<T>(order);
+    for (const [startPos, values] of items) {
+      list.set(startPos, ...values);
     }
     return list;
   }
@@ -385,8 +403,6 @@ export class List<T> {
     for (const [pos] of this.entries(start, end)) yield pos;
   }
 
-  // TODO: items (direct expose)
-
   /**
    * Returns an iterator of [pos, value] tuples in the list, in list order. These are its entries as an ordered map.
    *
@@ -404,6 +420,26 @@ export class List<T> {
         yield [{ bunchID, innerIndex: startInnerIndex + i }, item[i]];
       }
     }
+  }
+
+  /**
+   * Returns an iterator of items in list order.
+   *
+   * Each *item* is a series of entries that have contiguous positions
+   * from the same [bunch](https://github.com/mweidner037/list-positions#bunches).
+   * Specifically, for an item [startPos, values], the positions start at `startPos`
+   * and have the same `bunchID` but increasing `innerIndex`.
+   *
+   * You can use this method as an optimized version of other iterators, or as
+   * an alternative in-order save format (see List.fromItems).
+   *
+   * Arguments are as in [Array.slice](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/slice).
+   */
+  items(
+    start?: number,
+    end?: number
+  ): IterableIterator<[startPos: Position, values: T[]]> {
+    return this.itemList.items(start, end);
   }
 
   // ----------

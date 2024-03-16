@@ -67,7 +67,7 @@ export class Outline {
    * Multiple Lists/Outlines/LexLists can share an Order; they then automatically
    * share metadata. If not provided, a `new Order()` is used.
    *
-   * @see Outline.from To construct an Outline from an initial set of Positions.
+   * @see Outline.fromPositions To construct an Outline from an initial set of Positions.
    */
   constructor(order?: Order) {
     this.order = order ?? new Order();
@@ -80,10 +80,28 @@ export class Outline {
    * Like when loading a saved state, you must deliver all of the Positions'
    * dependent metadata to `order` before calling this method.
    */
-  static from(positions: Iterable<Position>, order: Order): Outline {
+  static fromPositions(positions: Iterable<Position>, order: Order): Outline {
     const outline = new Outline(order);
     for (const pos of positions) {
       outline.add(pos);
+    }
+    return outline;
+  }
+
+  /**
+   * Returns a new Outline using the given Order and with the given
+   * items (as defined by Outline.items).
+   *
+   * Like when loading a saved state, you must deliver all of the Positions'
+   * dependent metadata to `order` before calling this method.
+   */
+  static fromItems(
+    items: Iterable<[startPos: Position, count: number]>,
+    order: Order
+  ): Outline {
+    const outline = new Outline(order);
+    for (const [startPos, count] of items) {
+      outline.add(startPos, count);
     }
     return outline;
   }
@@ -327,6 +345,26 @@ export class Outline {
         yield { bunchID, innerIndex: startInnerIndex + i };
       }
     }
+  }
+
+  /**
+   * Returns an iterator of items in list order.
+   *
+   * Each *item* is a series of entries that have contiguous positions
+   * from the same [bunch](https://github.com/mweidner037/list-positions#bunches).
+   * Specifically, for an item [startPos, count], the positions start at `startPos`
+   * and have the same `bunchID` but increasing `innerIndex`.
+   *
+   * You can use this method as an optimized version of other iterators, or as
+   * an alternative in-order save format (see Outline.fromItems).
+   *
+   * Arguments are as in [Array.slice](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/slice).
+   */
+  items(
+    start?: number,
+    end?: number
+  ): IterableIterator<[startPos: Position, count: number]> {
+    return this.itemList.items(start, end);
   }
 
   // ----------

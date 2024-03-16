@@ -462,7 +462,7 @@ export class ItemList<I, S extends SparseItems<I>> {
   // ----------
 
   /**
-   * Returns an iterator of [startPos, item] tuples for every
+   * Returns an iterator of [startPos, item] pairs for every
    * contiguous item in the list, in list order.
    *
    * Args as in Array.slice.
