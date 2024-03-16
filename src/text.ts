@@ -351,7 +351,7 @@ export class Text {
    * Returns the cursor at `index` within the list, i.e., between the positions at `index - 1` and `index`.
    * See [Cursors](https://github.com/mweidner037/list-positions#cursors).
    *
-   * Invert with indexOfCursor, possibly on a different List/Outline/LexList or a different device.
+   * Invert with indexOfCursor, possibly on a different List/Text/Outline/LexList or a different device.
    */
   cursorAt(index: number): Position {
     return index === 0 ? Order.MIN_POSITION : this.positionAt(index - 1);

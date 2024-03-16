@@ -41,7 +41,7 @@ We could choose to represent the tree literally, with one object per node and a 
 
 Instead, Order only stores an object per bunch node, of type [BunchNode](./README.md#interface-bunchnode); offset nodes are implied. Each BunchNode stores a pointer to the bunch node's "parent bunch node" (actually its grandparent), its offset (which tells you the actual parent node), and pointers to its "children bunch nodes" in tree order (actually its grandchildren). This info is sufficient to compare Positions and traverse the tree.
 
-List, Outline, and LexList likewise avoid storing an object per Position/value. Instead, they store a map (BunchNode -> sparse array), where the sparse array represents the sub-map (innerIndex -> value) corresponding to that bunch. The sparse arrays use a run-length-encoded format that you can read about in the `...SavedState` doc headers.
+List, Text, Outline, and LexList likewise avoid storing an object per Position/value. Instead, they store a map (BunchNode -> sparse array), where the sparse array represents the sub-map (innerIndex -> value) corresponding to that bunch. The sparse arrays use a run-length-encoded format that you can read about in the `...SavedState` doc headers.
 
 ## LexPositions
 

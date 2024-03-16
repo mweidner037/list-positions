@@ -4,7 +4,7 @@
  * Positions let you treat a list as an ordered map `(position -> value)`,
  * where a value's *position* doesn't change over time - unlike an array index.
  *
- * Type Position is used with the library's List and Outline data structures.
+ * Type Position is used with the library's List, Text, and Outline data structures.
  * You can also work with Positions independent of a specific list using an Order.
  * See the [readme](https://github.com/mweidner037/list-positions#list-position-and-order)
  * for details.
@@ -39,7 +39,7 @@ export type Position = {
  *
  * See also:
  * - Position: An alternative representation of positions that is used with
- * List, Outline, and Order and has less metadata overhead.
+ * List, Text, Outline, and Order and has less metadata overhead.
  * - LexUtils: Utilities for manipulating LexPositions.
  */
 export type LexPosition = string;

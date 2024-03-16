@@ -43,7 +43,7 @@ export class LexList<T> {
   /**
    * The Order that manages this list's Positions and their metadata.
    *
-   * Unlike with List and Outline, you do not need to [Manage Metadata](https://github.com/mweidner037/list-positions#managing-metadata)
+   * Unlike with List/Text/Outline, you do not need to [Manage Metadata](https://github.com/mweidner037/list-positions#managing-metadata)
    * when using LexList. However, you can still access the Order
    * to convert between LexPositions and Positions (using `Order.lex` / `Order.unlex`)
    * or to share the Order with other data structures.
@@ -272,7 +272,7 @@ export class LexList<T> {
    * Returns the cursor at `index` within the list, i.e., between the positions at `index - 1` and `index`.
    * See [Cursors](https://github.com/mweidner037/list-positions#cursors).
    *
-   * Invert with indexOfCursor, possibly on a different List/Outline/LexList or a different device.
+   * Invert with indexOfCursor, possibly on a different List/Text/Outline/LexList or a different device.
    */
   cursorAt(index: number): LexPosition {
     return index === 0 ? Order.MIN_LEX_POSITION : this.positionAt(index - 1);
