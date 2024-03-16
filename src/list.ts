@@ -1,5 +1,5 @@
 import { SparseArray } from "sparse-array-rled";
-import { BunchMeta } from "./bunch";
+import { BunchMeta, BunchNode } from "./bunch";
 import { ItemList, SparseItemsFactory } from "./internal/item_list";
 import { normalizeSliceRange } from "./internal/util";
 import { Order } from "./order";
@@ -416,7 +416,7 @@ export class List<T> {
   }
 
   /**
-   * Returns an iterator of [pos, value] tuples in the list, in list order. These are its entries as an ordered map.
+   * Returns an iterator for [pos, value] pairs in the list, in list order. These are its entries as an ordered map.
    *
    * Optionally, you may specify a range of indices `[start, end)` instead of
    * iterating the entire list.
@@ -438,7 +438,7 @@ export class List<T> {
   }
 
   /**
-   * Returns an iterator of items in list order.
+   * Returns an iterator for items in list order.
    *
    * Each *item* is a series of entries that have contiguous positions
    * from the same [bunch](https://github.com/mweidner037/list-positions#bunches).
@@ -458,6 +458,16 @@ export class List<T> {
     end?: number
   ): IterableIterator<[startPos: Position, values: T[]]> {
     return this.itemList.items(start, end);
+  }
+
+  /**
+   * Returns an iterator for all dependencies for this list.
+   *
+   * These are all BunchNodes that have nontrivial values plus their ancestors,
+   * excluding the root.
+   */
+  dependentNodes(): IterableIterator<BunchNode> {
+    return this.itemList.dependentNodes();
   }
 
   // ----------

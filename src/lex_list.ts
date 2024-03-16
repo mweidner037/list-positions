@@ -334,7 +334,7 @@ export class LexList<T> {
   }
 
   /**
-   * Returns an iterator of [lexPos, value] tuples in the list, in list order. These are its entries as an ordered map.
+   * Returns an iterator for [lexPos, value] pairs in the list, in list order. These are its entries as an ordered map.
    *
    * Optionally, you may specify a range of indices `[start, end)` instead of
    * iterating the entire list.

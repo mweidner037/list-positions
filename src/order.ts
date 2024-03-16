@@ -614,7 +614,7 @@ export class Order {
   // ----------
 
   /**
-   * Returns an iterator of this Order's BunchNodes.
+   * Returns an iterator for this Order's BunchNodes.
    *
    * The root (`this.rootNode`) is always visited first, followed by the remaining
    * nodes in no particular order.
@@ -624,7 +624,7 @@ export class Order {
   }
 
   /**
-   * Returns an iterator of this Order's BunchMetas,
+   * Returns an iterator for this Order's BunchMetas,
    * in no particular order.
    *
    * This is the same as calling `node.meta()` on each output of `this.nodes()`

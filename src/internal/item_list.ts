@@ -567,6 +567,19 @@ export class ItemList<I, S extends SparseItems<I>> {
     }
   }
 
+  /**
+   * Returns an iterator for all dependencies for this list.
+   *
+   * These are all BunchNodes that have nontrivial values plus their ancestors,
+   * excluding the root.
+   */
+  *dependentNodes(): IterableIterator<BunchNode> {
+    // OPT: Use state.keys() directly, if we can exclude the root somehow.
+    for (const node of this.state.keys()) {
+      if (node !== this.order.rootNode) yield node;
+    }
+  }
+
   // ----------
   // Save & Load
   // ----------

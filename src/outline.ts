@@ -1,5 +1,5 @@
 import { SparseIndices } from "sparse-array-rled";
-import { BunchMeta } from "./bunch";
+import { BunchMeta, BunchNode } from "./bunch";
 import { ItemList, SparseItemsFactory } from "./internal/item_list";
 import { Order } from "./order";
 import { Position } from "./position";
@@ -351,7 +351,7 @@ export class Outline {
   }
 
   /**
-   * Returns an iterator of items in list order.
+   * Returns an iterator for items in list order.
    *
    * Each *item* is a series of entries that have contiguous positions
    * from the same [bunch](https://github.com/mweidner037/list-positions#bunches).
@@ -371,6 +371,16 @@ export class Outline {
     end?: number
   ): IterableIterator<[startPos: Position, count: number]> {
     return this.itemList.items(start, end);
+  }
+
+  /**
+   * Returns an iterator for all dependencies for this list.
+   *
+   * These are all BunchNodes that have nontrivial values plus their ancestors,
+   * excluding the root.
+   */
+  dependentNodes(): IterableIterator<BunchNode> {
+    return this.itemList.dependentNodes();
   }
 
   // ----------
