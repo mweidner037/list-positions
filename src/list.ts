@@ -69,7 +69,7 @@ export class List<T> {
    * Constructs a List, initially empty.
    *
    * @param order The Order to use for `this.order`.
-   * Multiple Lists/Outlines/LexLists can share an Order; they then automatically
+   * Multiple Lists/Outlines/Texts/LexLists can share an Order; they then automatically
    * share metadata. If not provided, a `new Order()` is used.
    *
    * @see List.fromEntries To construct a List from an initial set of entries.
