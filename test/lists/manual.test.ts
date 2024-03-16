@@ -72,7 +72,7 @@ describe("lists - manual", () => {
       test("replace partial", () => {
         // Test parentValuesBefore update logic by doing a set whose
         // replaced values are neither full nor empty, with interspersed children.
-        checker.insertAt(0, ...new Array(20).fill(31));
+        checker.insertAt(0, ...new Array<number>(20).fill(31));
         const positions = [...checker.list.positions()];
 
         // Interspersed children.
@@ -86,7 +86,7 @@ describe("lists - manual", () => {
         }
 
         // Overwrite partially-filled positions.
-        checker.set(positions[4], ...new Array(10).fill(25));
+        checker.set(positions[4], ...new Array<number>(10).fill(25));
       });
     });
 
@@ -100,7 +100,7 @@ describe("lists - manual", () => {
       test("replace partial", () => {
         // Test parentValuesBefore update logic by doing a delete whose
         // replaced values are neither full nor empty, with interspersed children.
-        checker.insertAt(0, ...new Array(20).fill(31));
+        checker.insertAt(0, ...new Array<number>(20).fill(31));
         const positions = [...checker.list.positions()];
 
         // Interspersed children.

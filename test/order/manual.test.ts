@@ -328,8 +328,8 @@ function testTwoUsers(replicaID1: string, replicaID2: string) {
     if (alice.compare(d, c) < 0) [c, d] = [d, c];
 
     // Try making e on both alice and bob.
-    let [e1] = alice.createPositions(c, d, 1);
-    let [e2] = bob.createPositions(c, d, 1);
+    const [e1] = alice.createPositions(c, d, 1);
+    const [e2] = bob.createPositions(c, d, 1);
 
     assert.notDeepEqual(e1, e2);
     assertIsOrdered([a, c, e1, d, b], alice);

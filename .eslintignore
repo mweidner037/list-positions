@@ -1,6 +1,5 @@
 node_modules
 build
-test
 benchmarks
 docs
 *.js
