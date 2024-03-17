@@ -345,7 +345,7 @@ Static utilities include `Order.MIN_POSITION` and `Order.MAX_POSITION`.
 
 A list of characters, represented as an ordered map with Position keys.
 
-Text is functionally equivalent to a `List<string>` with single-char values, but it uses strings internally and in bulk methods, instead of arrays of single chars. This reduces memory usage and the size of saved states.
+Text is functionally equivalent to `List<string>` with single-char values, but it uses strings internally and in bulk methods, instead of arrays of single chars. This reduces memory usage and the size of saved states.
 
 #### `Outline`
 

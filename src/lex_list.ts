@@ -64,7 +64,7 @@ export class LexList<T> {
    * Multiple Lists/Outlines/Texts/LexLists can share an Order; they then automatically
    * share metadata. If not provided, a `new Order()` is used.
    *
-   * @see LexList.from To construct a LexList from an initial set of entries.
+   * @see LexList.fromEntries To construct a LexList from an initial set of entries.
    */
   constructor(order?: Order);
   /**
@@ -87,7 +87,7 @@ export class LexList<T> {
    * Unlike with List.from, you do not need to deliver metadata to this
    * Order beforehand.
    */
-  static from<T>(
+  static fromEntries<T>(
     entries: Iterable<[lexPos: LexPosition, value: T]>,
     order?: Order
   ): LexList<T> {

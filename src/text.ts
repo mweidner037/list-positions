@@ -1,5 +1,5 @@
 import { SparseString } from "sparse-array-rled";
-import { BunchMeta, BunchNode } from "./bunch";
+import { BunchMeta } from "./bunch";
 import { ItemList, SparseItemsFactory } from "./internal/item_list";
 import { normalizeSliceRange } from "./internal/util";
 import { Order } from "./order";
@@ -55,9 +55,12 @@ export type TextSavedState = {
  *
  * See [List, Position, and Order](https://github.com/mweidner037/list-positions#list-position-and-order) in the readme.
  *
- * Text is functionally equivalent to a `List<string>` with single-char values,
+ * Text is functionally equivalent to `List<string>` with single-char values,
  * but it uses strings internally and in bulk methods, instead of arrays
  * of single chars. This reduces memory usage and the size of saved states.
+ *
+ * Technically, Text is a sequence of UTF-16 code units, like an ordinary JavaScript
+ * string ([MDN reference](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String#utf-16_characters_unicode_code_points_and_grapheme_clusters)).
  */
 export class Text {
   /**
@@ -466,16 +469,6 @@ export class Text {
     end?: number
   ): IterableIterator<[startPos: Position, chars: string]> {
     return this.itemList.items(start, end);
-  }
-
-  /**
-   * Returns an iterator for all dependencies for this list.
-   *
-   * These are all BunchNodes that have nontrivial values plus their ancestors,
-   * excluding the root.
-   */
-  dependentNodes(): IterableIterator<BunchNode> {
-    return this.itemList.dependentNodes();
   }
 
   // ----------

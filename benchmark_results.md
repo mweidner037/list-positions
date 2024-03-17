@@ -1,7 +1,3 @@
-
-> list-positions@0.4.0 benchmarks
-> cross-env TS_NODE_PROJECT='./tsconfig.dev.json' node -r ts-node/register --expose-gc benchmarks/main.ts
-
 # Benchmark Results
 Output of
 ```bash

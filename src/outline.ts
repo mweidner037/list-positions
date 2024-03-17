@@ -1,5 +1,5 @@
 import { SparseIndices } from "sparse-array-rled";
-import { BunchMeta, BunchNode } from "./bunch";
+import { BunchMeta } from "./bunch";
 import { ItemList, SparseItemsFactory } from "./internal/item_list";
 import { Order } from "./order";
 import { Position } from "./position";
@@ -371,16 +371,6 @@ export class Outline {
     end?: number
   ): IterableIterator<[startPos: Position, count: number]> {
     return this.itemList.items(start, end);
-  }
-
-  /**
-   * Returns an iterator for all dependencies for this list.
-   *
-   * These are all BunchNodes that have nontrivial values plus their ancestors,
-   * excluding the root.
-   */
-  dependentNodes(): IterableIterator<BunchNode> {
-    return this.itemList.dependentNodes();
   }
 
   // ----------
