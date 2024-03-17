@@ -27,7 +27,7 @@ Position | pos123  posABC  posLMN  posXYZ
 Value    | 'C'     'h'     'a'     't'
 ```
 
-This library provides positions (types `Position`/`LexPosition`) and corresponding list-as-ordered-map data structures (classes `List`/`LexList`/`Outline`). Multiple lists can use the same positions (with the same sort order), including lists on different devices - enabling DIY collaborative lists & text editing.
+This library provides positions (types `Position`/`LexPosition`) and corresponding list-as-ordered-map data structures (classes `List`/`Text`/`Outline`/`LexList`). Multiple lists can use the same positions (with the same sort order), including lists on different devices - enabling DIY collaborative lists & text editing.
 
 ### Example Use Cases
 
@@ -341,6 +341,12 @@ An Order manages metadata (bunches) for any number of Lists, LexLists, and Outli
 
 Static utilities include `Order.MIN_POSITION` and `Order.MAX_POSITION`.
 
+#### `Text`
+
+A list of characters, represented as an ordered map with Position keys.
+
+Text is functionally equivalent to `List<string>` with single-char values, but it uses strings internally and in bulk methods, instead of arrays of single chars. This reduces memory usage and the size of saved states.
+
 #### `Outline`
 
 An outline for a list of values. It represents an ordered map with Position keys, but unlike List, it only tracks which Positions are present - not their associated values.
@@ -451,3 +457,4 @@ Here are some general performance considerations:
 2. LexPositions and Positions are interchangeable, via the `Order.lex` and `Order.unlex` methods. So you could always start off using the simpler-but-larger LexPositions, then do a data migration to switch to Positions if performance demands it. <!-- TODO: likewise for List/Outline/LexList, via save-conversion methods. -->
 3. The saved states are designed for simplicity, not size. This is why GZIP shrinks them a lot (at the cost of longer save and load times). You can improve on the default performance in various ways: binary encodings, deduplicating [replica IDs](#replica-ids), etc. <!-- TODO: using List.saveOutline and gzipping each separately. --> Before putting too much effort in to this, though, keep in mind that human-written text is small. E.g., the 750 KB CRDT save size above is the size of one image file, even though it represents a 15-page LaTeX paper with 7.5x overhead.
 4. For very large lists, you can choose to call `List.set` on only the Position-value pairs that are currently scrolled into view. This reduces memory and potentially network usage. Likewise, you can choose to deliver only the corresponding BunchMetas to Order.
+5. The Text and Outline classes have smaller memory usage and saved state sizes than List, so prefer those in situations where they are sufficient.

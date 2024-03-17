@@ -1,18 +1,15 @@
-import { SparseArray } from "sparse-array-rled";
+import { SparseString } from "sparse-array-rled";
 import { BunchMeta } from "./bunch";
 import { ItemList, SparseItemsFactory } from "./internal/item_list";
 import { normalizeSliceRange } from "./internal/util";
 import { Order } from "./order";
 import { Position } from "./position";
 
-const sparseArrayFactory: SparseItemsFactory<
-  unknown[],
-  SparseArray<unknown>
-> = {
+const sparseStringFactory: SparseItemsFactory<string, SparseString> = {
   // eslint-disable-next-line @typescript-eslint/unbound-method
-  new: SparseArray.new,
+  new: SparseString.new,
   // eslint-disable-next-line @typescript-eslint/unbound-method
-  deserialize: SparseArray.deserialize,
+  deserialize: SparseString.deserialize,
   length(item) {
     return item.length;
   },
@@ -21,101 +18,107 @@ const sparseArrayFactory: SparseItemsFactory<
   },
 } as const;
 
+function checkChar(char: string): void {
+  if (char.length !== 1) {
+    throw new Error(`Values must be single chars, not "${char}"`);
+  }
+}
+
 /**
- * A JSON-serializable saved state for a `List<T>`.
+ * A JSON-serializable saved state for a `Text`.
  *
- * See List.save and List.load.
+ * See Text.save and Text.load.
  *
  * ### Format
  *
- * For advanced usage, you may read and write ListSavedStates directly.
+ * For advanced usage, you may read and write TextSavedStates directly.
  *
  * The format is: For each [bunch](https://github.com/mweidner037/list-positions#bunches)
- * with Positions present in the List, map the bunch's ID to a sparse array
+ * with Positions present in the Text, map the bunch's ID to a sparse string
  * representing the map
  * ```
- * innerIndex -> (value at Position { bunchID, innerIndex }).
+ * innerIndex -> (char at Position { bunchID, innerIndex }).
  * ```
  * bunchID keys are in no particular order.
  *
- * Each sparse array of type `(T[] | number)[]` alternates between "runs" of present and deleted
- * values. Each even index is an array of present values; each odd
+ * Each sparse string of type `(string | number)[]` alternates between "runs" of present and deleted
+ * values. Each even index is a string of concatenated present chars; each odd
  * index is a count of deleted values.
- * E.g. `[["a", "b"], 3, ["c"]]` means `["a", "b", null, null, null, "c"]`.
+ * E.g. `["ab", 3, "c"]` means `["a", "b", null, null, null, "c"]`.
  */
-export type ListSavedState<T> = {
-  [bunchID: string]: (T[] | number)[];
+export type TextSavedState = {
+  [bunchID: string]: (string | number)[];
 };
 
 /**
- * A list of values of type `T`, represented as an ordered map with Position keys.
+ * A list of characters, represented as an ordered map with Position keys.
  *
  * See [List, Position, and Order](https://github.com/mweidner037/list-positions#list-position-and-order) in the readme.
  *
- * List's API is a hybrid between `Array<T>` and `Map<Position, T>`.
- * Use `insertAt` or `insert` to insert new values into the list in the style of `Array.splice`.
+ * Text is functionally equivalent to `List<string>` with single-char values,
+ * but it uses strings internally and in bulk methods, instead of arrays
+ * of single chars. This reduces memory usage and the size of saved states.
  *
- * @typeParam T The value type.
+ * Technically, Text is a sequence of UTF-16 code units, like an ordinary JavaScript
+ * string ([MDN reference](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String#utf-16_characters_unicode_code_points_and_grapheme_clusters)).
  */
-export class List<T> {
+export class Text {
   /**
    * The Order that manages this list's Positions and their metadata.
    * See [Managing Metadata](https://github.com/mweidner037/list-positions#managing-metadata).
    */
   readonly order: Order;
-  private readonly itemList: ItemList<T[], SparseArray<T>>;
+  private readonly itemList: ItemList<string, SparseString>;
 
   /**
-   * Constructs a List, initially empty.
+   * Constructs a Text, initially empty.
    *
    * @param order The Order to use for `this.order`.
    * Multiple Lists/Outlines/Texts/LexLists can share an Order; they then automatically
    * share metadata. If not provided, a `new Order()` is used.
    *
-   * @see List.fromEntries To construct a List from an initial set of entries.
+   * @see Text.fromEntries To construct a Text from an initial set of entries.
    */
   constructor(order?: Order) {
     this.order = order ?? new Order();
-    this.itemList = new ItemList(
-      this.order,
-      sparseArrayFactory as SparseItemsFactory<T[], SparseArray<T>>
-    );
+    this.itemList = new ItemList(this.order, sparseStringFactory);
   }
 
   /**
-   * Returns a new List using the given Order and with the given
+   * Returns a new Text using the given Order and with the given
    * ordered-map entries.
    *
    * Like when loading a saved state, you must deliver all of the Positions'
    * dependent metadata to `order` before calling this method.
    */
-  static fromEntries<T>(
-    entries: Iterable<[pos: Position, value: T]>,
+  static fromEntries(
+    entries: Iterable<[pos: Position, char: string]>,
     order: Order
-  ): List<T> {
-    const list = new List<T>(order);
-    for (const [pos, value] of entries) {
-      list.set(pos, value);
+  ): Text {
+    const text = new Text(order);
+    for (const [pos, char] of entries) {
+      checkChar(char);
+      text.set(pos, char);
     }
-    return list;
+    return text;
   }
 
   /**
-   * Returns a new List using the given Order and with the given
-   * items (as defined by List.items).
+   * Returns a new Text using the given Order and with the given
+   * items (as defined by Text.items).
    *
    * Like when loading a saved state, you must deliver all of the Positions'
    * dependent metadata to `order` before calling this method.
    */
-  static fromItems<T>(
-    items: Iterable<[startPos: Position, values: T[]]>,
+  static fromItems(
+    items: Iterable<[startPos: Position, chars: string]>,
     order: Order
-  ): List<T> {
-    const list = new List<T>(order);
-    for (const [startPos, values] of items) {
-      list.set(startPos, ...values);
+  ): Text {
+    const text = new Text(order);
+    for (const [startPos, chars] of items) {
+      text.set(startPos, chars);
     }
-    return list;
+    return text;
   }
 
   // ----------
@@ -123,15 +126,15 @@ export class List<T> {
   // ----------
 
   /**
-   * Sets the value at the given position.
+   * Sets the char at the given position.
    *
-   * If the position is already present, its value is overwritten.
-   * Otherwise, later values in the list shift right
+   * If the position is already present, its char is overwritten.
+   * Otherwise, later chars in the list shift right
    * (increment their index).
    */
-  set(pos: Position, value: T): void;
+  set(pos: Position, char: string): void;
   /**
-   * Sets the values at a sequence of Positions within the same [bunch](https://github.com/mweidner037/list-positions#bunches).
+   * Sets the chars at a sequence of Positions within the same [bunch](https://github.com/mweidner037/list-positions#bunches).
    *
    * The Positions start at `startPos` and have the same `bunchID` but increasing `innerIndex`.
    * Note that these Positions might not be contiguous anymore, if later
@@ -139,25 +142,26 @@ export class List<T> {
    *
    * @see Order.startPosToArray
    */
-  set(startPos: Position, ...sameBunchValues: T[]): void;
-  set(startPos: Position, ...values: T[]): void {
-    this.itemList.set(startPos, values);
+  set(startPos: Position, chars: string): void;
+  set(startPos: Position, chars: string): void {
+    this.itemList.set(startPos, chars);
   }
 
   /**
-   * Sets the value at the given index (equivalently, at Position `this.positionAt(index)`),
-   * overwriting the existing value.
+   * Sets the char at the given index (equivalently, at Position `this.positionAt(index)`),
+   * overwriting the existing char.
    *
    * @throws If index is not in `[0, this.length)`.
    */
-  setAt(index: number, value: T): void {
-    this.set(this.positionAt(index), value);
+  setAt(index: number, char: string): void {
+    checkChar(char);
+    this.set(this.positionAt(index), char);
   }
 
   /**
-   * Deletes the given position, making it and its value no longer present in the list.
+   * Deletes the given position, making it and its char no longer present in the list.
    *
-   * If the position was indeed present, later values in the list shift left (decrement their index).
+   * If the position was indeed present, later chars in the list shift left (decrement their index).
    */
   delete(pos: Position): void;
   /**
@@ -175,7 +179,7 @@ export class List<T> {
   }
 
   /**
-   * Deletes `count` values starting at `index`.
+   * Deletes `count` chars starting at `index`.
    *
    * @throws If any of `index`, ..., `index + count - 1` are not in `[0, this.length)`.
    */
@@ -188,7 +192,7 @@ export class List<T> {
   }
 
   /**
-   * Deletes every value in the list, making it empty.
+   * Deletes every char in the list, making it empty.
    *
    * `this.order` is unaffected (retains all metadata).
    */
@@ -197,9 +201,9 @@ export class List<T> {
   }
 
   /**
-   * Inserts the given value just after prevPos, at a new Position.
+   * Inserts the given char just after prevPos, at a new Position.
 
-   * Later values in the list shift right
+   * Later chars in the list shift right
    * (increment their index).
    * 
    * In a collaborative setting, the new Position is *globally unique*, even
@@ -210,10 +214,10 @@ export class List<T> {
    */
   insert(
     prevPos: Position,
-    value: T
+    char: string
   ): [pos: Position, createdBunch: BunchMeta | null];
   /**
-   * Inserts the given values just after prevPos, at a series of new Positions.
+   * Inserts the given chars just after prevPos, at a series of new Positions.
    *
    * The new Positions all use the same [bunch](https://github.com/mweidner037/list-positions#bunches), with sequential
    * `innerIndex` (starting at the returned startPos).
@@ -222,24 +226,24 @@ export class List<T> {
    *
    * @returns [starting Position, [created bunch's](https://github.com/mweidner037/list-positions#createdBunch) BunchMeta (or null)].
    * @throws If prevPos is Order.MAX_POSITION.
-   * @throws If no values are provided.
-   * @see Order.startPosToArray To convert (startPos, values.length) to an array of Positions.
+   * @throws If no chars are provided.
+   * @see Order.startPosToArray To convert (startPos, chars.length) to an array of Positions.
    */
   insert(
     prevPos: Position,
-    ...values: T[]
+    chars: string
   ): [startPos: Position, createdBunch: BunchMeta | null];
   insert(
     prevPos: Position,
-    ...values: T[]
+    chars: string
   ): [startPos: Position, createdBunch: BunchMeta | null] {
-    return this.itemList.insert(prevPos, values);
+    return this.itemList.insert(prevPos, chars);
   }
 
   /**
-   * Inserts the given value at `index` (i.e., between the values at `index - 1` and `index`), at a new Position.
+   * Inserts the given char at `index` (i.e., between the chars at `index - 1` and `index`), at a new Position.
    *
-   * Later values in the list shift right
+   * Later chars in the list shift right
    * (increment their index).
    *
    * In a collaborative setting, the new Position is *globally unique*, even
@@ -250,10 +254,10 @@ export class List<T> {
    */
   insertAt(
     index: number,
-    value: T
+    char: string
   ): [pos: Position, createdBunch: BunchMeta | null];
   /**
-   * Inserts the given values at `index` (i.e., between the values at `index - 1` and `index`), at a series of new Positions.
+   * Inserts the given chars at `index` (i.e., between the chars at `index - 1` and `index`), at a series of new Positions.
    *
    * The new Positions all use the same [bunch](https://github.com/mweidner037/list-positions#bunches), with sequential
    * `innerIndex` (starting at the returned startPos).
@@ -262,18 +266,18 @@ export class List<T> {
    *
    * @returns [starting Position, [created bunch's](https://github.com/mweidner037/list-positions#createdBunch) BunchMeta (or null)].
    * @throws If index is not in `[0, this.length]`. The index `this.length` is allowed and will cause an append, unless this list's current last Position is Order.MAX_POSITION.
-   * @throws If no values are provided.
-   * @see Order.startPosToArray To convert (startPos, values.length) to an array of Positions.
+   * @throws If no chars are provided.
+   * @see Order.startPosToArray To convert (startPos, chars.length) to an array of Positions.
    */
   insertAt(
     index: number,
-    ...values: T[]
+    chars: string
   ): [startPos: Position, createdBunch: BunchMeta | null];
   insertAt(
     index: number,
-    ...values: T[]
+    chars: string
   ): [startPos: Position, createdBunch: BunchMeta | null] {
-    return this.itemList.insertAt(index, values);
+    return this.itemList.insertAt(index, chars);
   }
 
   // ----------
@@ -281,9 +285,9 @@ export class List<T> {
   // ----------
 
   /**
-   * Returns the value at the given position, or undefined if it is not currently present.
+   * Returns the char at the given position, or undefined if it is not currently present.
    */
-  get(pos: Position): T | undefined {
+  get(pos: Position): string | undefined {
     const located = this.itemList.getItem(pos);
     if (located === null) return undefined;
     const [item, offset] = located;
@@ -291,11 +295,11 @@ export class List<T> {
   }
 
   /**
-   * Returns the value currently at index.
+   * Returns the char currently at index.
    *
    * @throws If index is not in `[0, this.length)`.
    */
-  getAt(index: number): T {
+  getAt(index: number): string {
     const [item, offset] = this.itemList.getItemAt(index);
     return item[offset];
   }
@@ -314,10 +318,10 @@ export class List<T> {
    * then the result depends on searchDir:
    * - "none" (default): Returns -1.
    * - "left": Returns the next index to the left of pos.
-   * If there are no values to the left of pos,
+   * If there are no chars to the left of pos,
    * returns -1.
    * - "right": Returns the next index to the right of pos.
-   * If there are no values to the right of pos,
+   * If there are no chars to the right of pos,
    * returns `this.length`.
    *
    * To find the index where a position would be if
@@ -372,35 +376,42 @@ export class List<T> {
   // Iterators
   // ----------
 
-  /** Returns an iterator for values in the list, in list order. */
-  [Symbol.iterator](): IterableIterator<T> {
+  /** Returns an iterator for chars in the list, in list order. */
+  [Symbol.iterator](): IterableIterator<string> {
     return this.values();
   }
 
   /**
-   * Returns an iterator for values in the list, in list order.
+   * Returns an iterator for chars in the list, in list order.
    *
    * Optionally, you may specify a range of indices `[start, end)` instead of
    * iterating the entire list.
    *
    * @throws If `start < 0`, `end > this.length`, or `start > end`.
    */
-  *values(start?: number, end?: number): IterableIterator<T> {
+  *values(start?: number, end?: number): IterableIterator<string> {
     for (const [, item] of this.itemList.items(start, end)) yield* item;
   }
 
   /**
-   * Returns a copy of a section of this list, as an array.
+   * Returns a copy of a section of this list, as a string.
    *
    * Arguments are as in [Array.slice](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/slice).
    */
-  slice(start?: number, end?: number): T[] {
+  slice(start?: number, end?: number): string {
     [start, end] = normalizeSliceRange(this.length, start, end);
-    const ans: T[] = [];
-    for (const [, values] of this.itemList.items(start, end)) {
-      ans.push(...values);
+    let ans = "";
+    for (const [, chars] of this.itemList.items(start, end)) {
+      ans += chars;
     }
     return ans;
+  }
+
+  /**
+   * Returns the current text as a literal string.
+   */
+  toString(): string {
+    return this.slice();
   }
 
   /**
@@ -416,7 +427,7 @@ export class List<T> {
   }
 
   /**
-   * Returns an iterator for [pos, value] pairs in the list, in list order. These are its entries as an ordered map.
+   * Returns an iterator for [pos, char] pairs in the list, in list order. These are its entries as an ordered map.
    *
    * Optionally, you may specify a range of indices `[start, end)` instead of
    * iterating the entire list.
@@ -426,7 +437,7 @@ export class List<T> {
   *entries(
     start?: number,
     end?: number
-  ): IterableIterator<[pos: Position, value: T]> {
+  ): IterableIterator<[pos: Position, char: string]> {
     for (const [
       { bunchID, innerIndex: startInnerIndex },
       item,
@@ -442,7 +453,7 @@ export class List<T> {
    *
    * Each *item* is a series of entries that have contiguous positions
    * from the same [bunch](https://github.com/mweidner037/list-positions#bunches).
-   * Specifically, for an item [startPos, values], the positions start at `startPos`
+   * Specifically, for an item [startPos, chars], the positions start at `startPos`
    * and have the same `bunchID` but increasing `innerIndex`.
    *
    * You can use this method as an optimized version of other iterators, or as
@@ -456,7 +467,7 @@ export class List<T> {
   items(
     start?: number,
     end?: number
-  ): IterableIterator<[startPos: Position, values: T[]]> {
+  ): IterableIterator<[startPos: Position, chars: string]> {
     return this.itemList.items(start, end);
   }
 
@@ -467,18 +478,18 @@ export class List<T> {
   /**
    * Returns a saved state for this List.
    *
-   * The saved state describes our current (Position -> value) map in JSON-serializable form.
+   * The saved state describes our current (Position -> char) map in JSON-serializable form.
    * You can load this state on another List by calling `load(savedState)`,
    * possibly in a different session or on a different device.
    */
-  save(): ListSavedState<T> {
+  save(): TextSavedState {
     return this.itemList.save();
   }
 
   /**
    * Loads a saved state returned by another List's `save()` method.
    *
-   * Loading sets our (Position -> value) map to match the saved List's, *overwriting*
+   * Loading sets our (Position -> char) map to match the saved List's, *overwriting*
    * our current state.
    *
    * **Before loading a saved state, you must deliver its dependent metadata
@@ -486,7 +497,7 @@ export class List<T> {
    * alongside the List's state, making sure to load the Order first.
    * See [Managing Metadata](https://github.com/mweidner037/list-positions#save-load) for an example.
    */
-  load(savedState: ListSavedState<T>): void {
+  load(savedState: TextSavedState): void {
     this.itemList.load(savedState);
   }
 }

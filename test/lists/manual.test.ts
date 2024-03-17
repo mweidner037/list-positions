@@ -72,7 +72,7 @@ describe("lists - manual", () => {
       test("replace partial", () => {
         // Test parentValuesBefore update logic by doing a set whose
         // replaced values are neither full nor empty, with interspersed children.
-        checker.insertAt(0, ...new Array(20).fill(31));
+        checker.insertAt(0, ...new Array<number>(20).fill(31));
         const positions = [...checker.list.positions()];
 
         // Interspersed children.
@@ -86,7 +86,7 @@ describe("lists - manual", () => {
         }
 
         // Overwrite partially-filled positions.
-        checker.set(positions[4], ...new Array(10).fill(25));
+        checker.set(positions[4], ...new Array<number>(10).fill(25));
       });
     });
 
@@ -100,7 +100,7 @@ describe("lists - manual", () => {
       test("replace partial", () => {
         // Test parentValuesBefore update logic by doing a delete whose
         // replaced values are neither full nor empty, with interspersed children.
-        checker.insertAt(0, ...new Array(20).fill(31));
+        checker.insertAt(0, ...new Array<number>(20).fill(31));
         const positions = [...checker.list.positions()];
 
         // Interspersed children.
@@ -116,6 +116,118 @@ describe("lists - manual", () => {
         // Overwrite partially-filled positions.
         checker.delete(positions[4], 10);
       });
+    });
+  });
+
+  describe("items", () => {
+    let list!: List<number>;
+
+    beforeEach(() => {
+      let bunchIdCount = 0;
+      list = new List(new Order({ newBunchID: () => `b${bunchIdCount++}` }));
+    });
+
+    test("whole list", () => {
+      list.insertAt(0, 0, 1, 2, 3);
+      assert.deepStrictEqual(
+        [...list.items()],
+        [[{ bunchID: "b0", innerIndex: 0 }, [0, 1, 2, 3]]]
+      );
+
+      list.insertAt(2, 5, 6, 7, 8);
+      assert.deepStrictEqual(
+        [...list.items()],
+        [
+          [{ bunchID: "b0", innerIndex: 0 }, [0, 1]],
+          [{ bunchID: "b1", innerIndex: 0 }, [5, 6, 7, 8]],
+          [{ bunchID: "b0", innerIndex: 2 }, [2, 3]],
+        ]
+      );
+
+      list.delete({ bunchID: "b1", innerIndex: 2 });
+      assert.deepStrictEqual(
+        [...list.items()],
+        [
+          [{ bunchID: "b0", innerIndex: 0 }, [0, 1]],
+          [{ bunchID: "b1", innerIndex: 0 }, [5, 6]],
+          [{ bunchID: "b1", innerIndex: 3 }, [8]],
+          [{ bunchID: "b0", innerIndex: 2 }, [2, 3]],
+        ]
+      );
+    });
+
+    test("range args", () => {
+      list.insertAt(0, 0, 1, 2, 3);
+      assert.deepStrictEqual(
+        [...list.items(0)],
+        [[{ bunchID: "b0", innerIndex: 0 }, [0, 1, 2, 3]]]
+      );
+      assert.deepStrictEqual(
+        [...list.items(undefined, 3)],
+        [[{ bunchID: "b0", innerIndex: 0 }, [0, 1, 2]]]
+      );
+      assert.deepStrictEqual(
+        [...list.items(1, 3)],
+        [[{ bunchID: "b0", innerIndex: 1 }, [1, 2]]]
+      );
+
+      list.insertAt(2, 5, 6, 7, 8);
+      assert.deepStrictEqual(
+        [...list.items(0, 3)],
+        [
+          [{ bunchID: "b0", innerIndex: 0 }, [0, 1]],
+          [{ bunchID: "b1", innerIndex: 0 }, [5]],
+        ]
+      );
+      assert.deepStrictEqual(
+        [...list.items(1, 7)],
+        [
+          [{ bunchID: "b0", innerIndex: 1 }, [1]],
+          [{ bunchID: "b1", innerIndex: 0 }, [5, 6, 7, 8]],
+          [{ bunchID: "b0", innerIndex: 2 }, [2]],
+        ]
+      );
+
+      list.delete({ bunchID: "b1", innerIndex: 2 });
+      assert.deepStrictEqual(
+        [...list.items(3, 7)],
+        [
+          [{ bunchID: "b1", innerIndex: 1 }, [6]],
+          [{ bunchID: "b1", innerIndex: 3 }, [8]],
+          [{ bunchID: "b0", innerIndex: 2 }, [2, 3]],
+        ]
+      );
+      assert.deepStrictEqual(
+        [...list.items(2, 3)],
+        [[{ bunchID: "b1", innerIndex: 0 }, [5]]]
+      );
+    });
+
+    test("fromItems inverse", () => {
+      list.insertAt(0, 0, 1, 2, 3);
+      list.insertAt(2, 5, 6, 7, 8);
+      list.delete({ bunchID: "b1", innerIndex: 2 });
+
+      let newList = List.fromItems(list.items(), list.order);
+      assert.deepStrictEqual([...newList.entries()], [...list.entries()]);
+      assert.deepStrictEqual([...newList.items()], [...list.items()]);
+
+      for (const [start, end] of [
+        [0, 4],
+        [2, 5],
+        [3, 7],
+        [4, 5],
+      ]) {
+        newList = List.fromItems(list.items(start, end), list.order);
+        assert.deepStrictEqual(
+          [...newList.entries()],
+          [...list.entries(start, end)]
+        );
+        assert.deepStrictEqual(
+          [...newList.items()],
+          [...list.items(start, end)]
+        );
+      }
     });
   });
 });

@@ -5,6 +5,7 @@ import { lexListDirect } from "./lex_list_direct";
 import { listCustomEncoding } from "./list_custom_encoding";
 import { listDirect } from "./list_direct";
 import { outlineDirect } from "./outline_direct";
+import { textDirect } from "./text_direct";
 
 (async function () {
   console.log("# Benchmark Results");
@@ -21,6 +22,7 @@ import { outlineDirect } from "./outline_direct";
   await listDirect();
   await lexListDirect();
   await listCustomEncoding();
+  await textDirect();
   await outlineDirect();
   await crdt(PositionCRDT);
   await crdt(LexPositionCRDT);

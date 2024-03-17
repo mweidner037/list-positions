@@ -24,6 +24,7 @@ describe("lists - fuzz", () => {
             Math.floor(rng() * (checker.list.length + 1)),
             Math.floor(rng() * 10000)
           );
+          // eslint-disable-next-line no-dupe-else-if
         } else if (rng() < 0.5) {
           // 1/4: setAt
           checker.setAt(
@@ -44,10 +45,11 @@ describe("lists - fuzz", () => {
           // 1/2: insertAt bulk
           checker.insertAt(
             Math.floor(rng() * (checker.list.length + 1)),
-            ...new Array(1 + Math.floor(rng() * 10)).fill(
+            ...new Array<number>(1 + Math.floor(rng() * 10)).fill(
               Math.floor(rng() * 10000)
             )
           );
+          // eslint-disable-next-line no-dupe-else-if
         } else if (rng() < 0.5) {
           // 1/4: setAt
           checker.setAt(

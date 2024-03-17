@@ -43,7 +43,7 @@ export class LexList<T> {
   /**
    * The Order that manages this list's Positions and their metadata.
    *
-   * Unlike with List and Outline, you do not need to [Manage Metadata](https://github.com/mweidner037/list-positions#managing-metadata)
+   * Unlike with List/Text/Outline, you do not need to [Manage Metadata](https://github.com/mweidner037/list-positions#managing-metadata)
    * when using LexList. However, you can still access the Order
    * to convert between LexPositions and Positions (using `Order.lex` / `Order.unlex`)
    * or to share the Order with other data structures.
@@ -61,10 +61,10 @@ export class LexList<T> {
    * Constructs a LexList, initially empty.
    *
    * @param order The Order to use for `this.order`.
-   * Multiple Lists/Outlines/LexLists can share an Order; they then automatically
+   * Multiple Lists/Outlines/Texts/LexLists can share an Order; they then automatically
    * share metadata. If not provided, a `new Order()` is used.
    *
-   * @see LexList.from To construct a LexList from an initial set of entries.
+   * @see LexList.fromEntries To construct a LexList from an initial set of entries.
    */
   constructor(order?: Order);
   /**
@@ -87,7 +87,7 @@ export class LexList<T> {
    * Unlike with List.from, you do not need to deliver metadata to this
    * Order beforehand.
    */
-  static from<T>(
+  static fromEntries<T>(
     entries: Iterable<[lexPos: LexPosition, value: T]>,
     order?: Order
   ): LexList<T> {
@@ -272,7 +272,7 @@ export class LexList<T> {
    * Returns the cursor at `index` within the list, i.e., between the positions at `index - 1` and `index`.
    * See [Cursors](https://github.com/mweidner037/list-positions#cursors).
    *
-   * Invert with indexOfCursor, possibly on a different List/Outline/LexList or a different device.
+   * Invert with indexOfCursor, possibly on a different List/Text/Outline/LexList or a different device.
    */
   cursorAt(index: number): LexPosition {
     return index === 0 ? Order.MIN_LEX_POSITION : this.positionAt(index - 1);
@@ -302,7 +302,10 @@ export class LexList<T> {
   /**
    * Returns an iterator for values in the list, in list order.
    *
-   * Arguments are as in [Array.slice](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/slice).
+   * Optionally, you may specify a range of indices `[start, end)` instead of
+   * iterating the entire list.
+   *
+   * @throws If `start < 0`, `end > this.length`, or `start > end`.
    */
   values(start?: number, end?: number): IterableIterator<T> {
     return this.list.values(start, end);
@@ -320,7 +323,10 @@ export class LexList<T> {
   /**
    * Returns an iterator for present positions, in list order.
    *
-   * Arguments are as in [Array.slice](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/slice).
+   * Optionally, you may specify a range of indices `[start, end)` instead of
+   * iterating the entire list.
+   *
+   * @throws If `start < 0`, `end > this.length`, or `start > end`.
    */
   *positions(start?: number, end?: number): IterableIterator<LexPosition> {
     for (const pos of this.list.positions(start, end))
@@ -328,9 +334,12 @@ export class LexList<T> {
   }
 
   /**
-   * Returns an iterator of [lexPos, value] tuples in the list, in list order. These are its entries as an ordered map.
+   * Returns an iterator for [lexPos, value] pairs in the list, in list order. These are its entries as an ordered map.
    *
-   * Arguments are as in [Array.slice](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/slice).
+   * Optionally, you may specify a range of indices `[start, end)` instead of
+   * iterating the entire list.
+   *
+   * @throws If `start < 0`, `end > this.length`, or `start > end`.
    */
   *entries(
     start?: number,

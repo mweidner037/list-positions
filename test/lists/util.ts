@@ -46,7 +46,7 @@ export class Checker {
       const pos = this.order.unlex(iter.key!);
       assert.strictEqual(this.list.getAt(i), iter.value!);
       assert.deepStrictEqual(this.list.positionAt(i), pos);
-      assert.strictEqual(this.list.get(pos), iter.value!);
+      assert.strictEqual(this.list.get(pos), iter.value);
       assert.strictEqual(this.list.indexOfPosition(pos), i);
       assert.deepStrictEqual(this.outline.positionAt(i), pos);
       assert.strictEqual(this.outline.indexOfPosition(pos), i);

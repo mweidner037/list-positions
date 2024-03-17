@@ -154,7 +154,7 @@ export class Order {
   /**
    * Constructs an Order.
    *
-   * Any data structures (List, Outline, LexList) that share this Order
+   * Any data structures (List, Text, Outline, LexList) that share this Order
    * automatically share the same total order on Positions.
    * To share total orders between Order instances (possibly on different devices),
    * you will need to
@@ -226,7 +226,7 @@ export class Order {
    * for Positions within this Order.
    *
    * You may use this method to work with Positions in a list-as-ordered-map
-   * data structure other than our built-in classes (List, Outline, LexList), e.g.,
+   * data structure other than our built-in classes (List, Text, Outline, LexList), e.g.,
    * [functional-red-black-tree](https://www.npmjs.com/package/functional-red-black-tree)
    * or `Array.sort`.
    *
@@ -284,7 +284,7 @@ export class Order {
   /**
    * Receives the given BunchMetas.
    *
-   * Before using a Position with this Order or an associated List or Outline,
+   * Before using a Position with this Order or an associated List/Text/Outline,
    * you must deliver its bunch's BunchMeta to this method.
    * See [Managing Metadata](https://github.com/mweidner037/list-positions#managing-metadata).
    *
@@ -614,7 +614,7 @@ export class Order {
   // ----------
 
   /**
-   * Returns an iterator of this Order's BunchNodes.
+   * Returns an iterator for this Order's BunchNodes.
    *
    * The root (`this.rootNode`) is always visited first, followed by the remaining
    * nodes in no particular order.
@@ -624,7 +624,7 @@ export class Order {
   }
 
   /**
-   * Returns an iterator of this Order's BunchMetas,
+   * Returns an iterator for this Order's BunchMetas,
    * in no particular order.
    *
    * This is the same as calling `node.meta()` on each output of `this.nodes()`
