@@ -112,7 +112,8 @@ export const LexUtils = {
    * Splits a bunch prefix (see LexUtils.splitPos) into its embedded BunchMetas.
    *
    * These are the BunchMetas of the original bunch and all of its ancestors,
-   * excluding the root, in order from the root downwards. It is equivalent to `bunchNode.ancestors().map(node => node.meta())`.
+   * excluding the root, in order from the root downwards.
+   * It is equivalent to the reverse of `bunchNode.dependencies()`.
    */
   splitBunchPrefix(bunchPrefix: string): BunchMeta[] {
     if (bunchPrefix === "") return [];

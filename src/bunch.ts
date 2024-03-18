@@ -40,7 +40,7 @@ export type BunchMeta = {
 /**
  * An Order's internal tree node corresponding to a [bunch](https://github.com/mweidner037/list-positions#bunches) of Positions.
  *
- * You can access a bunch's BunchNode to retrieve its dependent metadata, using the `meta()` and `ancestors()` methods.
+ * You can access a bunch's BunchNode to retrieve its dependent metadata, using the `meta()` and `dependencies()` methods.
  * For advanced usage, BunchNode also gives low-level access to an Order's
  * [internal tree](https://github.com/mweidner037/list-positions/blob/master/internals.md).
  *
@@ -104,16 +104,13 @@ export interface BunchNode {
   meta(): BunchMeta;
 
   /**
-   * Returns the ancestors of this node, up to but excluding the root,
-   * in the order from the root downwards.
+   * Returns an iterator for all of the bunch's dependencies.
    *
-   * You can use this method to obtain all of a Position's dependent BunchMetas.
-   * E.g. starting from a List `list`:
-   * ```ts
-   * list.order.getNodeFor(position).ancestors().map(node => node.meta())
-   * ```
+   * These are the bunch's BunchMeta, its parent's BunchMeta,
+   * etc., up the tree until reaching the root (exclusive).
+   * They are iterated in upwards order.
    */
-  ancestors(): BunchNode[];
+  dependencies(): IterableIterator<BunchMeta>;
 
   /**
    * Returns this bunch's *bunch prefix* - a string that embeds all of its

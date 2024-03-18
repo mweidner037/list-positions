@@ -77,8 +77,7 @@ class NodeInternal implements BunchNode {
     };
   }
 
-  ancestors(): BunchNode[] {
-    const ans: BunchNode[] = [];
+  *dependencies(): IterableIterator<BunchMeta> {
     for (
       // eslint-disable-next-line @typescript-eslint/no-this-alias
       let currentNode: BunchNode = this;
@@ -86,16 +85,13 @@ class NodeInternal implements BunchNode {
       currentNode.parent !== null;
       currentNode = currentNode.parent
     ) {
-      ans.push(currentNode);
+      yield currentNode.meta();
     }
-    ans.reverse();
-    return ans;
   }
 
   lexPrefix(): string {
-    return LexUtils.combineBunchPrefix(
-      this.ancestors().map((node) => node.meta())
-    );
+    const topDown = [...this.dependencies()].reverse();
+    return LexUtils.combineBunchPrefix(topDown);
   }
 
   toString() {

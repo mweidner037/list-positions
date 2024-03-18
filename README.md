@@ -255,7 +255,7 @@ function load<T>(savedState: string): List<T> {
 
 One option is to always send LexPositions over the network instead of Positions. Use `list.order.lex` and `list.order.unlex` to translate between the two. This is almost as simple as using [LexList and LexPosition](#lexlist-and-lexposition), but with the same cost in metadata overhead - in our [list CRDT benchmarks](./benchmark_results.md#lexpositioncrdt), it about doubles the size of network messages relative to the second option below. However, the messages are still small in absolute terms (156.6 vs 73.5 bytes/op).
 
-> Equivalently, you could always send Positions together with all of their dependent BunchMetas - extract these using `list.order.getNodeFor(position).ancestors().map(node => node.meta())`.
+> Equivalently, you could always send Positions together with all of their dependent BunchMetas - extract these using `[...list.order.getNodeFor(position).dependencies()]`.
 
 A second option is to distribute a created BunchMeta immediately when it is created, before/together with its new Position. For example:
 
@@ -422,7 +422,7 @@ const list = new List(order);
 
 An Order's internal tree node corresponding to a [bunch](#bunches) of Positions.
 
-You can access a bunch's BunchNode to retrieve its dependent metadata, using the `meta()` and `ancestors()` methods. For advanced usage, BunchNode also gives low-level access to an Order's [internal tree](./internals.md).
+You can access a bunch's BunchNode to retrieve its dependent metadata, using the `meta()` and `dependencies()` methods. For advanced usage, BunchNode also gives low-level access to an Order's [internal tree](./internals.md).
 
 Obtain BunchNodes using `Order.getNode` or `Order.getNodeFor`.
 
