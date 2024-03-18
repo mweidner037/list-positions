@@ -1,14 +1,15 @@
 import { assert } from "chai";
+import { maybeRandomString } from "maybe-random-string";
 import { describe, test } from "mocha";
 import seedrandom from "seedrandom";
-import { BunchIDs, List, MAX_POSITION, MIN_POSITION, Order } from "../../src";
+import { List, MAX_POSITION, MIN_POSITION, Order } from "../../src";
 import { Checker } from "./util";
 
 describe("lists - manual", () => {
-  let rng!: seedrandom.PRNG;
+  let prng!: seedrandom.PRNG;
 
   beforeEach(() => {
-    rng = seedrandom("42");
+    prng = seedrandom("42");
   });
 
   // TODO: test lists containing min/max Position.
@@ -17,10 +18,8 @@ describe("lists - manual", () => {
     let list!: List<number>;
 
     beforeEach(() => {
-      const replicaID = BunchIDs.newReplicaID({ rng });
-      list = new List(
-        new Order({ newBunchID: BunchIDs.usingReplicaID(replicaID) })
-      );
+      const replicaID = maybeRandomString({ prng });
+      list = new List(new Order({ replicaID: replicaID }));
     });
 
     test("contains min and max", () => {
@@ -56,10 +55,8 @@ describe("lists - manual", () => {
     let checker!: Checker;
 
     beforeEach(() => {
-      const replicaID = BunchIDs.newReplicaID({ rng });
-      checker = new Checker(
-        new Order({ newBunchID: BunchIDs.usingReplicaID(replicaID) })
-      );
+      const replicaID = maybeRandomString({ prng });
+      checker = new Checker(new Order({ replicaID: replicaID }));
     });
 
     describe("bulk set", () => {

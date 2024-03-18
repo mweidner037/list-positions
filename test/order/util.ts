@@ -1,12 +1,7 @@
 import { assert } from "chai";
+import { maybeRandomString } from "maybe-random-string";
 import seedrandom from "seedrandom";
-import {
-  BunchIDs,
-  MAX_POSITION,
-  MIN_POSITION,
-  Order,
-  Position,
-} from "../../src";
+import { MAX_POSITION, MIN_POSITION, Order, Position } from "../../src";
 
 /**
  * Asserts that the Positions are ordered under Order.compare,
@@ -29,14 +24,14 @@ export function assertIsOrdered(positions: Position[], order: Order) {
 }
 
 export function newOrders(
-  rng: seedrandom.PRNG,
+  prng: seedrandom.PRNG,
   count: number,
   linkedMeta: boolean
 ): Order[] {
   const orders: Order[] = [];
   for (let i = 0; i < count; i++) {
     const order = new Order({
-      newBunchID: BunchIDs.usingReplicaID(BunchIDs.newReplicaID({ rng })),
+      replicaID: maybeRandomString({ prng }),
     });
     if (linkedMeta) {
       order.onNewMeta = (meta) => orders.forEach((o) => o.receiveMetas([meta]));

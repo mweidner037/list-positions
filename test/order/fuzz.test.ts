@@ -15,20 +15,20 @@ describe("Order - fuzz", () => {
 });
 
 function sequential(numUsers: number) {
-  let rng!: seedrandom.PRNG;
+  let prng!: seedrandom.PRNG;
 
   beforeEach(() => {
-    rng = seedrandom("42");
+    prng = seedrandom("42");
   });
 
   it("random", () => {
-    const orders = newOrders(rng, numUsers, true);
+    const orders = newOrders(prng, numUsers, true);
 
     // Randomly create positions in a single list, simulating sequential access.
     const list: Position[] = [];
     for (let i = 0; i < 1000; i++) {
-      const source = orders[Math.floor(rng() * orders.length)];
-      const index = Math.floor(rng() * (list.length + 1));
+      const source = orders[Math.floor(prng() * orders.length)];
+      const index = Math.floor(prng() * (list.length + 1));
       const [newPosition] = source.createPositions(
         list[index - 1] ?? MIN_POSITION,
         list[index] ?? MAX_POSITION,
@@ -42,14 +42,14 @@ function sequential(numUsers: number) {
   });
 
   it("random LtR runs", () => {
-    const orders = newOrders(rng, numUsers, true);
+    const orders = newOrders(prng, numUsers, true);
 
     // Randomly create positions in a single list, simulating sequential access.
     // This time, create short LtR runs at a time.
     const list: Position[] = [];
     for (let i = 0; i < 200; i++) {
-      const source = orders[Math.floor(rng() * orders.length)];
-      const index = Math.floor(rng() * (list.length + 1));
+      const source = orders[Math.floor(prng() * orders.length)];
+      const index = Math.floor(prng() * (list.length + 1));
       const [startPos] = source.createPositions(
         list[index - 1] ?? MIN_POSITION,
         list[index] ?? MAX_POSITION,
@@ -63,14 +63,14 @@ function sequential(numUsers: number) {
   });
 
   it("random RtL runs", () => {
-    const orders = newOrders(rng, numUsers, true);
+    const orders = newOrders(prng, numUsers, true);
 
     // Randomly create positions in a single list, simulating sequential access.
     // This time, create short RtL runs at a time.
     const list: Position[] = [];
     for (let i = 0; i < 200; i++) {
-      const source = orders[Math.floor(rng() * orders.length)];
-      const index = Math.floor(rng() * (list.length + 1));
+      const source = orders[Math.floor(prng() * orders.length)];
+      const index = Math.floor(prng() * (list.length + 1));
       const [startPos] = source.createPositions(
         list[index - 1] ?? MIN_POSITION,
         list[index] ?? MAX_POSITION,
@@ -84,15 +84,15 @@ function sequential(numUsers: number) {
   });
 
   it("biased", () => {
-    const orders = newOrders(rng, numUsers, true);
+    const orders = newOrders(prng, numUsers, true);
 
     // Randomly create positions in a single list, simulating sequential access.
     // This time, bias towards smaller indices using a sqrt.
     const list: Position[] = [];
     for (let i = 0; i < 1000; i++) {
       const source =
-        orders[Math.floor(Math.sqrt(rng() * orders.length * orders.length))];
-      const index = Math.floor(rng() * (list.length + 1));
+        orders[Math.floor(Math.sqrt(prng() * orders.length * orders.length))];
+      const index = Math.floor(prng() * (list.length + 1));
       const [newPosition] = source.createPositions(
         list[index - 1] ?? MIN_POSITION,
         list[index] ?? MAX_POSITION,

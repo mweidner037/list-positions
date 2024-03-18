@@ -409,16 +409,19 @@ Utitilies for generating `bunchIDs`.
 When a method like `List.insertAt` creates a new Position (or LexPosition), it may create a new [bunch](#bunches) internally. This bunch is assigned a new bunchID which should be globally unique - or at least, unique among all bunches that this bunch will ever appear alongside (i.e., in the same Order).
 
 <a id="replica-ids"></a>
-By default, the library uses `BunchIDs.usingReplicaID()`, which returns [causal dots](https://mattweidner.com/2022/10/21/basic-list-crdt.html#causal-dot). You can supply a different bunchID generator in Order's constructor. E.g., to get reproducible bunchIDs in a test environment:
+By default, the library uses [dot IDs](https://mattweidner.com/2023/09/26/crdt-survey-3.html#unique-ids-dots) with a random alphanumeric replicaID, via `BunchIDs.usingReplicaID()`. You can supply a specific replicaID in Order's constructor. E.g., to get reproducible bunchIDs in a test environment:
 
 ```ts
+import { maybeRandomString } from "maybe-random-string";
 import seedrandom from "seedrandom";
 
-const rng = seedrandom("42");
-const order = new Order({ newBunchID: BunchIDs.usingReplicaID({ rng }) });
+const prng = seedrandom("42");
+const order = new Order({ replicaID: maybeRandomString({ prng }) });
 const list = new List(order);
 // Test list...
 ```
+
+More generally, you can supply an arbitrary `newBunchID` function in Order's constructor.
 
 #### Interface `BunchNode`
 
@@ -463,6 +466,14 @@ Here are some general performance considerations:
 
 1. The library is optimized for forward (left-to-right) insertions. If you primarily insert backward (right-to-left) or at random, you will see worse efficiency - especially storage overhead. (Internally, only forward insertions reuse [bunches](#bunches), so other patterns lead to fewer Positions per bunch.)
 2. LexPositions and Positions are interchangeable, via the `Order.lex` and `Order.unlex` methods. So you could always start off using the simpler-but-larger LexPositions, then do a data migration to switch to Positions if performance demands it. <!-- TODO: likewise for List/Outline/LexList, via save-conversion methods. -->
-3. The saved states are designed for simplicity, not size. This is why GZIP shrinks them a lot (at the cost of longer save and load times). You can improve on the default performance in various ways: binary encodings, deduplicating [replica IDs](#replica-ids), etc. <!-- TODO: using List.saveOutline and gzipping each separately. --> Before putting too much effort in to this, though, keep in mind that human-written text is small. E.g., the 750 KB CRDT save size above is the size of one image file, even though it represents a 15-page LaTeX paper with 7.5x overhead.
-4. For very large lists, you can choose to call `List.set` on only the Position-value pairs that are currently scrolled into view. This reduces memory and potentially network usage. Likewise, you can choose to deliver only the corresponding BunchMetas to Order.
-5. The Text and Outline classes have smaller memory usage and saved state sizes than List, so prefer those in situations where they are sufficient.
+3. The saved states are designed for simplicity, not size. This is why GZIP shrinks them a lot (at the cost of longer save and load times). You can improve on the default performance in various ways: binary encodings, deduplicating [replicaIDs](#replica-ids), etc. <!-- TODO: using List.saveOutline and gzipping each separately. --> Before putting too much effort in to this, though, keep in mind that human-written text is small. E.g., the 750 KB CRDT save size above is the size of one image file, even though it represents a 15-page LaTeX paper with 7.5x overhead.
+4. For shorter LexPositions, you can reduce the size of replicaIDs from their default of 21 chars. E.g., even in a popular document with 10,000 replicaIDs, 8 random alphanumeric chars still guarantee a < 1-in-5,000,000 chance of collisions (cf. [birthday problem](https://en.wikipedia.org/wiki/Birthday_problem#Square_approximation)):
+
+   ```ts
+   import { maybeRandomString } from "maybe-random-string";
+
+   const order = new Order({ replicaID: maybeRandomString({ length: 8 }) });
+   ```
+
+5. For very large lists, you can choose to call `List.set` on only the Position-value pairs that are currently scrolled into view. This reduces memory and potentially network usage. Likewise, you can choose to deliver only the corresponding BunchMetas to Order.
+6. The Text and Outline classes have smaller memory usage and saved state sizes than List, so prefer those in situations where they are sufficient.

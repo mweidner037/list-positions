@@ -8,14 +8,14 @@ list-positions' core concept is a special kind of tree. Here is an example:
 
 In general, the tree alternates between two kinds of layers:
 
-- **Bunch layers** in which each node is labeled by a _bunch ID_ - a string that is unique among the whole tree. (Blue nodes in the image.)
+- **Bunch layers** in which each node is labeled by a _bunchID_ - a string that is unique among the whole tree. (Blue nodes in the image.)
 - **Offset layers** in which each node is labeled by a nonnegative integer _offset_. (Orange nodes in the image.)
 
-The tree's root is a bunch node with bunch ID `"ROOT"` (`BunchIDs.ROOT`).
+The tree's root is a bunch node with bunchID `"ROOT"` (`BunchIDs.ROOT`).
 
 The tree's nodes are totally ordered using a depth-first search: visit the root, then traverse each of its child nodes recursively. A node's children are traversed in the order:
 
-- For bunch layers, visit the children in order by bunch ID. Specifically, use the lexicographic order on the strings `bunchID + ","`. (We'll explain the extra comma [later](#lexpositions).)
+- For bunch layers, visit the children in order by bunchID. Specifically, use the lexicographic order on the strings `bunchID + ","`. (We'll explain the extra comma [later](#lexpositions).)
 - For offset layers, visit the children in order by offset.
 
 Each Order instance stores a tree of the above form. The tree's bunch nodes correspond to the bunches described in the readme. A bunch's BunchMeta `{ bunchID, parentID, offset }` says: I am a grandchild of the bunch node `parentID`, a child of its child `offset`.
@@ -71,7 +71,7 @@ Special cases that are handled separately:
 
 - The root's node prefix is defined to be `""`.
 - The minimum LexPosition is `MIN_LEX_POSITION = ""`. This is obviously less than all other LexPositions.
-- The maximum LexPosition is `MAX_LEX_POSITION = "~"`. This is greater than all other LexPositions because they all start with a bunch ID, and we mandate that every bunch ID is less than `"~"`.
+- The maximum LexPosition is `MAX_LEX_POSITION = "~"`. This is greater than all other LexPositions because they all start with a bunchID, and we mandate that every bunchID is less than `"~"`.
 
 ### Lexicographic Order
 
@@ -79,8 +79,8 @@ Besides embedding dependencies, LexPositions have the nice property that their l
 
 These two sort orders are a natural fit because they both sort by earlier layers first, using lower layers only as a tiebreaker. However, to make them exactly match, we need to do a few things specially:
 
-1. We ban commas and periods in bunch IDs and offsets. Otherwise, the lexicographic order might not respect layer boundaries.
-2. In the tree's depth-first search, we order bunch nodes not by bunch ID, but by `bunchID + ","`. This matches the lexicographic order when there are sibling bunch IDs like `"abc"` vs `"abc "`: descendant nodes will end up comparing `"abc,<...>"` vs `"abc ,<...>"`; the former is greater because `"," > " "`, even though in isolation `"abc" < "abc "`.
+1. We ban commas and periods in bunchIDs and offsets. Otherwise, the lexicographic order might not respect layer boundaries.
+2. In the tree's depth-first search, we order bunch nodes not by bunchID, but by `bunchID + ","`. This matches the lexicographic order when there are sibling bunchIDs like `"abc"` vs `"abc "`: descendant nodes will end up comparing `"abc,<...>"` vs `"abc ,<...>"`; the former is greater because `"," > " "`, even though in isolation `"abc" < "abc "`.
 3. We can't encode offsets directly as strings, because the lexicographic order on numeric strings doesn't match the numeric order: `2 < 11` but `"2" > "11"`. Instead, we use the [lex-sequence](https://github.com/mweidner037/lex-sequence/#readme) package to convert offsets to base-36 strings that have the correct lexicographic order, while still growing slowly for large numbers (the encoding of `n` has `O(log(n))` chars).
 
 ## Creating Positions
@@ -121,5 +121,6 @@ Here are some advanced things you can do once you understand list-positions' int
 1. Manipulate BunchMetas to make a custom tree. For example, to stitch together lists that originally used independent Orders (e.g., merged text blocks), create a fake bunch node that is a direct child of `{ parentID: "ROOT", offset: 1 }`, then attach each list's tree to an offset node within that bunch.
 2. Rewrite list-positions in another language, with compatible Positions and LexPositions.
 3. Rewrite just LexUtils in another language, so that you can at least manipulate LexPositions. This is much easier than rewriting the whole library. <!--, and sufficient for basic backend tasks like programmatically inserting text. TODO: needs LexUtils createPositions. -->
-4. Write your own analog of our List class - e.g., to use a more efficient data representation, or to add new low-level features. You can use Order's BunchNodes to access the tree structure - this is needed for traversals, computing a Position's current index, etc.
-5. Store a List's state in a database table that can be queried in order, more efficiently than storing each pair `(lexPosition, value)` as a separate row. You can probably store one _item_ per row, where an item is an array of values that use the same bunch, have sequential innerIndexes, and are still contiguous in the list order (no intervening values). To ensure the latter property, you'll have to "split" an item when you learn of intervening Positions. To allow in-order queries, each item could store a reference to its neighboring items in the list order (forming a doubly-linked list). Or, you can do recursive queries directly against the tree order - there's some discussion [here](https://github.com/vlcn-io/cr-sqlite/issues/65) but it might be over-complicated.
+4. Supply a custom `newBunchID: (parent: BunchNode, offset: number) => string` function to Order's constructor that incorporates a hash of `parent.bunchID`, `offset`, and some unique value. That way, a malicious user cannot reuse the same (valid) bunchID for two different bunches.
+5. Write your own analog of our List class - e.g., to use a more efficient data representation, or to add new low-level features. You can use Order's BunchNodes to access the tree structure - this is needed for traversals, computing a Position's current index, etc.
+6. Store a List's state in a database table that can be queried in order, more efficiently than storing each pair `(lexPosition, value)` as a separate row. You can probably store one _item_ per row, where an item is an array of values that use the same bunch, have sequential innerIndexes, and are still contiguous in the list order (no intervening values). To ensure the latter property, you'll have to "split" an item when you learn of intervening Positions. To allow in-order queries, each item could store a reference to its neighboring items in the list order (forming a doubly-linked list). Or, you can do recursive queries directly against the tree order - there's some discussion [here](https://github.com/vlcn-io/cr-sqlite/issues/65) but it might be over-complicated.

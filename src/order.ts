@@ -129,7 +129,7 @@ function bunchMetaEquals(a: BunchMeta, b: BunchMeta): boolean {
  * (`lex` and `unlex`), and directly view the tree of bunches (`getBunch`, `getBunchFor`).
  */
 export class Order {
-  private readonly newBunchID: () => string;
+  private readonly newBunchID: (parent: BunchNode, offset: number) => string;
 
   /**
    * The root bunch's BunchNode.
@@ -170,15 +170,23 @@ export class Order {
    * [Manage Metadata](https://github.com/mweidner037/list-positions#managing-metadata),
    * or communicate using LexPositions instead of Positions.
    *
-   * @param options.newBunchID Used to assign the bunchID when this Order creates a new
-   * [bunch](https://github.com/mweidner037/list-positions#bunches) of Positions.
+   * @param options.replicaID An ID for this Order, used to generate our bunchIDs (via {@link BunchIDs.usingReplicaID}).
    * It must be *globally unique* among all Orders that share the same Positions,
-   * e.g., a UUID. Also, it must satisfy the rules documented on `BunchIDs.validate`.
-   * Default: `BunchIDs.usingReplicaID()`, which uses a shorter
-   * form of ID than UUIDs.
+   * and it must satisfy the rules documented on {@link BunchIDs.validate}.
+   * Default: A random alphanumeric string from the
+   * [maybe-random-string](https://github.com/mweidner037/maybe-random-string#readme) package.
+   *
+   * @param options.newBunchID For more control over bunchIDs, you may supply
+   * this function in place of `options.replicaID`. Each call must output a new bunchID
+   * that is *globally unique* among all orders that share the same Positions,
+   * and that satisfies the rules documented on {@link BunchIDs.validate}.
    */
-  constructor(options?: { newBunchID?: () => string }) {
-    this.newBunchID = options?.newBunchID ?? BunchIDs.usingReplicaID();
+  constructor(options?: {
+    replicaID?: string;
+    newBunchID?: (parent: BunchNode, offset: number) => string;
+  }) {
+    this.newBunchID =
+      options?.newBunchID ?? BunchIDs.usingReplicaID(options?.replicaID);
 
     this.rootNode = new NodeInternal(BunchIDs.ROOT, null, 0);
     this.tree.set(this.rootNode.bunchID, this.rootNode);
@@ -560,7 +568,7 @@ export class Order {
     }
 
     const newMeta: BunchMeta = {
-      bunchID: this.newBunchID(),
+      bunchID: this.newBunchID(newNodeParent, newNodeOffset),
       parentID: newNodeParent.bunchID,
       offset: newNodeOffset,
     };

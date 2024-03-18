@@ -1,7 +1,7 @@
 import { assert } from "chai";
+import { maybeRandomString } from "maybe-random-string";
 import seedrandom from "seedrandom";
 import {
-  BunchIDs,
   MAX_POSITION,
   MIN_POSITION,
   Order,
@@ -11,11 +11,11 @@ import {
 import { assertIsOrdered, testUniqueAfterDelete } from "./util";
 
 describe("Order - manual", () => {
-  const rng = seedrandom("42");
-  const randomName = BunchIDs.newReplicaID({ rng });
-  const randomAlice = BunchIDs.newReplicaID({ rng });
-  const randomBobby = BunchIDs.newReplicaID({ rng });
-  const randomBob = BunchIDs.newReplicaID({ rng, length: 5 });
+  const prng = seedrandom("42");
+  const randomName = maybeRandomString({ prng });
+  const randomAlice = maybeRandomString({ prng });
+  const randomBobby = maybeRandomString({ prng });
+  const randomBob = maybeRandomString({ prng, length: 5 });
 
   describe("single user", () => {
     describe("random replicaID", () => {
@@ -55,7 +55,7 @@ function testSingleUser(replicaID: string) {
   let alice!: Order;
 
   beforeEach(() => {
-    alice = new Order({ newBunchID: BunchIDs.usingReplicaID(replicaID) });
+    alice = new Order({ replicaID: replicaID });
   });
 
   it("LtR", () => {
@@ -176,7 +176,7 @@ function testSingleUser(replicaID: string) {
     const list1 = expandPositions(startPos, 100);
     // 2nd way to create bulk positions: series of calls.
     const alice2 = new Order({
-      newBunchID: BunchIDs.usingReplicaID(replicaID),
+      replicaID: replicaID,
     });
     const list2: Position[] = [];
     let previous = MIN_POSITION;
@@ -193,8 +193,8 @@ function testTwoUsers(replicaID1: string, replicaID2: string) {
   let bob!: Order;
 
   beforeEach(() => {
-    alice = new Order({ newBunchID: BunchIDs.usingReplicaID(replicaID1) });
-    bob = new Order({ newBunchID: BunchIDs.usingReplicaID(replicaID2) });
+    alice = new Order({ replicaID: replicaID1 });
+    bob = new Order({ replicaID: replicaID2 });
     // Automatically share metadata.
     alice.onNewMeta = (meta) => bob.receiveMetas([meta]);
     bob.onNewMeta = (meta) => alice.receiveMetas([meta]);
