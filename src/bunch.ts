@@ -104,7 +104,7 @@ export interface BunchNode {
   meta(): BunchMeta;
 
   /**
-   * Returns an iterator for all of the bunch's dependencies.
+   * Iterates over the bunch's dependencies.
    *
    * These are the bunch's BunchMeta, its parent's BunchMeta,
    * etc., up the tree until reaching the root (exclusive).

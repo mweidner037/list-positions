@@ -462,7 +462,7 @@ export class ItemList<I, S extends SparseItems<I>> {
   // ----------
 
   /**
-   * Returns an iterator of [startPos, item] pairs for every
+   * Iterates over [startPos, item] pairs for every
    * contiguous item in the list, in list order.
    *
    * Optionally, you may specify a range of indices `[start, end)` instead of
@@ -568,7 +568,7 @@ export class ItemList<I, S extends SparseItems<I>> {
   }
 
   /**
-   * Returns an iterator for all dependencies of the current state,
+   * Iterates over all dependencies of the current state,
    * in no particular order.
    *
    * These are the combined dependencies of all

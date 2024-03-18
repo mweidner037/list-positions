@@ -325,14 +325,14 @@ export class Outline {
   // ----------
 
   /**
-   * Returns an iterator for present positions, in list order.
+   * Iterates over present positions, in list order.
    */
   [Symbol.iterator](): IterableIterator<Position> {
     return this.positions();
   }
 
   /**
-   * Returns an iterator for present positions, in list order.
+   * Iterates over present positions, in list order.
    *
    * Optionally, you may specify a range of indices `[start, end)` instead of
    * iterating the entire list.
@@ -351,7 +351,7 @@ export class Outline {
   }
 
   /**
-   * Returns an iterator for items in list order.
+   * Iterates over items, in list order.
    *
    * Each *item* is a series of entries that have contiguous positions
    * from the same [bunch](https://github.com/mweidner037/list-positions#bunches).
@@ -374,7 +374,7 @@ export class Outline {
   }
 
   /**
-   * Returns an iterator for all dependencies of the current state,
+   * Iterates over all dependencies of the current state,
    * in no particular order.
    *
    * These are the combined dependencies of all

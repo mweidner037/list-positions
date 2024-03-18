@@ -376,13 +376,13 @@ export class Text {
   // Iterators
   // ----------
 
-  /** Returns an iterator for chars in the list, in list order. */
+  /** Iterates over chars in the list, in list order. */
   [Symbol.iterator](): IterableIterator<string> {
     return this.values();
   }
 
   /**
-   * Returns an iterator for chars in the list, in list order.
+   * Iterates over chars in the list, in list order.
    *
    * Optionally, you may specify a range of indices `[start, end)` instead of
    * iterating the entire list.
@@ -415,7 +415,7 @@ export class Text {
   }
 
   /**
-   * Returns an iterator for present positions, in list order.
+   * Iterates over present positions, in list order.
    *
    * Optionally, you may specify a range of indices `[start, end)` instead of
    * iterating the entire list.
@@ -427,7 +427,7 @@ export class Text {
   }
 
   /**
-   * Returns an iterator for [pos, char] pairs in the list, in list order. These are its entries as an ordered map.
+   * Iterates over [pos, char] pairs in the list, in list order. These are its entries as an ordered map.
    *
    * Optionally, you may specify a range of indices `[start, end)` instead of
    * iterating the entire list.
@@ -449,7 +449,7 @@ export class Text {
   }
 
   /**
-   * Returns an iterator for items in list order.
+   * Iterates over items, in list order.
    *
    * Each *item* is a series of entries that have contiguous positions
    * from the same [bunch](https://github.com/mweidner037/list-positions#bunches).
@@ -472,7 +472,7 @@ export class Text {
   }
 
   /**
-   * Returns an iterator for all dependencies of the current state,
+   * Iterates over all dependencies of the current state,
    * in no particular order.
    *
    * These are the combined dependencies of all
