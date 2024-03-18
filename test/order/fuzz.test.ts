@@ -1,5 +1,10 @@
 import seedrandom from "seedrandom";
-import { Order, Position } from "../../src";
+import {
+  MAX_POSITION,
+  MIN_POSITION,
+  Position,
+  expandPositions,
+} from "../../src";
 import { assertIsOrdered, newOrders, testUniqueAfterDelete } from "./util";
 
 describe("Order - fuzz", () => {
@@ -25,8 +30,8 @@ function sequential(numUsers: number) {
       const source = orders[Math.floor(rng() * orders.length)];
       const index = Math.floor(rng() * (list.length + 1));
       const [newPosition] = source.createPositions(
-        list[index - 1] ?? Order.MIN_POSITION,
-        list[index] ?? Order.MAX_POSITION,
+        list[index - 1] ?? MIN_POSITION,
+        list[index] ?? MAX_POSITION,
         1
       );
       list.splice(index, 0, newPosition);
@@ -46,11 +51,11 @@ function sequential(numUsers: number) {
       const source = orders[Math.floor(rng() * orders.length)];
       const index = Math.floor(rng() * (list.length + 1));
       const [startPos] = source.createPositions(
-        list[index - 1] ?? Order.MIN_POSITION,
-        list[index] ?? Order.MAX_POSITION,
+        list[index - 1] ?? MIN_POSITION,
+        list[index] ?? MAX_POSITION,
         5
       );
-      list.splice(index, 0, ...Order.startPosToArray(startPos, 5));
+      list.splice(index, 0, ...expandPositions(startPos, 5));
     }
 
     for (const source of orders) assertIsOrdered(list, source);
@@ -67,11 +72,11 @@ function sequential(numUsers: number) {
       const source = orders[Math.floor(rng() * orders.length)];
       const index = Math.floor(rng() * (list.length + 1));
       const [startPos] = source.createPositions(
-        list[index - 1] ?? Order.MIN_POSITION,
-        list[index] ?? Order.MAX_POSITION,
+        list[index - 1] ?? MIN_POSITION,
+        list[index] ?? MAX_POSITION,
         5
       );
-      list.splice(index, 0, ...Order.startPosToArray(startPos, 5));
+      list.splice(index, 0, ...expandPositions(startPos, 5));
     }
 
     for (const source of orders) assertIsOrdered(list, source);
@@ -89,8 +94,8 @@ function sequential(numUsers: number) {
         orders[Math.floor(Math.sqrt(rng() * orders.length * orders.length))];
       const index = Math.floor(rng() * (list.length + 1));
       const [newPosition] = source.createPositions(
-        list[index - 1] ?? Order.MIN_POSITION,
-        list[index] ?? Order.MAX_POSITION,
+        list[index - 1] ?? MIN_POSITION,
+        list[index] ?? MAX_POSITION,
         1
       );
       list.splice(index, 0, newPosition);

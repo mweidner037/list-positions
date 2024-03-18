@@ -1,6 +1,12 @@
 import { assert } from "chai";
 import seedrandom from "seedrandom";
-import { BunchIDs, Order, Position } from "../../src";
+import {
+  BunchIDs,
+  MAX_POSITION,
+  MIN_POSITION,
+  Order,
+  Position,
+} from "../../src";
 
 /**
  * Asserts that the Positions are ordered under Order.compare,
@@ -46,13 +52,13 @@ export function testUniqueAfterDelete(positions: Position[], order: Order) {
   // are still distinct, in case the first is resurrected.
   for (let i = 0; i <= positions.length; i++) {
     const [a] = order.createPositions(
-      positions[i - 1] ?? Order.MIN_POSITION,
-      positions[i] ?? Order.MAX_POSITION,
+      positions[i - 1] ?? MIN_POSITION,
+      positions[i] ?? MAX_POSITION,
       1
     );
     const [b] = order.createPositions(
-      positions[i - 1] ?? Order.MIN_POSITION,
-      positions[i] ?? Order.MAX_POSITION,
+      positions[i - 1] ?? MIN_POSITION,
+      positions[i] ?? MAX_POSITION,
       1
     );
     assert.notDeepEqual(a, b);

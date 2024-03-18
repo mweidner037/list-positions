@@ -1,7 +1,7 @@
 import type { SparseItems } from "sparse-array-rled";
 import { BunchMeta, BunchNode } from "../bunch";
 import { Order } from "../order";
-import { Position } from "../position";
+import { MAX_POSITION, MIN_POSITION, Position } from "../position";
 
 export interface SparseItemsFactory<I, S extends SparseItems<I>> {
   "new"(): S;
@@ -196,8 +196,8 @@ export class ItemList<I, S extends SparseItems<I>> {
    * @returns [ first value's new position, newMeta if created by Order ].
    * If item.length > 1, their positions start at pos using the same bunchID
    * with increasing innerIndex.
-   * @throws If prevPos is Order.MAX_POSITION.
    * @throws If item.length = 0 (doesn't know what to return)
+   * @throws If prevPos is MAX_POSITION.
    */
   insert(
     prevPos: Position,
@@ -206,9 +206,7 @@ export class ItemList<I, S extends SparseItems<I>> {
     // OPT: find nextPos without getting index, at least in common cases.
     const nextIndex = this.indexOfPosition(prevPos, "left") + 1;
     const nextPos =
-      nextIndex === this.length
-        ? Order.MAX_POSITION
-        : this.positionAt(nextIndex);
+      nextIndex === this.length ? MAX_POSITION : this.positionAt(nextIndex);
     const ret = this.order.createPositions(
       prevPos,
       nextPos,
@@ -223,17 +221,17 @@ export class ItemList<I, S extends SparseItems<I>> {
    * @param index
    * @param values
    * @returns
-   * @throws If index is this.length and our last value is at Order.MAX_POSITION.
    * @throws If item.length = 0 (doesn't know what to return)
+   * @throws If index if 0 and our first value is at MIN_POSITION.
+   * @throws If index is this.length and our last value is at MAX_POSITION.
    */
   insertAt(
     index: number,
     item: I
   ): [startPos: Position, newMeta: BunchMeta | null] {
-    const prevPos =
-      index === 0 ? Order.MIN_POSITION : this.positionAt(index - 1);
+    const prevPos = index === 0 ? MIN_POSITION : this.positionAt(index - 1);
     const nextPos =
-      index === this.length ? Order.MAX_POSITION : this.positionAt(index);
+      index === this.length ? MAX_POSITION : this.positionAt(index);
     const ret = this.order.createPositions(
       prevPos,
       nextPos,

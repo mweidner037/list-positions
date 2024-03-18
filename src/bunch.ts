@@ -8,7 +8,7 @@
  * BunchMeta corresponding to that Position's bunch and its ancestors.
  * See [Managing Metadata](https://github.com/mweidner037/list-positions#managing-metadata).
  *
- * @see Order.equalsBunchMeta Equality function for BunchMetas.
+ * @see {@link bunchMetaEquals} Equality function for BunchMetas.
  */
 export type BunchMeta = {
   /**
@@ -48,7 +48,7 @@ export type BunchMeta = {
  *
  * Note: BunchNodes are **not** JSON-serializable, unlike Position and BunchMeta.
  *
- * @see Order.rootNode An Order's root BunchNode, which has `bunchID == "ROOT"`.
+ * @see {@link Order.rootNode} An Order's root BunchNode, which has `bunchID == "ROOT"`.
  */
 export interface BunchNode {
   /**
@@ -125,7 +125,7 @@ export interface BunchNode {
   /**
    * The number of child nodes in the Order's current tree.
    *
-   * This may increase as more BunchMetas are delivered to `Order.Metas`.
+   * This may increase as more BunchMetas are delivered to `Order.receiveMetas`.
    */
   readonly childrenLength: number;
   /**
@@ -139,4 +139,37 @@ export interface BunchNode {
   getChild(index: number): BunchNode;
 
   toString(): string;
+}
+
+/**
+ * [Compare function](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/sort#comparefn)
+ * for **sibling** BunchNodes in an Order, i.e., BunchNodes with the same `parent`.
+ *
+ * You do not need to call this function unless you are doing something advanced.
+ * To compare Positions, instead use `Order.compare` or a List. To iterate over
+ * a BunchNode's children in order, instead use its childrenLength and getChild properties.
+ *
+ * The sort order is:
+ * - First, sort siblings by `offset`.
+ * - To break ties, sort siblings lexicographically by the strings `sibling.bunchID + ","`.
+ * (The extra comma is a technicality needed to match the sort order on LexPositions.
+ * It has no effect if your bunchIDs only use characters greater than "," (code unit 44),
+ * which is true by default.)
+ */
+export function compareSiblingNodes(a: BunchNode, b: BunchNode): number {
+  if (a.parent !== b.parent) {
+    throw new Error(
+      `Inputs to compareSiblingNodes must have the same parent, not a=${a}, b=${b}`
+    );
+  }
+
+  // Sibling sort order: first by offset, then by id.
+  if (a.offset !== b.offset) {
+    return a.offset - b.offset;
+  }
+  if (a.bunchID !== b.bunchID) {
+    // Need to add the comma to match how LexPositions are sorted.
+    return a.bunchID + "," > b.bunchID + "," ? 1 : -1;
+  }
+  return 0;
 }

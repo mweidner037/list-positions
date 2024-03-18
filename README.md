@@ -114,7 +114,7 @@ The library's main class is `List<T>`. It is a list-as-ordered-map with value ty
 Example code:
 
 ```ts
-import { List, Order, Position } from "list-positions";
+import { List, MIN_POSITION, Order, Position } from "list-positions";
 
 // Make an empty Order and an empty List on top of it.
 const order = new Order();
@@ -143,12 +143,8 @@ list.delete(newPos);
 
 // You can create and compare Positions directly in the Order,
 // without affecting its Lists.
-const [otherPos] = order.createPositions(
-  Order.MIN_POSITION,
-  list.positionAt(0),
-  1
-);
-console.log(order.compare(Order.MIN_POSITION, otherPos) < 0); // Prints true
+const [otherPos] = order.createPositions(MIN_POSITION, list.positionAt(0), 1);
+console.log(order.compare(MIN_POSITION, otherPos) < 0); // Prints true
 console.log(order.compare(otherPos, list.positionAt(0)) < 0); // Prints true
 
 // Optionally, set the value at otherPos sometime later.
@@ -339,8 +335,6 @@ A total order on Positions, independent of any specific assignment of values.
 
 An Order manages metadata (bunches) for any number of Lists, LexLists, and Outlines. You can also use an Order to create Positions independent of a List (`createPositions`), convert between Positions and LexPositions (`lex` and `unlex`), and directly view the tree of bunches (`getBunch`, `getBunchFor`).
 
-Static utilities include `Order.MIN_POSITION` and `Order.MAX_POSITION`.
-
 #### `Text`
 
 A list of characters, represented as an ordered map with Position keys.
@@ -381,11 +375,19 @@ Saved states: Each class lets you save and load its internal states in JSON form
 
 ### Utilities
 
+#### Min and Max Positions
+
+The constants `MIN_POSITION` and `MAX_POSITION` are defined to be the minimum and maximum Positions in any Order. They are the only Positions with `bunchID: "ROOT"`. You'll mostly use these to create positions at the beginning or end of a list: e.g., `order.createPositions(p, MAX_POSITION, 1)` will create a position after `p`.
+
+You can also use `MIN_POSITION` and `MAX_POSITION` as List keys, like any other Position. Note: Attempting to insert before `MIN_POSITION` or after `MAX_POSITION` will throw an error.
+
+For LexPositions, use `MIN_LEX_POSITION` (`""`) and `MAX_LEX_POSITION` (`"~"`).
+
 #### Cursors
 
 A _cursor_ points to a spot in the list between two values - e.g., a cursor in a text document.
 
-Internally, a cursor is represented as the Position (or LexPosition, for LexList) of the value to its left, or `Order.MIN_POSITION` if it is at the start of the list. If that position becomes not-present in the list, the cursor's literal value remains the same, but its current index shifts to the left.
+Internally, a cursor is represented as the Position (or LexPosition, for LexList) of the value to its left, or `MIN_POSITION` if it is at the start of the list. If that position becomes not-present in the list, the cursor's literal value remains the same, but its current index shifts to the left.
 
 Convert indices to cursors and back using methods `cursorAt` and `indexOfCursor`, on classes List, Outline, and LexList. (These are wrappers around `positionAt` and `indexOfPosition` that get the edge cases right.)
 
@@ -425,6 +427,12 @@ An Order's internal tree node corresponding to a [bunch](#bunches) of Positions.
 You can access a bunch's BunchNode to retrieve its dependent metadata, using the `meta()` and `dependencies()` methods. For advanced usage, BunchNode also gives low-level access to an Order's [internal tree](./internals.md).
 
 Obtain BunchNodes using `Order.getNode` or `Order.getNodeFor`.
+
+#### Misc Functions
+
+- `expandPositions(startPos: Position, sameBunchCount: number): Position[]` Returns an array of Positions that start at `startPos` and have sequentially increasing `innerIndex`.
+- `positionEquals(a: Position, b: Position): boolean` Equality function for Positions.
+- `compareSiblingNodes(a: BunchNode, b: BunchNode): number` [Compare function](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/sort#comparefn) for BunchNodes with the same parent, giving their order in the [internal tree](./internals.md).
 
 ## Performance
 

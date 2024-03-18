@@ -40,7 +40,7 @@ export const BunchIDs = {
    * - Must not contain "." or ",".
    * - Must be lexicographically less than "\~".
    * (This is a technicality needed to match the sort order on LexPositions,
-   * since `Order.MAX_LEX_POSITION = "~"`.)
+   * since `MAX_LEX_POSITION = "~"`.)
    */
   validate(bunchID: string): void {
     if (bunchID === this.ROOT) {

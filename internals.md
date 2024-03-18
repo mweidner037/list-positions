@@ -30,8 +30,8 @@ Now you can see why a Position depends on the BunchMeta of its bunch and all anc
 
 As a special case, the offset layer below the root always has exactly two nodes:
 
-- Offset 1, which is `Order.MIN_POSITION` (innerIndex 0) and the ancestor of all other nodes.
-- Offset 3, which is `Order.MAX_POSITION` (innerIndex 1).
+- Offset 1, which is `MIN_POSITION` (innerIndex 0) and the ancestor of all other nodes.
+- Offset 3, which is `MAX_POSITION` (innerIndex 1).
 
 This ensures that all other Positions are strictly between the min and max.
 
@@ -70,8 +70,8 @@ We can create an analogous string for any (non-root) bunch node. That gives the 
 Special cases that are handled separately:
 
 - The root's node prefix is defined to be `""`.
-- The minimum LexPosition is `Order.MIN_LEX_POSITION = ""`. This is obviously less than all other LexPositions.
-- The maximum LexPosition is `Order.MAX_LEX_POSITION = "~"`. This is greater than all other LexPositions because they all start with a bunch ID, and we mandate that every bunch ID is less than `"~"`.
+- The minimum LexPosition is `MIN_LEX_POSITION = ""`. This is obviously less than all other LexPositions.
+- The maximum LexPosition is `MAX_LEX_POSITION = "~"`. This is greater than all other LexPositions because they all start with a bunch ID, and we mandate that every bunch ID is less than `"~"`.
 
 ### Lexicographic Order
 

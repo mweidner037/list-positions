@@ -1,7 +1,7 @@
-import { BunchMeta, BunchNode } from "./bunch";
+import { BunchMeta, BunchNode, compareSiblingNodes } from "./bunch";
 import { BunchIDs } from "./bunch_ids";
-import { LexUtils } from "./lex_utils";
-import { LexPosition, Position } from "./position";
+import { LexPosition, LexUtils } from "./lex_utils";
+import { MAX_POSITION, Position, positionEquals } from "./position";
 
 /**
  * A JSON-serializable saved state for an Order.
@@ -104,6 +104,19 @@ class NodeInternal implements BunchNode {
   }
 }
 
+// Not exported because I have yet to use it externally.
+// Normally you should compare BunchMetas by their bunchIDs alone.
+/**
+ * Returns whether two BunchMetas are equal, i.e., they have equal contents.
+ */
+function bunchMetaEquals(a: BunchMeta, b: BunchMeta): boolean {
+  return (
+    a.bunchID === b.bunchID &&
+    a.parentID === b.parentID &&
+    a.offset === b.offset
+  );
+}
+
 /**
  * A total order on Positions, independent of any specific assignment of values.
  *
@@ -121,14 +134,14 @@ export class Order {
   /**
    * The root bunch's BunchNode.
    *
-   * The root is the unique bunch with `bunchID == "ROOT"` (`BunchIDs.ROOT`).
+   * The root is the unique bunch with `bunchID == "ROOT"` (BunchIDs.ROOT).
    *
    * It has no parent, no BunchMeta, and only two valid Positions:
-   * - `Order.MIN_POSITION` (innerIndex = 0)
-   * - `Order.MAX_POSITION` (innerIndex = 1).
+   * - MIN_POSITION (innerIndex = 0)
+   * - MAX_POSITION (innerIndex = 1).
    *
-   * All of its child bunches have `offset == 1` so that they sort between
-   * `MIN_POSITION` and `MAX_POSITION`.
+   * All of its child bunches have `offset == 1`, so that they sort between
+   * MIN_POSITION and MAX_POSITION.
    */
   readonly rootNode: BunchNode;
 
@@ -269,7 +282,7 @@ export class Order {
     }
 
     // Now aAnc and bAnc are distinct siblings. Use sibling order.
-    return Order.compareSiblingNodes(aAnc, bAnc);
+    return compareSiblingNodes(aAnc, bAnc);
   }
 
   // ----------
@@ -323,7 +336,7 @@ export class Order {
       }
       const existing = this.tree.get(bunchMeta.bunchID);
       if (existing !== undefined) {
-        if (!Order.equalsBunchMeta(bunchMeta, existing.meta())) {
+        if (!bunchMetaEquals(bunchMeta, existing.meta())) {
           throw new Error(
             `Received BunchMeta describing an existing node but with different metadata: received=${JSON.stringify(
               bunchMeta
@@ -333,7 +346,7 @@ export class Order {
       } else {
         const otherNew = newBunchMetas.get(bunchMeta.bunchID);
         if (otherNew !== undefined) {
-          if (!Order.equalsBunchMeta(bunchMeta, otherNew)) {
+          if (!bunchMetaEquals(bunchMeta, otherNew)) {
             throw new Error(
               `Received two BunchMetas for the same node but with different metadata: first=${JSON.stringify(
                 otherNew
@@ -442,7 +455,7 @@ export class Order {
       let i = 0;
       for (; i < parentNode.children.length; i++) {
         // Break if sibling > node.
-        if (Order.compareSiblingNodes(parentNode.children[i], node) > 0) break;
+        if (compareSiblingNodes(parentNode.children[i], node) > 0) break;
       }
       // Insert node just before that sibling, or at the end if none.
       parentNode.children.splice(i, 0, node);
@@ -467,7 +480,7 @@ export class Order {
    *
    * @returns [starting Position, [new bunch's BunchMeta](https://github.com/mweidner037/list-positions#newMeta) (or null)].
    * @throws If prevPos >= nextPos (i.e., `this.compare(prevPos, nextPos) >= 0`).
-   * @see {@link Order.startPosToArray} To convert (startPos, count) to an array of Positions.
+   * @see {@link expandPositions} To convert (startPos, count) to an array of Positions.
    */
   createPositions(
     prevPos: Position,
@@ -580,7 +593,7 @@ export class Order {
    * in which a bunch's Positions form a rightward chain.
    */
   private isDescendant(a: Position, b: Position): boolean {
-    if (Order.equalsPosition(a, Order.MAX_POSITION)) {
+    if (positionEquals(a, MAX_POSITION)) {
       // Special case: We don't consider a to be a real node in the
       // implied Fugue tree. So it is never a descendant of b,
       // even when b is MIN_POSITION.
@@ -689,116 +702,5 @@ export class Order {
     // Else we skip checking agreement with the existing node, for efficiency.
 
     return { bunchID, innerIndex: innerIndex };
-  }
-
-  // ----------
-  // Static utilities
-  // ----------
-
-  /**
-   * The minimum Position in any Order.
-   *
-   * This Position is defined to be less than all other Positions.
-   */
-  static readonly MIN_POSITION: Position = {
-    bunchID: BunchIDs.ROOT,
-    innerIndex: 0,
-  };
-  /**
-   * The maximum Position in any Order.
-   *
-   * This Position is defined to be greater than all other Positions.
-   */
-  static readonly MAX_POSITION: Position = {
-    bunchID: BunchIDs.ROOT,
-    innerIndex: 1,
-  };
-
-  /**
-   * The minimum LexPosition in any Order.
-   *
-   * This LexPosition is defined to be less than all other LexPositions.
-   * It is equivalent to Order.MIN_POSITION.
-   */
-  static readonly MIN_LEX_POSITION: LexPosition = LexUtils.MIN_LEX_POSITION;
-  /**
-   * The maximum LexPosition in any Order.
-   *
-   * This LexPosition is defined to be greater than all other LexPositions.
-   * It is equivalent to Order.MAX_POSITION.
-   */
-  static readonly MAX_LEX_POSITION: LexPosition = LexUtils.MAX_LEX_POSITION;
-
-  /**
-   * Returns whether two Positions are equal, i.e., they have equal contents.
-   */
-  static equalsPosition(a: Position, b: Position): boolean {
-    return a.bunchID === b.bunchID && a.innerIndex === b.innerIndex;
-  }
-
-  /**
-   * Returns whether two BunchMetas are equal, i.e., they have equal contents.
-   */
-  static equalsBunchMeta(a: BunchMeta, b: BunchMeta): boolean {
-    return (
-      a.bunchID === b.bunchID &&
-      a.parentID === b.parentID &&
-      a.offset === b.offset
-    );
-  }
-
-  /**
-   * Returns the array of Positions corresponding to a startPos and a count of
-   * Positions within the same [bunch](https://github.com/mweidner037/list-positions#bunches)
-   * (with sequential `innerIndex`).
-   *
-   * You can use this method to expand on the startPos returned by
-   * `Order.createPositions` (and the bulk versions of `List.insertAt`, etc.).
-   */
-  static startPosToArray(
-    startPos: Position,
-    sameBunchCount: number
-  ): Position[] {
-    const ans = new Array<Position>(sameBunchCount);
-    for (let i = 0; i < sameBunchCount; i++) {
-      ans[i] = {
-        bunchID: startPos.bunchID,
-        innerIndex: startPos.innerIndex + i,
-      };
-    }
-    return ans;
-  }
-
-  /**
-   * [Compare function](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/sort#comparefn)
-   * for **sibling** BunchNodes in an Order, i.e., BunchNodes with the same `parent`.
-   *
-   * You do not need to call this function unless you are doing something advanced.
-   * To compare Positions, instead use `Order.compare` or a List. To iterate over
-   * a BunchNode's children in order, instead use its childrenLength and getChild properties.
-   *
-   * The sort order is:
-   * - First, sort siblings by `offset`.
-   * - To break ties, sort siblings lexicographically by the strings `sibling.bunchID + ","`.
-   * (The extra comma is a technicality needed to match the sort order on LexPositions.
-   * It has no effect if your bunchIDs only use characters greater than "," (code point 44),
-   * which is true by default.)
-   */
-  static compareSiblingNodes(a: BunchNode, b: BunchNode): number {
-    if (a.parent !== b.parent) {
-      throw new Error(
-        `nodeSiblingCompare can only compare Nodes with the same parentNode, not a=${a}, b=${b}`
-      );
-    }
-
-    // Sibling sort order: first by offset, then by id.
-    if (a.offset !== b.offset) {
-      return a.offset - b.offset;
-    }
-    if (a.bunchID !== b.bunchID) {
-      // Need to add the comma to match how LexPositions are sorted.
-      return a.bunchID + "," > b.bunchID + "," ? 1 : -1;
-    }
-    return 0;
   }
 }

@@ -3,7 +3,7 @@ import { BunchMeta } from "./bunch";
 import { ItemList, SparseItemsFactory } from "./internal/item_list";
 import { normalizeSliceRange } from "./internal/util";
 import { Order } from "./order";
-import { Position } from "./position";
+import { MIN_POSITION, Position, positionEquals } from "./position";
 
 const sparseArrayFactory: SparseItemsFactory<
   unknown[],
@@ -137,7 +137,7 @@ export class List<T> {
    * Note that these Positions might not be contiguous anymore, if later
    * Positions were created between them.
    *
-   * @see {@link Order.startPosToArray}
+   * @see {@link expandPositions}
    */
   set(startPos: Position, ...sameBunchValues: T[]): void;
   set(startPos: Position, ...values: T[]): void {
@@ -167,7 +167,7 @@ export class List<T> {
    * Note that these Positions might not be contiguous anymore, if later
    * Positions were created between them.
    *
-   * @see {@link Order.startPosToArray}
+   * @see {@link expandPositions}
    */
   delete(startPos: Position, sameBunchCount?: number): void;
   delete(startPos: Position, count = 1): void {
@@ -206,7 +206,7 @@ export class List<T> {
    * if other users call `List.insert` (or similar methods) concurrently.
    * 
    * @returns [insertion Position, [new bunch's BunchMeta](https://github.com/mweidner037/list-positions#newMeta) (or null)].
-   * @throws If prevPos is Order.MAX_POSITION.
+   * @throws If prevPos is MAX_POSITION.
    */
   insert(
     prevPos: Position,
@@ -221,9 +221,9 @@ export class List<T> {
    * if new Positions are created between them.
    *
    * @returns [starting Position, [new bunch's BunchMeta](https://github.com/mweidner037/list-positions#newMeta) (or null)].
-   * @throws If prevPos is Order.MAX_POSITION.
+   * @throws If prevPos is MAX_POSITION.
    * @throws If no values are provided.
-   * @see {@link Order.startPosToArray} To convert (startPos, values.length) to an array of Positions.
+   * @see {@link expandPositions} To convert (startPos, values.length) to an array of Positions.
    */
   insert(
     prevPos: Position,
@@ -246,7 +246,7 @@ export class List<T> {
    * if other users call `List.insertAt` (or similar methods) concurrently.
    *
    * @returns [insertion Position, [new bunch's BunchMeta](https://github.com/mweidner037/list-positions#newMeta) (or null)].
-   * @throws If index is not in `[0, this.length]`. The index `this.length` is allowed and will cause an append, unless this list's current last Position is Order.MAX_POSITION.
+   * @throws If index is not in `[0, this.length]`. The index `this.length` is allowed and will cause an append.
    */
   insertAt(index: number, value: T): [pos: Position, newMeta: BunchMeta | null];
   /**
@@ -258,9 +258,9 @@ export class List<T> {
    * if new Positions are created between them.
    *
    * @returns [starting Position, [new bunch's BunchMeta](https://github.com/mweidner037/list-positions#newMeta) (or null)].
-   * @throws If index is not in `[0, this.length]`. The index `this.length` is allowed and will cause an append, unless this list's current last Position is Order.MAX_POSITION.
+   * @throws If index is not in `[0, this.length]`. The index `this.length` is allowed and will cause an append.
    * @throws If no values are provided.
-   * @see {@link Order.startPosToArray} To convert (startPos, values.length) to an array of Positions.
+   * @see {@link expandPositions} To convert (startPos, values.length) to an array of Positions.
    */
   insertAt(
     index: number,
@@ -350,7 +350,7 @@ export class List<T> {
    * Invert with indexOfCursor, possibly on a different List/Text/Outline/LexList or a different device.
    */
   cursorAt(index: number): Position {
-    return index === 0 ? Order.MIN_POSITION : this.positionAt(index - 1);
+    return index === 0 ? MIN_POSITION : this.positionAt(index - 1);
   }
 
   /**
@@ -360,7 +360,7 @@ export class List<T> {
    * Inverts cursorAt.
    */
   indexOfCursor(cursor: Position): number {
-    return Order.equalsPosition(cursor, Order.MIN_POSITION)
+    return positionEquals(cursor, MIN_POSITION)
       ? 0
       : this.indexOfPosition(cursor, "left") + 1;
   }

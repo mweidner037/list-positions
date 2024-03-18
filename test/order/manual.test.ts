@@ -1,6 +1,13 @@
 import { assert } from "chai";
 import seedrandom from "seedrandom";
-import { BunchIDs, Order, Position } from "../../src";
+import {
+  BunchIDs,
+  MAX_POSITION,
+  MIN_POSITION,
+  Order,
+  Position,
+  expandPositions,
+} from "../../src";
 import { assertIsOrdered, testUniqueAfterDelete } from "./util";
 
 describe("Order - manual", () => {
@@ -52,20 +59,20 @@ function testSingleUser(replicaID: string) {
   });
 
   it("LtR", () => {
-    let previous = Order.MIN_POSITION;
+    let previous = MIN_POSITION;
     const list: Position[] = [];
     for (let i = 0; i < 20; i++) {
-      [previous] = alice.createPositions(previous, Order.MAX_POSITION, 1);
+      [previous] = alice.createPositions(previous, MAX_POSITION, 1);
       list.push(previous);
     }
     assertIsOrdered(list, alice);
   });
 
   it("RtL", () => {
-    let previous = Order.MAX_POSITION;
+    let previous = MAX_POSITION;
     const list: Position[] = [];
     for (let i = 0; i < 20; i++) {
-      [previous] = alice.createPositions(Order.MIN_POSITION, previous, 1);
+      [previous] = alice.createPositions(MIN_POSITION, previous, 1);
       list.unshift(previous);
     }
     assertIsOrdered(list, alice);
@@ -74,8 +81,8 @@ function testSingleUser(replicaID: string) {
   it("restart", () => {
     const list: Position[] = [];
     for (let j = 0; j < 5; j++) {
-      let previous = Order.MIN_POSITION;
-      const after = list[0] ?? Order.MAX_POSITION;
+      let previous = MIN_POSITION;
+      const after = list[0] ?? MAX_POSITION;
       for (let i = 0; i < 10; i++) {
         [previous] = alice.createPositions(previous, after, 1);
         list.splice(i, 0, previous);
@@ -85,22 +92,18 @@ function testSingleUser(replicaID: string) {
   });
 
   it("LtR bulk", () => {
-    const [startPos] = alice.createPositions(
-      Order.MIN_POSITION,
-      Order.MAX_POSITION,
-      1000
-    );
-    const list = Order.startPosToArray(startPos, 1000);
+    const [startPos] = alice.createPositions(MIN_POSITION, MAX_POSITION, 1000);
+    const list = expandPositions(startPos, 1000);
     assertIsOrdered(list, alice);
     // LexPosition efficiency check.
     assert.isBelow(alice.lex(list.at(-1)!).length, 30);
   });
 
   it("LtR long", () => {
-    let previous = Order.MIN_POSITION;
+    let previous = MIN_POSITION;
     const list: Position[] = [];
     for (let i = 0; i < 1000; i++) {
-      [previous] = alice.createPositions(previous, Order.MAX_POSITION, 1);
+      [previous] = alice.createPositions(previous, MAX_POSITION, 1);
       list.push(previous);
     }
     assertIsOrdered(list, alice);
@@ -109,20 +112,20 @@ function testSingleUser(replicaID: string) {
   });
 
   it("RtL long", () => {
-    let previous = Order.MAX_POSITION;
+    let previous = MAX_POSITION;
     const list: Position[] = [];
     for (let i = 0; i < 1000; i++) {
-      [previous] = alice.createPositions(Order.MIN_POSITION, previous, 1);
+      [previous] = alice.createPositions(MIN_POSITION, previous, 1);
       list.unshift(previous);
     }
     assertIsOrdered(list, alice);
   });
 
   it("LtR, mid LtR", () => {
-    let previous = Order.MIN_POSITION;
+    let previous = MIN_POSITION;
     const list: Position[] = [];
     for (let i = 0; i < 20; i++) {
-      [previous] = alice.createPositions(previous, Order.MAX_POSITION, 1);
+      [previous] = alice.createPositions(previous, MAX_POSITION, 1);
       list.push(previous);
     }
     const midRight = list[10];
@@ -135,10 +138,10 @@ function testSingleUser(replicaID: string) {
   });
 
   it("LtR, mid RtL", () => {
-    let previous = Order.MIN_POSITION;
+    let previous = MIN_POSITION;
     const list: Position[] = [];
     for (let i = 0; i < 20; i++) {
-      [previous] = alice.createPositions(previous, Order.MAX_POSITION, 1);
+      [previous] = alice.createPositions(previous, MAX_POSITION, 1);
       list.push(previous);
     }
     const midLeft = list[9];
@@ -151,10 +154,10 @@ function testSingleUser(replicaID: string) {
   });
 
   it("unique after delete", () => {
-    let previous = Order.MIN_POSITION;
+    let previous = MIN_POSITION;
     const list: Position[] = [];
     for (let i = 0; i < 20; i++) {
-      [previous] = alice.createPositions(previous, Order.MAX_POSITION, 1);
+      [previous] = alice.createPositions(previous, MAX_POSITION, 1);
       list.push(previous);
     }
     const midLeft = list[9];
@@ -169,20 +172,16 @@ function testSingleUser(replicaID: string) {
 
   it("bulk vs sequential", () => {
     // One way to create bulk positions: one createPositions call.
-    const [startPos] = alice.createPositions(
-      Order.MIN_POSITION,
-      Order.MAX_POSITION,
-      100
-    );
-    const list1 = Order.startPosToArray(startPos, 100);
+    const [startPos] = alice.createPositions(MIN_POSITION, MAX_POSITION, 100);
+    const list1 = expandPositions(startPos, 100);
     // 2nd way to create bulk positions: series of calls.
     const alice2 = new Order({
       newBunchID: BunchIDs.usingReplicaID(replicaID),
     });
     const list2: Position[] = [];
-    let previous = Order.MIN_POSITION;
+    let previous = MIN_POSITION;
     for (let i = 0; i < 100; i++) {
-      [previous] = alice2.createPositions(previous, Order.MAX_POSITION, 1);
+      [previous] = alice2.createPositions(previous, MAX_POSITION, 1);
       list2.push(previous);
     }
     assert.deepStrictEqual(list2, list1);
@@ -202,11 +201,11 @@ function testTwoUsers(replicaID1: string, replicaID2: string) {
   });
 
   it("LtR sequential", () => {
-    let previous = Order.MIN_POSITION;
+    let previous = MIN_POSITION;
     const list: Position[] = [];
     for (let i = 0; i < 40; i++) {
       const user = i >= 20 ? bob : alice;
-      [previous] = user.createPositions(previous, Order.MAX_POSITION, 1);
+      [previous] = user.createPositions(previous, MAX_POSITION, 1);
       list.push(previous);
     }
     assertIsOrdered(list, alice);
@@ -214,11 +213,11 @@ function testTwoUsers(replicaID1: string, replicaID2: string) {
   });
 
   it("LtR alternating", () => {
-    let previous = Order.MIN_POSITION;
+    let previous = MIN_POSITION;
     const list: Position[] = [];
     for (let i = 0; i < 40; i++) {
       const user = i % 2 == 0 ? bob : alice;
-      [previous] = user.createPositions(previous, Order.MAX_POSITION, 1);
+      [previous] = user.createPositions(previous, MAX_POSITION, 1);
       list.push(previous);
     }
     assertIsOrdered(list, alice);
@@ -226,11 +225,11 @@ function testTwoUsers(replicaID1: string, replicaID2: string) {
   });
 
   it("RtL sequential", () => {
-    let previous = Order.MAX_POSITION;
+    let previous = MAX_POSITION;
     const list: Position[] = [];
     for (let i = 0; i < 40; i++) {
       const user = i >= 20 ? bob : alice;
-      [previous] = user.createPositions(Order.MIN_POSITION, previous, 1);
+      [previous] = user.createPositions(MIN_POSITION, previous, 1);
       list.unshift(previous);
     }
     assertIsOrdered(list, alice);
@@ -238,11 +237,11 @@ function testTwoUsers(replicaID1: string, replicaID2: string) {
   });
 
   it("RtL alternating", () => {
-    let previous = Order.MAX_POSITION;
+    let previous = MAX_POSITION;
     const list: Position[] = [];
     for (let i = 0; i < 40; i++) {
       const user = i % 2 == 0 ? bob : alice;
-      [previous] = user.createPositions(Order.MIN_POSITION, previous, 1);
+      [previous] = user.createPositions(MIN_POSITION, previous, 1);
       list.unshift(previous);
     }
     assertIsOrdered(list, alice);
@@ -252,8 +251,8 @@ function testTwoUsers(replicaID1: string, replicaID2: string) {
   it("restart alternating", () => {
     const list: Position[] = [];
     for (let j = 0; j < 5; j++) {
-      let previous = Order.MIN_POSITION;
-      const after = list[0] ?? Order.MAX_POSITION;
+      let previous = MIN_POSITION;
+      const after = list[0] ?? MAX_POSITION;
       for (let i = 0; i < 10; i++) {
         const user = i % 2 === 0 ? bob : alice;
         [previous] = user.createPositions(previous, after, 1);
@@ -265,16 +264,16 @@ function testTwoUsers(replicaID1: string, replicaID2: string) {
   });
 
   it("LtR concurrent", () => {
-    let previous = Order.MIN_POSITION;
+    let previous = MIN_POSITION;
     const list1: Position[] = [];
     for (let i = 0; i < 20; i++) {
-      [previous] = alice.createPositions(previous, Order.MAX_POSITION, 1);
+      [previous] = alice.createPositions(previous, MAX_POSITION, 1);
       list1.push(previous);
     }
-    previous = Order.MIN_POSITION;
+    previous = MIN_POSITION;
     const list2: Position[] = [];
     for (let i = 0; i < 20; i++) {
-      [previous] = bob.createPositions(previous, Order.MAX_POSITION, 1);
+      [previous] = bob.createPositions(previous, MAX_POSITION, 1);
       list2.push(previous);
     }
     // list1 and list2 should be sorted one after the other, according
@@ -289,16 +288,16 @@ function testTwoUsers(replicaID1: string, replicaID2: string) {
   });
 
   it("RtL concurrent", () => {
-    let previous = Order.MAX_POSITION;
+    let previous = MAX_POSITION;
     const list1: Position[] = [];
     for (let i = 0; i < 20; i++) {
-      [previous] = alice.createPositions(Order.MIN_POSITION, previous, 1);
+      [previous] = alice.createPositions(MIN_POSITION, previous, 1);
       list1.unshift(previous);
     }
-    previous = Order.MAX_POSITION;
+    previous = MAX_POSITION;
     const list2: Position[] = [];
     for (let i = 0; i < 20; i++) {
-      [previous] = bob.createPositions(Order.MIN_POSITION, previous, 1);
+      [previous] = bob.createPositions(MIN_POSITION, previous, 1);
       list2.unshift(previous);
     }
     // list1 and list2 should be sorted one after the other, according
@@ -315,12 +314,8 @@ function testTwoUsers(replicaID1: string, replicaID2: string) {
   it("insert between concurrent", () => {
     // "Hard case" from the blog post - see
     // https://mattweidner.com/2022/10/05/basic-list-crdt.html#between-concurrent
-    const [startPos] = alice.createPositions(
-      Order.MIN_POSITION,
-      Order.MAX_POSITION,
-      2
-    );
-    const [a, b] = Order.startPosToArray(startPos, 2);
+    const [startPos] = alice.createPositions(MIN_POSITION, MAX_POSITION, 2);
+    const [a, b] = expandPositions(startPos, 2);
 
     let [c] = alice.createPositions(a, b, 1);
     let [d] = bob.createPositions(a, b, 1);
@@ -341,8 +336,8 @@ function testTwoUsers(replicaID1: string, replicaID2: string) {
   it("unique after delete", () => {
     const list: Position[] = [];
     for (let j = 0; j < 5; j++) {
-      let previous = Order.MIN_POSITION;
-      const after = list[0] ?? Order.MAX_POSITION;
+      let previous = MIN_POSITION;
+      const after = list[0] ?? MAX_POSITION;
       for (let i = 0; i < 10; i++) {
         const user = i % 2 === 0 ? bob : alice;
         [previous] = user.createPositions(previous, after, 1);
@@ -357,15 +352,11 @@ function testTwoUsers(replicaID1: string, replicaID2: string) {
   });
 
   it("left children", () => {
-    const [gParent] = alice.createPositions(
-      Order.MIN_POSITION,
-      Order.MAX_POSITION,
-      1
-    );
+    const [gParent] = alice.createPositions(MIN_POSITION, MAX_POSITION, 1);
     // Each parent is a child of gParent with the same bunch but
     // a range of valueIndex's.
-    const [startPos] = bob.createPositions(gParent, Order.MAX_POSITION, 500);
-    const parents = Order.startPosToArray(startPos, 500);
+    const [startPos] = bob.createPositions(gParent, MAX_POSITION, 500);
+    const parents = expandPositions(startPos, 500);
     const list = [gParent, ...parents];
     // Create positions between gParent and the parents; since parent
     // starts with gParent, they'll be left children of parent.

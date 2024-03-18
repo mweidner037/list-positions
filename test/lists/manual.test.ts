@@ -1,7 +1,7 @@
 import { assert } from "chai";
 import { describe, test } from "mocha";
 import seedrandom from "seedrandom";
-import { BunchIDs, List, Order } from "../../src";
+import { BunchIDs, List, MAX_POSITION, MIN_POSITION, Order } from "../../src";
 import { Checker } from "./util";
 
 describe("lists - manual", () => {
@@ -24,26 +24,26 @@ describe("lists - manual", () => {
     });
 
     test("contains min and max", () => {
-      list.set(Order.MIN_POSITION, 0);
-      list.set(Order.MAX_POSITION, 1);
+      list.set(MIN_POSITION, 0);
+      list.set(MAX_POSITION, 1);
 
-      assert.isTrue(list.has(Order.MIN_POSITION));
-      assert.isTrue(list.has(Order.MAX_POSITION));
+      assert.isTrue(list.has(MIN_POSITION));
+      assert.isTrue(list.has(MAX_POSITION));
 
       assert.deepStrictEqual(
         [...list.positions()],
-        [Order.MIN_POSITION, Order.MAX_POSITION]
+        [MIN_POSITION, MAX_POSITION]
       );
 
-      assert.deepStrictEqual(list.positionAt(0), Order.MIN_POSITION);
-      assert.deepStrictEqual(list.positionAt(1), Order.MAX_POSITION);
+      assert.deepStrictEqual(list.positionAt(0), MIN_POSITION);
+      assert.deepStrictEqual(list.positionAt(1), MAX_POSITION);
 
-      assert.strictEqual(list.indexOfPosition(Order.MIN_POSITION), 0);
-      assert.strictEqual(list.indexOfPosition(Order.MAX_POSITION), 1);
+      assert.strictEqual(list.indexOfPosition(MIN_POSITION), 0);
+      assert.strictEqual(list.indexOfPosition(MAX_POSITION), 1);
 
       const between = list.order.createPositions(
-        Order.MIN_POSITION,
-        Order.MAX_POSITION,
+        MIN_POSITION,
+        MAX_POSITION,
         1
       )[0];
       assert.strictEqual(list.indexOfPosition(between), -1);

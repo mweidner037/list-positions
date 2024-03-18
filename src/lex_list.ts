@@ -1,7 +1,7 @@
-import { LexUtils } from "./lex_utils";
+import { LexPosition, LexUtils, MIN_LEX_POSITION } from "./lex_utils";
 import { List } from "./list";
 import { Order } from "./order";
-import { LexPosition, Position } from "./position";
+import { Position } from "./position";
 
 /**
  * A JSON-serializable saved state for a `LexList<T>`.
@@ -160,7 +160,7 @@ export class LexList<T> {
    * if other users call `LexList.insert` (or similar methods) concurrently.
    *
    * @returns The inserted values' LexPositions.
-   * @throws If prevLexPos is Order.MAX_LEX_POSITION.
+   * @throws If prevLexPos is MAX_LEX_POSITION.
    * @throws If no values are provided.
    */
   insert(prevLexPos: LexPosition, ...values: T[]): LexPosition[] {
@@ -181,7 +181,7 @@ export class LexList<T> {
    * if other users call `LexList.insert` (or similar methods) concurrently.
    *
    * @returns The inserted values' LexPositions.
-   * @throws If prevLexPos is Order.MAX_LEX_POSITION.
+   * @throws If index is not in `[0, this.length]`. The index `this.length` is allowed and will cause an append.
    * @throws If no values are provided.
    */
   insertAt(index: number, ...values: T[]): LexPosition[] {
@@ -275,7 +275,7 @@ export class LexList<T> {
    * Invert with indexOfCursor, possibly on a different List/Text/Outline/LexList or a different device.
    */
   cursorAt(index: number): LexPosition {
-    return index === 0 ? Order.MIN_LEX_POSITION : this.positionAt(index - 1);
+    return index === 0 ? MIN_LEX_POSITION : this.positionAt(index - 1);
   }
 
   /**
@@ -285,7 +285,7 @@ export class LexList<T> {
    * Inverts cursorAt.
    */
   indexOfCursor(cursor: LexPosition): number {
-    return cursor === Order.MIN_LEX_POSITION
+    return cursor === MIN_LEX_POSITION
       ? 0
       : this.indexOfPosition(cursor, "left") + 1;
   }

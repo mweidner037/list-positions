@@ -2,7 +2,7 @@ import { SparseIndices } from "sparse-array-rled";
 import { BunchMeta } from "./bunch";
 import { ItemList, SparseItemsFactory } from "./internal/item_list";
 import { Order } from "./order";
-import { Position } from "./position";
+import { MIN_POSITION, Position, positionEquals } from "./position";
 
 const sparseIndicesFactory: SparseItemsFactory<number, SparseIndices> = {
   // eslint-disable-next-line @typescript-eslint/unbound-method
@@ -125,7 +125,7 @@ export class Outline {
    * Note that these Positions might not be contiguous anymore, if later
    * Positions were created between them.
    *
-   * @see {@link Order.startPosToArray}
+   * @see {@link expandPositions}
    */
   add(startPos: Position, sameBunchCount?: number): void;
   add(startPos: Position, count = 1): void {
@@ -145,7 +145,7 @@ export class Outline {
    * Note that these Positions might not be contiguous anymore, if later
    * Positions were created between them.
    *
-   * @see {@link Order.startPosToArray}
+   * @see {@link expandPositions}
    */
   delete(startPos: Position, sameBunchCount?: number): void;
   delete(startPos: Position, count = 1): void {
@@ -184,7 +184,7 @@ export class Outline {
    * if other users call `Outline.insert` (or similar methods) concurrently.
    * 
    * @returns [insertion Position, [new bunch's BunchMeta](https://github.com/mweidner037/list-positions#newMeta) (or null)].
-   * @throws If prevPos is Order.MAX_POSITION.
+   * @throws If prevPos is MAX_POSITION.
    */
   insert(prevPos: Position): [pos: Position, newMeta: BunchMeta | null];
   /**
@@ -196,9 +196,9 @@ export class Outline {
    * if new Positions are created between them.
    *
    * @returns [starting Position, [new bunch's BunchMeta](https://github.com/mweidner037/list-positions#newMeta) (or null)].
-   * @throws If prevPos is Order.MAX_POSITION.
+   * @throws If prevPos is MAX_POSITION.
    * @throws If no values are provided.
-   * @see {@link Order.startPosToArray} To convert (startPos, count) to an array of Positions.
+   * @see {@link expandPositions} To convert (startPos, count) to an array of Positions.
    */
   insert(
     prevPos: Position,
@@ -221,7 +221,7 @@ export class Outline {
    * if other users call `Outline.insertAt` (or similar methods) concurrently.
    *
    * @returns [insertion Position, [new bunch's BunchMeta](https://github.com/mweidner037/list-positions#newMeta) (or null)].
-   * @throws If index is not in `[0, this.length]`. The index `this.length` is allowed and will cause an append, unless this list's current last Position is Order.MAX_POSITION.
+   * @throws If index is not in `[0, this.length]`. The index `this.length` is allowed and will cause an append.
    */
   insertAt(index: number): [pos: Position, newMeta: BunchMeta | null];
   /**
@@ -233,9 +233,9 @@ export class Outline {
    * if new Positions are created between them.
    *
    * @returns [starting Position, [new bunch's BunchMeta](https://github.com/mweidner037/list-positions#newMeta) (or null)].
-   * @throws If index is not in `[0, this.length]`. The index `this.length` is allowed and will cause an append, unless this list's current last Position is Order.MAX_POSITION.
+   * @throws If index is not in `[0, this.length]`. The index `this.length` is allowed and will cause an append.
    * @throws If count is 0.
-   * @see {@link Order.startPosToArray} To convert (startPos, count) to an array of Positions.
+   * @see {@link expandPositions} To convert (startPos, count) to an array of Positions.
    */
   insertAt(
     index: number,
@@ -305,7 +305,7 @@ export class Outline {
    * Invert with indexOfCursor, possibly on a different List/Outline/LexList or a different device.
    */
   cursorAt(index: number): Position {
-    return index === 0 ? Order.MIN_POSITION : this.positionAt(index - 1);
+    return index === 0 ? MIN_POSITION : this.positionAt(index - 1);
   }
 
   /**
@@ -315,7 +315,7 @@ export class Outline {
    * Inverts cursorAt.
    */
   indexOfCursor(cursor: Position): number {
-    return Order.equalsPosition(cursor, Order.MIN_POSITION)
+    return positionEquals(cursor, MIN_POSITION)
       ? 0
       : this.indexOfPosition(cursor, "left") + 1;
   }
