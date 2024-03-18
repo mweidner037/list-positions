@@ -230,8 +230,7 @@ export class Order {
    * classes, and slower than using LexPositions as keys
    * (with JavaScript's default lexicographic compare function).
    */
-  // Bind as variable instead of class method, in case callers forget to call bind.
-  compare = (a: Position, b: Position): number => {
+  compare(a: Position, b: Position): number {
     const aNode = this.getNodeFor(a);
     const bNode = this.getNodeFor(b);
 
@@ -271,7 +270,7 @@ export class Order {
 
     // Now aAnc and bAnc are distinct siblings. Use sibling order.
     return Order.compareSiblingNodes(aAnc, bAnc);
-  };
+  }
 
   // ----------
   // Mutators
