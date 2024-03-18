@@ -197,8 +197,8 @@ function testTwoUsers(replicaID1: string, replicaID2: string) {
     alice = new Order({ newBunchID: BunchIDs.usingReplicaID(replicaID1) });
     bob = new Order({ newBunchID: BunchIDs.usingReplicaID(replicaID2) });
     // Automatically share metadata.
-    alice.onCreateBunch = (meta) => bob.receive([meta]);
-    bob.onCreateBunch = (meta) => alice.receive([meta]);
+    alice.onNewMeta = (meta) => bob.receiveMetas([meta]);
+    bob.onNewMeta = (meta) => alice.receiveMetas([meta]);
   });
 
   it("LtR sequential", () => {

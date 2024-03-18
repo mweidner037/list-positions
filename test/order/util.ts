@@ -33,7 +33,7 @@ export function newOrders(
       newBunchID: BunchIDs.usingReplicaID(BunchIDs.newReplicaID({ rng })),
     });
     if (linkedMeta) {
-      order.onCreateBunch = (meta) => orders.forEach((o) => o.receive([meta]));
+      order.onNewMeta = (meta) => orders.forEach((o) => o.receiveMetas([meta]));
     }
     orders.push(order);
   }

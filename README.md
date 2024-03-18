@@ -217,7 +217,7 @@ type BunchMeta = {
 };
 ```
 
-A List's tree of bunches is stored by a separate class `Order`, accessible from the List's `order` property. Multiple List instances can share the same Order via a constructor option. But when Lists have different Order instances, before using a Position from one List in the other (e.g., calling `list.set` or `list.indexOfPosition`), you must call `list.order.receive` with:
+A List's tree of bunches is stored by a separate class `Order`, accessible from the List's `order` property. Multiple List instances can share the same Order via a constructor option. But when Lists have different Order instances, before using a Position from one List in the other (e.g., calling `list.set` or `list.indexOfPosition`), you must call `list.order.receiveMetas` with:
 
 - The Position's bunch's BunchMeta.
 - That bunch's parent's BunchMeta.
@@ -250,34 +250,34 @@ function load<T>(savedState: string): List<T> {
 }
 ```
 
-<a id="createdBunch"></a>
-**Multiple users** Suppose you have multiple users and a single list order, e.g., a collaborative text editor. Any time a user creates a new Position by calling `list.insertAt`, `list.insert`, or `list.order.createPositions`, they might create a new bunch. Other users must learn of the created bunch's BunchMeta before they can use the new Position.
+<a id="newMeta"></a>
+**Multiple users** Suppose you have multiple users and a single list order, e.g., a collaborative text editor. Any time a user creates a new Position by calling `list.insertAt`, `list.insert`, or `list.order.createPositions`, they might create a new bunch. Other users must learn of the new bunch's BunchMeta before they can use the new Position.
 
 One option is to always send LexPositions over the network instead of Positions. Use `list.order.lex` and `list.order.unlex` to translate between the two. This is almost as simple as using [LexList and LexPosition](#lexlist-and-lexposition), but with the same cost in metadata overhead - in our [list CRDT benchmarks](./benchmark_results.md#lexpositioncrdt), it about doubles the size of network messages relative to the second option below. However, the messages are still small in absolute terms (156.6 vs 73.5 bytes/op).
 
 > Equivalently, you could always send Positions together with all of their dependent BunchMetas - extract these using `[...list.order.getNodeFor(position).dependencies()]`.
 
-A second option is to distribute a created BunchMeta immediately when it is created, before/together with its new Position. For example:
+A second option is to distribute a new BunchMeta immediately when it is created, before/together with its new Position. For example:
 
 ```ts
 // When a user types "x" at index 7:
-const [position, createdBunch] = list.insertAt(7, "x");
-if (createdBunch !== null) {
+const [position, newMeta] = list.insertAt(7, "x");
+if (newMeta !== null) {
   // Distribute the new bunch's BunchMeta.
-  broadcast(JSON.stringify({ type: "meta", meta: createdBunch }));
+  broadcast(JSON.stringify({ type: "meta", meta: newMeta }));
 } // Else position reused an old bunch - no new metadata.
 // Now you can distribute position:
 broadcast(JSON.stringify({ type: "set", position, value: "x" }));
 
-// Alt: Use an Order.onCreateBunch callback.
-// list.order.onCreateBunch = (createdBunch) => { /* Broadcast createdBunch... */ }
+// Alt: Use an Order.onNewMeta callback.
+// list.order.onNewMeta = (newMeta) => { /* Broadcast newMeta... */ }
 
 // When a user receives a message:
 function onMessage(message: string) {
   const parsed = JSON.parse(message);
   switch (parsed.type) {
     case "meta":
-      list.order.receive([parsed.meta]);
+      list.order.receiveMetas([parsed.meta]);
       break;
     case "set":
       list.set(parsed.position, parsed.value);
@@ -291,7 +291,7 @@ This works best if your network has ordering guarantees that ensure you won't ac
 
 > Errors you might get if you mis-manage metadata:
 >
-> - "Position references missing bunchID: {...}. You must call Order.receive before referencing a bunch."
+> - "Position references missing bunchID: {...}. You must call Order.receiveMetas before referencing a bunch."
 > - "Received BunchMeta {...}, but we have not yet received a BunchMeta for its parent node."
 
 ### Outline

@@ -44,9 +44,9 @@ export async function outlineDirect() {
   for (const edit of edits) {
     let updateObj: Update;
     if (edit[2] !== undefined) {
-      const [pos, createdBunch] = sender.insertAt(edit[0]);
+      const [pos, newMeta] = sender.insertAt(edit[0]);
       updateObj = { type: "set", pos };
-      if (createdBunch !== null) updateObj.meta = createdBunch;
+      if (newMeta !== null) updateObj.meta = newMeta;
     } else {
       const pos = sender.positionAt(edit[0]);
       sender.delete(pos);
@@ -73,7 +73,7 @@ export async function outlineDirect() {
   for (const update of updates) {
     const updateObj: Update = JSON.parse(update);
     if (updateObj.type === "set") {
-      if (updateObj.meta) receiver.order.receive([updateObj.meta]);
+      if (updateObj.meta) receiver.order.receiveMetas([updateObj.meta]);
       receiver.add(updateObj.pos);
       // To simulate events, also compute the inserted index.
       void receiver.indexOfPosition(updateObj.pos);

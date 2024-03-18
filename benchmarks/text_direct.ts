@@ -45,9 +45,9 @@ export async function textDirect() {
   for (const edit of edits) {
     let updateObj: Update;
     if (edit[2] !== undefined) {
-      const [pos, createdBunch] = sender.insertAt(edit[0], edit[2]);
+      const [pos, newMeta] = sender.insertAt(edit[0], edit[2]);
       updateObj = { type: "set", pos, value: edit[2] };
-      if (createdBunch !== null) updateObj.meta = createdBunch;
+      if (newMeta !== null) updateObj.meta = newMeta;
     } else {
       const pos = sender.positionAt(edit[0]);
       sender.delete(pos);
@@ -75,7 +75,7 @@ export async function textDirect() {
   for (const update of updates) {
     const updateObj: Update = JSON.parse(update);
     if (updateObj.type === "set") {
-      if (updateObj.meta) receiver.order.receive([updateObj.meta]);
+      if (updateObj.meta) receiver.order.receiveMetas([updateObj.meta]);
       receiver.set(updateObj.pos, updateObj.value);
       // To simulate events, also compute the inserted index.
       void receiver.indexOfPosition(updateObj.pos);

@@ -183,10 +183,10 @@ export class Outline {
    * In a collaborative setting, the new Position is *globally unique*, even
    * if other users call `Outline.insert` (or similar methods) concurrently.
    * 
-   * @returns [insertion Position, [created bunch's](https://github.com/mweidner037/list-positions#createdBunch) BunchMeta (or null)].
+   * @returns [insertion Position, [new bunch's BunchMeta](https://github.com/mweidner037/list-positions#newMeta) (or null)].
    * @throws If prevPos is Order.MAX_POSITION.
    */
-  insert(prevPos: Position): [pos: Position, createdBunch: BunchMeta | null];
+  insert(prevPos: Position): [pos: Position, newMeta: BunchMeta | null];
   /**
    * Inserts `count` new Positions just after prevPos.
    *
@@ -195,7 +195,7 @@ export class Outline {
    * They are originally contiguous, but may become non-contiguous in the future,
    * if new Positions are created between them.
    *
-   * @returns [starting Position, [created bunch's](https://github.com/mweidner037/list-positions#createdBunch) BunchMeta (or null)].
+   * @returns [starting Position, [new bunch's BunchMeta](https://github.com/mweidner037/list-positions#newMeta) (or null)].
    * @throws If prevPos is Order.MAX_POSITION.
    * @throws If no values are provided.
    * @see {@link Order.startPosToArray} To convert (startPos, count) to an array of Positions.
@@ -203,11 +203,11 @@ export class Outline {
   insert(
     prevPos: Position,
     count?: number
-  ): [startPos: Position, createdBunch: BunchMeta | null];
+  ): [startPos: Position, newMeta: BunchMeta | null];
   insert(
     prevPos: Position,
     count = 1
-  ): [startPos: Position, createdBunch: BunchMeta | null] {
+  ): [startPos: Position, newMeta: BunchMeta | null] {
     return this.itemList.insert(prevPos, count);
   }
 
@@ -220,10 +220,10 @@ export class Outline {
    * In a collaborative setting, the new Position is *globally unique*, even
    * if other users call `Outline.insertAt` (or similar methods) concurrently.
    *
-   * @returns [insertion Position, [created bunch's](https://github.com/mweidner037/list-positions#createdBunch) BunchMeta (or null)].
+   * @returns [insertion Position, [new bunch's BunchMeta](https://github.com/mweidner037/list-positions#newMeta) (or null)].
    * @throws If index is not in `[0, this.length]`. The index `this.length` is allowed and will cause an append, unless this list's current last Position is Order.MAX_POSITION.
    */
-  insertAt(index: number): [pos: Position, createdBunch: BunchMeta | null];
+  insertAt(index: number): [pos: Position, newMeta: BunchMeta | null];
   /**
    * Inserts `count` new Positions at `index` (i.e., between the values at `index - 1` and `index`).
    *
@@ -232,7 +232,7 @@ export class Outline {
    * They are originally contiguous, but may become non-contiguous in the future,
    * if new Positions are created between them.
    *
-   * @returns [starting Position, [created bunch's](https://github.com/mweidner037/list-positions#createdBunch) BunchMeta (or null)].
+   * @returns [starting Position, [new bunch's BunchMeta](https://github.com/mweidner037/list-positions#newMeta) (or null)].
    * @throws If index is not in `[0, this.length]`. The index `this.length` is allowed and will cause an append, unless this list's current last Position is Order.MAX_POSITION.
    * @throws If count is 0.
    * @see {@link Order.startPosToArray} To convert (startPos, count) to an array of Positions.
@@ -240,11 +240,11 @@ export class Outline {
   insertAt(
     index: number,
     count?: number
-  ): [startPos: Position, createdBunch: BunchMeta | null];
+  ): [startPos: Position, newMeta: BunchMeta | null];
   insertAt(
     index: number,
     count = 1
-  ): [startPos: Position, createdBunch: BunchMeta | null] {
+  ): [startPos: Position, newMeta: BunchMeta | null] {
     return this.itemList.insertAt(index, count);
   }
 

@@ -141,11 +141,11 @@ export class Order {
    * Event handler that you can set to be notified when `this.createPositions`
    * creates a new bunch.
    *
-   * It is called with the same `createdBunch` that is returned by the createPositions call.
+   * It is called with the same `newMeta` that is returned by the createPositions call.
    * Other collaborators will need to receive that BunchMeta before they can use
-   * the new Positions; see [Managing Metadata](https://github.com/mweidner037/list-positions#createdBunch).
+   * the new Positions; see [Managing Metadata](https://github.com/mweidner037/list-positions#newMeta).
    */
-  onCreateBunch: ((createdBunch: BunchMeta) => void) | undefined = undefined;
+  onNewMeta: ((newMeta: BunchMeta) => void) | undefined = undefined;
 
   /**
    * Constructs an Order.
@@ -177,7 +177,7 @@ export class Order {
 
   /**
    * Returns the BunchNode with the given bunchID, or undefined if it is not
-   * yet known (i.e., its BunchMeta has not been delivered to `this.receive`).
+   * yet known (i.e., its BunchMeta has not been delivered to `this.receiveMetas`).
    */
   getNode(bunchID: string): BunchNode | undefined {
     return this.tree.get(bunchID);
@@ -203,7 +203,7 @@ export class Order {
       throw new Error(
         `Position references missing bunchID: ${JSON.stringify(
           pos
-        )}. You must call Order.receive before referencing a bunch.`
+        )}. You must call Order.receiveMetas before referencing a bunch.`
       );
     }
     if (
@@ -288,7 +288,7 @@ export class Order {
    * since LexPositions embed all of their metadata.)
    *
    * **Note:** A bunch depends on its parent bunch's metadata. So before (or at the same time
-   * as) you call `receive` on a BunchMeta,
+   * as) you call `receiveMetas` on a BunchMeta,
    * you must do so for the parent's BunchMeta, unless `parentID == "ROOT"`.
    *
    * @throws If a received BunchMeta's parentID references a bunch that we have
@@ -296,7 +296,7 @@ export class Order {
    * @throws If any of the received BunchMetas are invalid or provide
    * conflicting metadata for the same bunchID.
    */
-  receive(bunchMetas: Iterable<BunchMeta>): void {
+  receiveMetas(bunchMetas: Iterable<BunchMeta>): void {
     // We are careful to avoid changing the Order's state at all if an error
     // is thrown, even if some of the BunchMetas are valid.
 
@@ -466,7 +466,7 @@ export class Order {
    * They are originally contiguous, but may become non-contiguous in the future,
    * if new Positions are created between them.
    *
-   * @returns [starting Position, [created bunch's](https://github.com/mweidner037/list-positions#createdBunch) BunchMeta (or null)].
+   * @returns [starting Position, [new bunch's BunchMeta](https://github.com/mweidner037/list-positions#newMeta) (or null)].
    * @throws If prevPos >= nextPos (i.e., `this.compare(prevPos, nextPos) >= 0`).
    * @see {@link Order.startPosToArray} To convert (startPos, count) to an array of Positions.
    */
@@ -474,7 +474,7 @@ export class Order {
     prevPos: Position,
     nextPos: Position,
     count: number
-  ): [startPos: Position, createdBunch: BunchMeta | null] {
+  ): [startPos: Position, newMeta: BunchMeta | null] {
     // Also validates the positions.
     if (this.compare(prevPos, nextPos) >= 0) {
       throw new Error(
@@ -547,32 +547,32 @@ export class Order {
       return [startPos, null];
     }
 
-    const createdBunch: BunchMeta = {
+    const newMeta: BunchMeta = {
       bunchID: this.newBunchID(),
       parentID: newNodeParent.bunchID,
       offset: newNodeOffset,
     };
-    if (this.tree.has(createdBunch.bunchID)) {
+    if (this.tree.has(newMeta.bunchID)) {
       throw new Error(
-        `newBunchID() returned node ID that already exists: ${createdBunch.bunchID}`
+        `newBunchID() returned node ID that already exists: ${newMeta.bunchID}`
       );
     }
 
-    const createdBunchNode = this.newNode(createdBunch);
-    createdBunchNode.createdCounter = count;
+    const newMetaNode = this.newNode(newMeta);
+    newMetaNode.createdCounter = count;
     if (newNodeParent.createdChildren === undefined) {
       newNodeParent.createdChildren = new Map();
     }
-    newNodeParent.createdChildren.set(createdBunch.offset, createdBunchNode);
+    newNodeParent.createdChildren.set(newMeta.offset, newMetaNode);
 
-    this.onCreateBunch?.(createdBunch);
+    this.onNewMeta?.(newMeta);
 
     return [
       {
-        bunchID: createdBunchNode.bunchID,
+        bunchID: newMetaNode.bunchID,
         innerIndex: 0,
       },
-      createdBunch,
+      newMeta,
     ];
   }
 
@@ -657,7 +657,7 @@ export class Order {
    * instead, it merges the known BunchMetas (union of sets).
    */
   load(savedState: OrderSavedState): void {
-    this.receive(savedState);
+    this.receiveMetas(savedState);
   }
 
   // ----------
@@ -678,14 +678,14 @@ export class Order {
    *
    * Because LexPositions embed all of their dependencies, you do not need to
    * worry about the Position's dependent BunchMetas. They will be extracted
-   * from lexPos and delivered to `this.receive` internally if needed.
+   * from lexPos and delivered to `this.receiveMetas` internally if needed.
    */
   unlex(lexPos: LexPosition): Position {
     const [bunchPrefix, innerIndex] = LexUtils.splitPos(lexPos);
     const bunchID = LexUtils.bunchIDFor(bunchPrefix);
     if (!this.tree.has(bunchID)) {
       // Receive the node.
-      this.receive(LexUtils.splitBunchPrefix(bunchPrefix));
+      this.receiveMetas(LexUtils.splitBunchPrefix(bunchPrefix));
     }
     // Else we skip checking agreement with the existing node, for efficiency.
 

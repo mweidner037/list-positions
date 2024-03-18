@@ -193,7 +193,7 @@ export class ItemList<I, S extends SparseItems<I>> {
    *
    * @param prevPos
    * @param values
-   * @returns [ first value's new position, createdBunch if created by Order ].
+   * @returns [ first value's new position, newMeta if created by Order ].
    * If item.length > 1, their positions start at pos using the same bunchID
    * with increasing innerIndex.
    * @throws If prevPos is Order.MAX_POSITION.
@@ -202,7 +202,7 @@ export class ItemList<I, S extends SparseItems<I>> {
   insert(
     prevPos: Position,
     item: I
-  ): [startPos: Position, createdBunch: BunchMeta | null] {
+  ): [startPos: Position, newMeta: BunchMeta | null] {
     // OPT: find nextPos without getting index, at least in common cases.
     const nextIndex = this.indexOfPosition(prevPos, "left") + 1;
     const nextPos =
@@ -229,7 +229,7 @@ export class ItemList<I, S extends SparseItems<I>> {
   insertAt(
     index: number,
     item: I
-  ): [startPos: Position, createdBunch: BunchMeta | null] {
+  ): [startPos: Position, newMeta: BunchMeta | null] {
     const prevPos =
       index === 0 ? Order.MIN_POSITION : this.positionAt(index - 1);
     const nextPos =
