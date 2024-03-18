@@ -69,7 +69,7 @@ export const BunchIDs = {
    * Specifically, each pair is encoded as `replicaID + "_" + counter.toString(36)`.
    *
    * @param replicaID The replicaID to use. Default: `BunchIDs.newReplicaID()`.
-   * @see BunchIDs.parseUsingReplicaID
+   * @see {@link BunchIDs.parseUsingReplicaID}
    */
   usingReplicaID(replicaID?: string): () => string {
     if (replicaID !== undefined) {

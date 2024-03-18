@@ -72,7 +72,7 @@ export class List<T> {
    * Multiple Lists/Outlines/Texts/LexLists can share an Order; they then automatically
    * share metadata. If not provided, a `new Order()` is used.
    *
-   * @see List.fromEntries To construct a List from an initial set of entries.
+   * @see {@link List.fromEntries} To construct a List from an initial set of entries.
    */
   constructor(order?: Order) {
     this.order = order ?? new Order();
@@ -137,7 +137,7 @@ export class List<T> {
    * Note that these Positions might not be contiguous anymore, if later
    * Positions were created between them.
    *
-   * @see Order.startPosToArray
+   * @see {@link Order.startPosToArray}
    */
   set(startPos: Position, ...sameBunchValues: T[]): void;
   set(startPos: Position, ...values: T[]): void {
@@ -167,7 +167,7 @@ export class List<T> {
    * Note that these Positions might not be contiguous anymore, if later
    * Positions were created between them.
    *
-   * @see Order.startPosToArray
+   * @see {@link Order.startPosToArray}
    */
   delete(startPos: Position, sameBunchCount?: number): void;
   delete(startPos: Position, count = 1): void {
@@ -223,7 +223,7 @@ export class List<T> {
    * @returns [starting Position, [created bunch's](https://github.com/mweidner037/list-positions#createdBunch) BunchMeta (or null)].
    * @throws If prevPos is Order.MAX_POSITION.
    * @throws If no values are provided.
-   * @see Order.startPosToArray To convert (startPos, values.length) to an array of Positions.
+   * @see {@link Order.startPosToArray} To convert (startPos, values.length) to an array of Positions.
    */
   insert(
     prevPos: Position,
@@ -263,7 +263,7 @@ export class List<T> {
    * @returns [starting Position, [created bunch's](https://github.com/mweidner037/list-positions#createdBunch) BunchMeta (or null)].
    * @throws If index is not in `[0, this.length]`. The index `this.length` is allowed and will cause an append, unless this list's current last Position is Order.MAX_POSITION.
    * @throws If no values are provided.
-   * @see Order.startPosToArray To convert (startPos, values.length) to an array of Positions.
+   * @see {@link Order.startPosToArray} To convert (startPos, values.length) to an array of Positions.
    */
   insertAt(
     index: number,

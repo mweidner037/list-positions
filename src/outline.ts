@@ -67,7 +67,7 @@ export class Outline {
    * Multiple Lists/Outlines/Texts/LexLists can share an Order; they then automatically
    * share metadata. If not provided, a `new Order()` is used.
    *
-   * @see Outline.fromPositions To construct an Outline from an initial set of Positions.
+   * @see {@link Outline.fromPositions} To construct an Outline from an initial set of Positions.
    */
   constructor(order?: Order) {
     this.order = order ?? new Order();
@@ -125,7 +125,7 @@ export class Outline {
    * Note that these Positions might not be contiguous anymore, if later
    * Positions were created between them.
    *
-   * @see Order.startPosToArray
+   * @see {@link Order.startPosToArray}
    */
   add(startPos: Position, sameBunchCount?: number): void;
   add(startPos: Position, count = 1): void {
@@ -145,7 +145,7 @@ export class Outline {
    * Note that these Positions might not be contiguous anymore, if later
    * Positions were created between them.
    *
-   * @see Order.startPosToArray
+   * @see {@link Order.startPosToArray}
    */
   delete(startPos: Position, sameBunchCount?: number): void;
   delete(startPos: Position, count = 1): void {
@@ -198,7 +198,7 @@ export class Outline {
    * @returns [starting Position, [created bunch's](https://github.com/mweidner037/list-positions#createdBunch) BunchMeta (or null)].
    * @throws If prevPos is Order.MAX_POSITION.
    * @throws If no values are provided.
-   * @see Order.startPosToArray To convert (startPos, count) to an array of Positions.
+   * @see {@link Order.startPosToArray} To convert (startPos, count) to an array of Positions.
    */
   insert(
     prevPos: Position,
@@ -235,7 +235,7 @@ export class Outline {
    * @returns [starting Position, [created bunch's](https://github.com/mweidner037/list-positions#createdBunch) BunchMeta (or null)].
    * @throws If index is not in `[0, this.length]`. The index `this.length` is allowed and will cause an append, unless this list's current last Position is Order.MAX_POSITION.
    * @throws If count is 0.
-   * @see Order.startPosToArray To convert (startPos, count) to an array of Positions.
+   * @see {@link Order.startPosToArray} To convert (startPos, count) to an array of Positions.
    */
   insertAt(
     index: number,

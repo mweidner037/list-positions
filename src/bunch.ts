@@ -64,7 +64,7 @@ export interface BunchNode {
   /**
    * The bunch's offset within its parent.
    *
-   * @see BunchNode.nextInnerIndex
+   * @see {@link BunchNode.nextInnerIndex}
    */
   readonly offset: number;
   /**

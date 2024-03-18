@@ -472,7 +472,7 @@ export class Order {
    *
    * @returns [starting Position, [created bunch's](https://github.com/mweidner037/list-positions#createdBunch) BunchMeta (or null)].
    * @throws If prevPos >= nextPos (i.e., `this.compare(prevPos, nextPos) >= 0`).
-   * @see Order.startPosToArray To convert (startPos, count) to an array of Positions.
+   * @see {@link Order.startPosToArray} To convert (startPos, count) to an array of Positions.
    */
   createPositions(
     prevPos: Position,
