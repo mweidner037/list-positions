@@ -221,7 +221,7 @@ A List's tree of bunches is stored by a separate class `Order`, accessible from 
 
 - The Position's bunch's BunchMeta.
 - That bunch's parent's BunchMeta.
-- The parent's parent's BunchMeta, etc., up the tree until reaching the root (exclusive).
+- The parent's parent's BunchMeta, etc., up the tree until reaching the root (exclusive). Together, these are the Position's _dependencies_.
 
 Here are some scenarios, in order of difficulty.
 

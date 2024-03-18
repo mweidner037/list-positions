@@ -471,6 +471,22 @@ export class Text {
     return this.itemList.items(start, end);
   }
 
+  /**
+   * Returns an iterator for all dependencies of the current state,
+   * in no particular order.
+   *
+   * These are the combined dependencies of all
+   * currently-present Positions - see [Managing Metadata](https://github.com/mweidner037/list-positions#save-load).
+   *
+   * As an optimization, you can save just these dependencies instead of the entire Order's state.
+   * Be cautious, though, because that may omit BunchMetas that you
+   * need for other reasons - e.g., to understand a cursor stored separately,
+   * or a concurrent message from a collaborator.
+   */
+  dependencies(): IterableIterator<BunchMeta> {
+    return this.itemList.dependencies();
+  }
+
   // ----------
   // Save & Load
   // ----------
@@ -493,7 +509,7 @@ export class Text {
    * our current state.
    *
    * **Before loading a saved state, you must deliver its dependent metadata
-   * to this.Order**. For example, you could save and load the Order's state
+   * to this.order**. For example, you could save and load the Order's state
    * alongside the List's state, making sure to load the Order first.
    * See [Managing Metadata](https://github.com/mweidner037/list-positions#save-load) for an example.
    */

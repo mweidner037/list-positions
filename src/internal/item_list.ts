@@ -567,20 +567,34 @@ export class ItemList<I, S extends SparseItems<I>> {
     }
   }
 
+  /**
+   * Returns an iterator for all dependencies of the current state,
+   * in no particular order.
+   *
+   * These are the combined dependencies of all
+   * currently-present Positions - see [Managing Metadata](https://github.com/mweidner037/list-positions#save-load).
+   *
+   * As an optimization, you can save just these dependencies instead of the entire Order's state.
+   * Be cautious, though, because that may omit BunchMetas that you
+   * need for other reasons - e.g., to understand a cursor stored separately,
+   * or a concurrent message from a collaborator.
+   */
+  *dependencies(): IterableIterator<BunchMeta> {
+    for (const node of this.state.keys()) {
+      if (node !== this.order.rootNode) yield node.meta();
+    }
+  }
+
   // ----------
   // Save & Load
   // ----------
 
   /**
-   * Returns saved state describing the current state of this LocalList,
-   * including its values.
+   * Returns a saved state for this List.
    *
-   * The saved state may later be passed to [[load]]
-   * on a new instance of LocalList, to reconstruct the
-   * same list state.
-   *
-   * Only saves values, not Order. bunchID order not guaranteed;
-   * can sort if you care.
+   * The saved state describes our current (Position -> value) map in JSON-serializable form.
+   * You can load this state on another ItemList by calling `load(savedState)`,
+   * possibly in a different session or on a different device.
    */
   save(): { [bunchID: string]: (I | number)[] } {
     const savedState: { [bunchID: string]: (I | number)[] } = {};
@@ -593,16 +607,15 @@ export class ItemList<I, S extends SparseItems<I>> {
   }
 
   /**
-   * Loads saved state. The saved state must be from
-   * a call to [[save]] on a LocalList whose `source`
-   * constructor argument was a replica of this's
-   * `source`, so that we can understand the
-   * saved state's Positions.
+   * Loads a saved state returned by another ItemList's `save()` method.
    *
-   * Overwrites whole state - not state-based merge.
+   * Loading sets our (Position -> value) map to match the saved ItemList's, *overwriting*
+   * our current state.
    *
-   * @param savedState Saved state from a List's
-   * [[save]] call.
+   * **Before loading a saved state, you must deliver its dependent metadata
+   * to this.order**. For example, you could save and load the Order's state
+   * alongside the List's state, making sure to load the Order first;
+   * see [Managing Metadata](https://github.com/mweidner037/list-positions#save-load).
    */
   load(savedState: { [bunchID: string]: (I | number)[] }): void {
     this.clear();
