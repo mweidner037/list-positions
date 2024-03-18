@@ -487,13 +487,16 @@ export class Order {
    * if new Positions are created between them.
    *
    * @returns [starting Position, [new bunch's BunchMeta](https://github.com/mweidner037/list-positions#newMeta) (or null)].
-   * @throws If prevPos >= nextPos (i.e., `this.compare(prevPos, nextPos) >= 0`).
    * @see {@link expandPositions} To convert (startPos, count) to an array of Positions.
+   * @throws If prevPos >= nextPos (i.e., `this.compare(prevPos, nextPos) >= 0`).
+   * @param options.bunchID Forces the creation of a new bunch with a specific bunchID,
+   * instead of reusing an existing bunch or using the constructor's newBunchID function.
    */
   createPositions(
     prevPos: Position,
     nextPos: Position,
-    count: number
+    count: number,
+    options?: { bunchID?: string }
   ): [startPos: Position, newMeta: BunchMeta | null] {
     // Also validates the positions.
     if (this.compare(prevPos, nextPos) >= 0) {
@@ -507,7 +510,9 @@ export class Order {
       throw new Error(`Invalid count: ${count} (must be positive)`);
     }
 
-    /* 
+    /*
+      We map list-position's tree to a Fugue tree as described in internals.md.    
+      
       Unlike in the Fugue paper, we don't track all tombstones (in particular,
       the max innerIndex created for each bunch).
       Instead, we use the provided nextPos as the rightOrigin, and apply the rule:
@@ -522,9 +527,11 @@ export class Order {
       Exception: We don't want to create a Position in the same place as one of
       our existing positions, to minimize same-side siblings.
       Instead, we become a right child of such a Position (or its right child
-      if needed, etc.). As a consequence, if a user repeatedly types and deletes
+      if needed, etc.); since it's our own bunch, the "right child" is actually just the
+      next Position in the same bunch. As a consequence, if a user repeatedly types and deletes
       a char at the same place, then "resurrects" all of the chars, the chars will
       be in time order (LtR) and share a bunch.
+      This exception is ignored when options.bunchID is supplied.
     */
 
     let newNodeParent: NodeInternal;
@@ -533,10 +540,14 @@ export class Order {
     if (!this.isDescendant(nextPos, prevPos)) {
       // Make a right child of prevPos.
       const prevNode = this.tree.get(prevPos.bunchID)!;
-      if (prevNode.createdCounter !== undefined) {
+      if (
+        prevNode.createdCounter !== undefined &&
+        options?.bunchID === undefined
+      ) {
         // We created prevNode. Use its next Position.
         // It's okay if nextinnerIndex is not prevPos.innerIndex + 1:
-        // pos will still be < nextPos, and going farther along prevNode
+        // pos will still be < nextPos (b/c nextPos is not descended from this bunch),
+        // and going farther along prevNode
         // amounts to following the Exception above.
         const startPos: Position = {
           bunchID: prevNode.bunchID,
@@ -558,7 +569,7 @@ export class Order {
     // parent and offset, append a new Position to it instead, which is its
     // right descendant.
     const conflict = newNodeParent.createdChildren?.get(newNodeOffset);
-    if (conflict !== undefined) {
+    if (conflict !== undefined && options?.bunchID === undefined) {
       const startPos: Position = {
         bunchID: conflict.bunchID,
         innerIndex: conflict.createdCounter!,
@@ -568,14 +579,21 @@ export class Order {
     }
 
     const newMeta: BunchMeta = {
-      bunchID: this.newBunchID(newNodeParent, newNodeOffset),
+      bunchID:
+        options?.bunchID ?? this.newBunchID(newNodeParent, newNodeOffset),
       parentID: newNodeParent.bunchID,
       offset: newNodeOffset,
     };
     if (this.tree.has(newMeta.bunchID)) {
-      throw new Error(
-        `newBunchID() returned node ID that already exists: ${newMeta.bunchID}`
-      );
+      if (options?.bunchID === undefined) {
+        throw new Error(
+          `newBunchID returned bunch ID that already exists: ${newMeta.bunchID}`
+        );
+      } else {
+        throw new Error(
+          `options.bunchID supplied bunch ID that already exists: ${newMeta.bunchID}`
+        );
+      }
     }
 
     const newMetaNode = this.newNode(newMeta);

@@ -91,7 +91,7 @@ You don't need to understand this section for the Applications below, but it's h
 
 1. They are unique among all Positions returned by this Order and its replicas. This holds even if a replica on a different device concurrently creates Positions at the same place.
 2. Non-interleaving: If two replicas concurrently insert a (forward or backward) sequence of Positions at the same place, their sequences will not be interleaved.
-3. The returned Positions will re-use an existing bunch if possible, to reduce metadata overhead.
+3. The returned Positions will re-use an existing bunch if possible, to reduce metadata overhead. (You can override this behavior by supplying `options.bunchID`.)
 
 To do this, we map Order's tree to a double-sided [Fugue list CRDT](https://arxiv.org/abs/2305.00583) tree, use a variant of Fugue's insert logic to create new nodes, then map those nodes back to Order's tree. Since Fugue is non-interleaving, so is list-positions. (Except in rare situations where Fugue interleaves backward insertions, documented in the linked paper.)
 
@@ -118,7 +118,23 @@ Pedantic notes:
 
 Here are some advanced things you can do once you understand list-positions' internals. To request more info, or to ask about your own ideas, feel free to open an [issue](https://github.com/mweidner037/list-positions/issues).
 
-1. Manipulate BunchMetas to make a custom tree. For example, to stitch together lists that originally used independent Orders (e.g., merged text blocks), create a fake bunch node that is a direct child of `{ parentID: "ROOT", offset: 1 }`, then attach each list's tree to an offset node within that bunch.
+1. Manipulate BunchMetas to make a custom tree. For example, to insert some initial text identically for all users - without explicitly loading the same state - you can start each session by creating "the same" bunch and setting the text there. Order.createPositions' `bunchID` option can help here:
+
+   ```ts
+   const INITIAL_TEXT = "Type something here.";
+   const text = new Text();
+   // Creates a new bunch with bunchID "INIT" that is a child of MIN_POSITION,
+   // with identical BunchMeta every time.
+   const [initStartPos] = text.order.createPositions(
+     MIN_POSITION,
+     MAX_POSITION,
+     INITIAL_TEXT.length,
+     { bunchID: "INIT" }
+   );
+   text.set(initStartPos, INITIAL_TEXT);
+   // Now use text normally...
+   ```
+
 2. Rewrite list-positions in another language, with compatible Positions and LexPositions.
 3. Rewrite just LexUtils in another language, so that you can at least manipulate LexPositions. This is much easier than rewriting the whole library. <!--, and sufficient for basic backend tasks like programmatically inserting text. TODO: needs LexUtils createPositions. -->
 4. Supply a custom `newBunchID: (parent: BunchNode, offset: number) => string` function to Order's constructor that incorporates a hash of `parent.bunchID`, `offset`, and some unique value. That way, a malicious user cannot reuse the same (valid) bunchID for two different bunches.
