@@ -55,7 +55,7 @@ function testSingleUser(replicaID: string) {
   let alice!: Order;
 
   beforeEach(() => {
-    alice = new Order({ replicaID: replicaID });
+    alice = new Order({ replicaID });
   });
 
   it("LtR", () => {
@@ -176,7 +176,7 @@ function testSingleUser(replicaID: string) {
     const list1 = expandPositions(startPos, 100);
     // 2nd way to create bulk positions: series of calls.
     const alice2 = new Order({
-      replicaID: replicaID,
+      replicaID,
     });
     const list2: Position[] = [];
     let previous = MIN_POSITION;
@@ -193,8 +193,8 @@ function testTwoUsers(replicaID1: string, replicaID2: string) {
   let bob!: Order;
 
   beforeEach(() => {
-    alice = new Order({ replicaID: replicaID1 });
-    bob = new Order({ replicaID: replicaID2 });
+    alice = new Order({ replicaID1 });
+    bob = new Order({ replicaID2 });
     // Automatically share metadata.
     alice.onNewMeta = (meta) => bob.receiveMetas([meta]);
     bob.onNewMeta = (meta) => alice.receiveMetas([meta]);

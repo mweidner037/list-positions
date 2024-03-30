@@ -19,7 +19,7 @@ describe("lists - manual", () => {
 
     beforeEach(() => {
       const replicaID = maybeRandomString({ prng });
-      list = new List(new Order({ replicaID: replicaID }));
+      list = new List(new Order({ replicaID }));
     });
 
     test("contains min and max", () => {
@@ -56,7 +56,7 @@ describe("lists - manual", () => {
 
     beforeEach(() => {
       const replicaID = maybeRandomString({ prng });
-      checker = new Checker(new Order({ replicaID: replicaID }));
+      checker = new Checker(new Order({ replicaID }));
     });
 
     describe("bulk set", () => {

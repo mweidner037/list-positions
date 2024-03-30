@@ -11,7 +11,7 @@ describe("lists - fuzz", () => {
     beforeEach(() => {
       prng = seedrandom("42");
       const replicaID = maybeRandomString({ prng });
-      checker = new Checker(new Order({ replicaID: replicaID }));
+      checker = new Checker(new Order({ replicaID }));
     });
 
     it("single-char at methods", function () {
