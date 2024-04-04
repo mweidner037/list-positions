@@ -1,7 +1,7 @@
 import type { SparseItems } from "sparse-array-rled";
 import { BunchMeta, BunchNode } from "../bunch";
 import { Order } from "../order";
-import { Position } from "../position";
+import { MAX_POSITION, MIN_POSITION, Position } from "../position";
 
 export interface SparseItemsFactory<I, S extends SparseItems<I>> {
   "new"(): S;
@@ -193,22 +193,20 @@ export class ItemList<I, S extends SparseItems<I>> {
    *
    * @param prevPos
    * @param values
-   * @returns [ first value's new position, createdBunch if created by Order ].
+   * @returns [ first value's new position, newMeta if created by Order ].
    * If item.length > 1, their positions start at pos using the same bunchID
    * with increasing innerIndex.
-   * @throws If prevPos is Order.MAX_POSITION.
    * @throws If item.length = 0 (doesn't know what to return)
+   * @throws If prevPos is MAX_POSITION.
    */
   insert(
     prevPos: Position,
     item: I
-  ): [startPos: Position, createdBunch: BunchMeta | null] {
+  ): [startPos: Position, newMeta: BunchMeta | null] {
     // OPT: find nextPos without getting index, at least in common cases.
     const nextIndex = this.indexOfPosition(prevPos, "left") + 1;
     const nextPos =
-      nextIndex === this.length
-        ? Order.MAX_POSITION
-        : this.positionAt(nextIndex);
+      nextIndex === this.length ? MAX_POSITION : this.positionAt(nextIndex);
     const ret = this.order.createPositions(
       prevPos,
       nextPos,
@@ -223,17 +221,17 @@ export class ItemList<I, S extends SparseItems<I>> {
    * @param index
    * @param values
    * @returns
-   * @throws If index is this.length and our last value is at Order.MAX_POSITION.
    * @throws If item.length = 0 (doesn't know what to return)
+   * @throws If index if 0 and our first value is at MIN_POSITION.
+   * @throws If index is this.length and our last value is at MAX_POSITION.
    */
   insertAt(
     index: number,
     item: I
-  ): [startPos: Position, createdBunch: BunchMeta | null] {
-    const prevPos =
-      index === 0 ? Order.MIN_POSITION : this.positionAt(index - 1);
+  ): [startPos: Position, newMeta: BunchMeta | null] {
+    const prevPos = index === 0 ? MIN_POSITION : this.positionAt(index - 1);
     const nextPos =
-      index === this.length ? Order.MAX_POSITION : this.positionAt(index);
+      index === this.length ? MAX_POSITION : this.positionAt(index);
     const ret = this.order.createPositions(
       prevPos,
       nextPos,
@@ -462,7 +460,7 @@ export class ItemList<I, S extends SparseItems<I>> {
   // ----------
 
   /**
-   * Returns an iterator of [startPos, item] pairs for every
+   * Iterates over [startPos, item] pairs for every
    * contiguous item in the list, in list order.
    *
    * Optionally, you may specify a range of indices `[start, end)` instead of
@@ -567,20 +565,34 @@ export class ItemList<I, S extends SparseItems<I>> {
     }
   }
 
+  /**
+   * Iterates over all dependencies of the current state,
+   * in no particular order.
+   *
+   * These are the combined dependencies of all
+   * currently-present Positions - see [Managing Metadata](https://github.com/mweidner037/list-positions#save-load).
+   *
+   * As an optimization, you can save just these dependencies instead of the entire Order's state.
+   * Be cautious, though, because that may omit BunchMetas that you
+   * need for other reasons - e.g., to understand a cursor stored separately,
+   * or a concurrent message from a collaborator.
+   */
+  *dependencies(): IterableIterator<BunchMeta> {
+    for (const node of this.state.keys()) {
+      if (node !== this.order.rootNode) yield node.meta();
+    }
+  }
+
   // ----------
   // Save & Load
   // ----------
 
   /**
-   * Returns saved state describing the current state of this LocalList,
-   * including its values.
+   * Returns a saved state for this List.
    *
-   * The saved state may later be passed to [[load]]
-   * on a new instance of LocalList, to reconstruct the
-   * same list state.
-   *
-   * Only saves values, not Order. bunchID order not guaranteed;
-   * can sort if you care.
+   * The saved state describes our current (Position -> value) map in JSON-serializable form.
+   * You can load this state on another ItemList by calling `load(savedState)`,
+   * possibly in a different session or on a different device.
    */
   save(): { [bunchID: string]: (I | number)[] } {
     const savedState: { [bunchID: string]: (I | number)[] } = {};
@@ -593,16 +605,15 @@ export class ItemList<I, S extends SparseItems<I>> {
   }
 
   /**
-   * Loads saved state. The saved state must be from
-   * a call to [[save]] on a LocalList whose `source`
-   * constructor argument was a replica of this's
-   * `source`, so that we can understand the
-   * saved state's Positions.
+   * Loads a saved state returned by another ItemList's `save()` method.
    *
-   * Overwrites whole state - not state-based merge.
+   * Loading sets our (Position -> value) map to match the saved ItemList's, *overwriting*
+   * our current state.
    *
-   * @param savedState Saved state from a List's
-   * [[save]] call.
+   * **Before loading a saved state, you must deliver its dependent metadata
+   * to this.order**. For example, you could save and load the Order's state
+   * alongside the List's state, making sure to load the Order first;
+   * see [Managing Metadata](https://github.com/mweidner037/list-positions#save-load).
    */
   load(savedState: { [bunchID: string]: (I | number)[] }): void {
     this.clear();
@@ -615,7 +626,7 @@ export class ItemList<I, S extends SparseItems<I>> {
       const node = this.order.getNode(bunchID);
       if (node === undefined) {
         throw new Error(
-          `List/Text/Outline savedState references missing bunchID: "${bunchID}". You must call Order.receive before referencing a bunch.`
+          `List/Text/Outline savedState references missing bunchID: "${bunchID}". You must call Order.addMetas before referencing a bunch.`
         );
       }
 

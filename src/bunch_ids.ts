@@ -1,18 +1,5 @@
 import { maybeRandomString } from "maybe-random-string";
 
-// Rationale for value 8:
-// Each character of the ID gives us ~6 bits of entropy,
-// for a total of ~48 bits.  This gives a < 1%
-// probability that two connected replicas
-// will ever choose the same IDs, even if we
-// consider the total probability across 100,000,000
-// documents with 1,000 IDs each
-// (= 10 users x 100 days x 1 ID/user/day).
-/**
- * Default length of a newReplicaID.
- */
-const REPLICA_ID_LENGTH = 8;
-
 /**
  * Base (radix) for stringifying the counter in usingReplicaIDs.
  *
@@ -40,7 +27,7 @@ export const BunchIDs = {
    * - Must not contain "." or ",".
    * - Must be lexicographically less than "\~".
    * (This is a technicality needed to match the sort order on LexPositions,
-   * since `Order.MAX_LEX_POSITION = "~"`.)
+   * since `MAX_LEX_POSITION = "~"`.)
    */
   validate(bunchID: string): void {
     if (bunchID === this.ROOT) {
@@ -61,22 +48,22 @@ export const BunchIDs = {
   },
 
   /**
-   * Returns a `newBunchID` function for Order that uses
-   * [causal dots](https://mattweidner.com/2022/10/21/basic-list-crdt.html#causal-dot):
-   * pairs (replicaID, counter), where replicaID is a globally-unique random
-   * string and the counter counts from 0.
+   * Returns a `newBunchID` function for Order's constructor that uses
+   * [dot IDs](https://mattweidner.com/2023/09/26/crdt-survey-3.html#unique-ids-dots):
+   * each bunchID has the form `` `${replicaID}_${counter.toString(36)}` ``,
+   * where replicaID is a globally-unique string and the counter counts from 0.
    *
-   * Specifically, each pair is encoded as `replicaID + "_" + counter.toString(36)`.
-   *
-   * @param replicaID The replicaID to use. Default: `BunchIDs.newReplicaID()`.
-   * @see BunchIDs.parseUsingReplicaID
+   * @param replicaID The replicaID to use.
+   * Default: A random alphanumeric string from the
+   * [maybe-random-string](https://github.com/mweidner037/maybe-random-string#readme) package.
+   * @see {@link BunchIDs.parseUsingReplicaID}
    */
   usingReplicaID(replicaID?: string): () => string {
     if (replicaID !== undefined) {
       // Validate replicaID. It must follow the same rules as node IDs.
       this.validate(replicaID);
     }
-    const theReplicaID = replicaID ?? this.newReplicaID();
+    const theReplicaID = replicaID ?? maybeRandomString();
 
     let counter = 0;
     return function () {
@@ -84,34 +71,6 @@ export const BunchIDs = {
       counter++;
       return bunchID;
     };
-  },
-
-  /**
-   * Returns a random (or pseudorandom) new replicaID for BunchIDs.usingReplicaIDs.
-   *
-   * @param options.rng If provided, generates a *pseudorandom* replicaID using the given rng.
-   * Use this to get reproducible bunchIDs, e.g., in a test environment.
-   * It should output floating-point values in the range [0, 1.0), e.g.,
-   * using a PRNG from package [seedrandom](https://www.npmjs.com/package/seedrandom).
-   * @param options.chars Characters to choose from.
-   * Note that regardless of the characters in the replicaID, the resulting
-   * bunchIDs may contain base-36 chars and "_".
-   * Default: all alphanumeric chars.
-   * @param options.length The replicaID's length. Longer reduces the
-   * chance of accidental collisions (reused replicaIDs); you get about
-   * `length * log_2(chars.length)` bits of entropy total.
-   * Default: 8.
-   */
-  newReplicaID(options?: {
-    rng?: () => number;
-    chars?: string;
-    length?: number;
-  }): string {
-    return maybeRandomString({
-      prng: options?.rng,
-      chars: options?.chars,
-      length: options?.length ?? REPLICA_ID_LENGTH,
-    });
   },
 
   /**
@@ -140,7 +99,7 @@ export const BunchIDs = {
     const underscore = bunchID.lastIndexOf("_");
     if (underscore === -1) {
       throw new Error(
-        `bunchID is not from NodeIDs.usingReplicaID (missing "_"): ${bunchID}`
+        `bunchID is not from BunchIDs.usingReplicaID (missing "_"): ${bunchID}`
       );
     }
 
@@ -150,7 +109,7 @@ export const BunchIDs = {
     );
     if (isNaN(counter)) {
       throw new Error(
-        `bunchID is not from NodeIDs.usingReplicaID (bad counter): ${bunchID}`
+        `bunchID is not from BunchIDs.usingReplicaID (bad counter): ${bunchID}`
       );
     }
 

@@ -1,3 +1,5 @@
+import { BunchIDs } from "./bunch_ids";
+
 /**
  * A position in a list, as a JSON object.
  *
@@ -10,9 +12,9 @@
  * for details.
  *
  * See also:
- * - LexPosition: An alternative representation of positions that is used with
+ * - {@link LexPosition}: An alternative representation of positions that is used with
  * LexList and can be sorted independent of this library.
- * - Order.equalsPosition: Equality function for Positions.
+ * - {@link positionEquals}: Equality function for Positions.
  */
 export type Position = {
   /**
@@ -27,19 +29,57 @@ export type Position = {
 };
 
 /**
- * A position in a list, as a lexicographically-sorted string.
+ * The minimum Position in any Order.
  *
- * LexPositions let you treat a list as an ordered map `(position -> value)`,
- * where a value's *position* doesn't change over time - unlike an array index.
- *
- * The list order on LexPositions matches their lexicographic order as strings.
- * That makes it easy to work with LexPositions outside of this library, but it has a cost in metadata overhead.
- * See the [readme](https://github.com/mweidner037/list-positions#lexlist-and-lexposition)
- * for details.
- *
- * See also:
- * - Position: An alternative representation of positions that is used with
- * List, Text, Outline, and Order and has less metadata overhead.
- * - LexUtils: Utilities for manipulating LexPositions.
+ * This Position is defined to be less than all other Positions.
+ * Its value is
+ * ```
+ * { bunchID: "ROOT", innerIndex: 0 }
+ * ```
  */
-export type LexPosition = string;
+export const MIN_POSITION: Position = {
+  bunchID: BunchIDs.ROOT,
+  innerIndex: 0,
+} as const;
+
+/**
+ * The maximum Position in any Order.
+ *
+ * This Position is defined to be greater than all other Positions.
+ * Its value is
+ * ```
+ * { bunchID: "ROOT", innerIndex: 1 }
+ * ```
+ */
+export const MAX_POSITION: Position = {
+  bunchID: BunchIDs.ROOT,
+  innerIndex: 1,
+} as const;
+
+/**
+ * Returns whether two Positions are equal, i.e., they have equal contents.
+ */
+export function positionEquals(a: Position, b: Position): boolean {
+  return a.bunchID === b.bunchID && a.innerIndex === b.innerIndex;
+}
+
+/**
+ * Returns an array of Positions that start at `startPos` and have
+ * sequentially increasing `innerIndex`.
+ *
+ * You can use this method to expand on the startPos returned by
+ * `Order.createPositions` (and the bulk versions of `List.insertAt`, etc.).
+ */
+export function expandPositions(
+  startPos: Position,
+  sameBunchCount: number
+): Position[] {
+  const ans = new Array<Position>(sameBunchCount);
+  for (let i = 0; i < sameBunchCount; i++) {
+    ans[i] = {
+      bunchID: startPos.bunchID,
+      innerIndex: startPos.innerIndex + i,
+    };
+  }
+  return ans;
+}

@@ -4,11 +4,11 @@
  *
  * In scenarios with multiple related Lists (e.g., collaborative text editing),
  * you often need to use a Position with a List different from the List that
- * created it. Before doing so, you must call `list.order.receive` with the
+ * created it. Before doing so, you must call `list.order.addMetas` with the
  * BunchMeta corresponding to that Position's bunch and its ancestors.
  * See [Managing Metadata](https://github.com/mweidner037/list-positions#managing-metadata).
  *
- * @see Order.equalsBunchMeta Equality function for BunchMetas.
+ * @see {@link bunchMetaEquals} Equality function for BunchMetas.
  */
 export type BunchMeta = {
   /**
@@ -19,7 +19,7 @@ export type BunchMeta = {
    * The parent bunch's ID.
    *
    * A bunch depends on its parent's metadata. So before (or at the same time
-   * as) you call `list.order.receive` on this BunchMeta,
+   * as) you call `list.order.addMetas` on this BunchMeta,
    * you must do so for the parent's BunchMeta, unless `parentID == "ROOT"`.
    *
    * Parent relations form a tree that is used to order
@@ -40,7 +40,7 @@ export type BunchMeta = {
 /**
  * An Order's internal tree node corresponding to a [bunch](https://github.com/mweidner037/list-positions#bunches) of Positions.
  *
- * You can access a bunch's BunchNode to retrieve its dependent metadata, using the `meta()` and `ancestors()` methods.
+ * You can access a bunch's BunchNode to retrieve its dependent metadata, using the `meta()` and `dependencies()` methods.
  * For advanced usage, BunchNode also gives low-level access to an Order's
  * [internal tree](https://github.com/mweidner037/list-positions/blob/master/internals.md).
  *
@@ -48,7 +48,7 @@ export type BunchMeta = {
  *
  * Note: BunchNodes are **not** JSON-serializable, unlike Position and BunchMeta.
  *
- * @see Order.rootNode An Order's root BunchNode, which has `bunchID == "ROOT"`.
+ * @see {@link Order.rootNode} An Order's root BunchNode, which has `bunchID == "ROOT"`.
  */
 export interface BunchNode {
   /**
@@ -64,7 +64,7 @@ export interface BunchNode {
   /**
    * The bunch's offset within its parent.
    *
-   * @see BunchNode.nextInnerIndex
+   * @see {@link BunchNode.nextInnerIndex}
    */
   readonly offset: number;
   /**
@@ -104,16 +104,13 @@ export interface BunchNode {
   meta(): BunchMeta;
 
   /**
-   * Returns the ancestors of this node, up to but excluding the root,
-   * in the order from the root downwards.
+   * Iterates over the bunch's dependencies.
    *
-   * You can use this method to obtain all of a Position's dependent BunchMetas.
-   * E.g. starting from a List `list`:
-   * ```ts
-   * list.order.getNodeFor(position).ancestors().map(node => node.meta())
-   * ```
+   * These are the bunch's BunchMeta, its parent's BunchMeta,
+   * etc., up the tree until reaching the root (exclusive).
+   * They are iterated in upwards order.
    */
-  ancestors(): BunchNode[];
+  dependencies(): IterableIterator<BunchMeta>;
 
   /**
    * Returns this bunch's *bunch prefix* - a string that embeds all of its
@@ -128,7 +125,7 @@ export interface BunchNode {
   /**
    * The number of child nodes in the Order's current tree.
    *
-   * This may increase as more BunchMetas are delivered to `Order.receive`.
+   * This may increase as more BunchMetas are delivered to `Order.addMetas`.
    */
   readonly childrenLength: number;
   /**
@@ -137,9 +134,42 @@ export interface BunchNode {
    * The children are in sort order, i.e., all of child 0's Positions are less
    * than all of child 1's Positions.
    * Note that some of this bunch's own Positions may be between between adjacent children,
-   * and new children may be inserted as more BunchMetas are delivered to `Order.receive`.
+   * and new children may be inserted as more BunchMetas are delivered to `Order.addMetas`.
    */
   getChild(index: number): BunchNode;
 
   toString(): string;
+}
+
+/**
+ * [Compare function](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/sort#comparefn)
+ * for **sibling** BunchNodes in an Order, i.e., BunchNodes with the same `parent`.
+ *
+ * You do not need to call this function unless you are doing something advanced.
+ * To compare Positions, instead use `Order.compare` or a List. To iterate over
+ * a BunchNode's children in order, instead use its childrenLength and getChild properties.
+ *
+ * The sort order is:
+ * - First, sort siblings by `offset`.
+ * - To break ties, sort siblings lexicographically by the strings `sibling.bunchID + ","`.
+ * (The extra comma is a technicality needed to match the sort order on LexPositions.
+ * It has no effect if your bunchIDs only use characters greater than "," (code unit 44),
+ * which is true by default.)
+ */
+export function compareSiblingNodes(a: BunchNode, b: BunchNode): number {
+  if (a.parent !== b.parent) {
+    throw new Error(
+      `Inputs to compareSiblingNodes must have the same parent, not a=${a}, b=${b}`
+    );
+  }
+
+  // Sibling sort order: first by offset, then by id.
+  if (a.offset !== b.offset) {
+    return a.offset - b.offset;
+  }
+  if (a.bunchID !== b.bunchID) {
+    // Need to add the comma to match how LexPositions are sorted.
+    return a.bunchID + "," > b.bunchID + "," ? 1 : -1;
+  }
+  return 0;
 }

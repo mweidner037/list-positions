@@ -2,7 +2,7 @@ import { SparseIndices } from "sparse-array-rled";
 import { BunchMeta } from "./bunch";
 import { ItemList, SparseItemsFactory } from "./internal/item_list";
 import { Order } from "./order";
-import { Position } from "./position";
+import { MIN_POSITION, Position, positionEquals } from "./position";
 
 const sparseIndicesFactory: SparseItemsFactory<number, SparseIndices> = {
   // eslint-disable-next-line @typescript-eslint/unbound-method
@@ -67,7 +67,7 @@ export class Outline {
    * Multiple Lists/Outlines/Texts/LexLists can share an Order; they then automatically
    * share metadata. If not provided, a `new Order()` is used.
    *
-   * @see Outline.fromPositions To construct an Outline from an initial set of Positions.
+   * @see {@link Outline.fromPositions} To construct an Outline from an initial set of Positions.
    */
   constructor(order?: Order) {
     this.order = order ?? new Order();
@@ -125,7 +125,7 @@ export class Outline {
    * Note that these Positions might not be contiguous anymore, if later
    * Positions were created between them.
    *
-   * @see Order.startPosToArray
+   * @see {@link expandPositions}
    */
   add(startPos: Position, sameBunchCount?: number): void;
   add(startPos: Position, count = 1): void {
@@ -145,7 +145,7 @@ export class Outline {
    * Note that these Positions might not be contiguous anymore, if later
    * Positions were created between them.
    *
-   * @see Order.startPosToArray
+   * @see {@link expandPositions}
    */
   delete(startPos: Position, sameBunchCount?: number): void;
   delete(startPos: Position, count = 1): void {
@@ -183,10 +183,10 @@ export class Outline {
    * In a collaborative setting, the new Position is *globally unique*, even
    * if other users call `Outline.insert` (or similar methods) concurrently.
    * 
-   * @returns [insertion Position, [created bunch's](https://github.com/mweidner037/list-positions#createdBunch) BunchMeta (or null)].
-   * @throws If prevPos is Order.MAX_POSITION.
+   * @returns [insertion Position, [new bunch's BunchMeta](https://github.com/mweidner037/list-positions#newMeta) (or null)].
+   * @throws If prevPos is MAX_POSITION.
    */
-  insert(prevPos: Position): [pos: Position, createdBunch: BunchMeta | null];
+  insert(prevPos: Position): [pos: Position, newMeta: BunchMeta | null];
   /**
    * Inserts `count` new Positions just after prevPos.
    *
@@ -195,19 +195,19 @@ export class Outline {
    * They are originally contiguous, but may become non-contiguous in the future,
    * if new Positions are created between them.
    *
-   * @returns [starting Position, [created bunch's](https://github.com/mweidner037/list-positions#createdBunch) BunchMeta (or null)].
-   * @throws If prevPos is Order.MAX_POSITION.
+   * @returns [starting Position, [new bunch's BunchMeta](https://github.com/mweidner037/list-positions#newMeta) (or null)].
+   * @throws If prevPos is MAX_POSITION.
    * @throws If no values are provided.
-   * @see Order.startPosToArray To convert (startPos, count) to an array of Positions.
+   * @see {@link expandPositions} To convert (startPos, count) to an array of Positions.
    */
   insert(
     prevPos: Position,
     count?: number
-  ): [startPos: Position, createdBunch: BunchMeta | null];
+  ): [startPos: Position, newMeta: BunchMeta | null];
   insert(
     prevPos: Position,
     count = 1
-  ): [startPos: Position, createdBunch: BunchMeta | null] {
+  ): [startPos: Position, newMeta: BunchMeta | null] {
     return this.itemList.insert(prevPos, count);
   }
 
@@ -220,10 +220,10 @@ export class Outline {
    * In a collaborative setting, the new Position is *globally unique*, even
    * if other users call `Outline.insertAt` (or similar methods) concurrently.
    *
-   * @returns [insertion Position, [created bunch's](https://github.com/mweidner037/list-positions#createdBunch) BunchMeta (or null)].
-   * @throws If index is not in `[0, this.length]`. The index `this.length` is allowed and will cause an append, unless this list's current last Position is Order.MAX_POSITION.
+   * @returns [insertion Position, [new bunch's BunchMeta](https://github.com/mweidner037/list-positions#newMeta) (or null)].
+   * @throws If index is not in `[0, this.length]`. The index `this.length` is allowed and will cause an append.
    */
-  insertAt(index: number): [pos: Position, createdBunch: BunchMeta | null];
+  insertAt(index: number): [pos: Position, newMeta: BunchMeta | null];
   /**
    * Inserts `count` new Positions at `index` (i.e., between the values at `index - 1` and `index`).
    *
@@ -232,19 +232,19 @@ export class Outline {
    * They are originally contiguous, but may become non-contiguous in the future,
    * if new Positions are created between them.
    *
-   * @returns [starting Position, [created bunch's](https://github.com/mweidner037/list-positions#createdBunch) BunchMeta (or null)].
-   * @throws If index is not in `[0, this.length]`. The index `this.length` is allowed and will cause an append, unless this list's current last Position is Order.MAX_POSITION.
+   * @returns [starting Position, [new bunch's BunchMeta](https://github.com/mweidner037/list-positions#newMeta) (or null)].
+   * @throws If index is not in `[0, this.length]`. The index `this.length` is allowed and will cause an append.
    * @throws If count is 0.
-   * @see Order.startPosToArray To convert (startPos, count) to an array of Positions.
+   * @see {@link expandPositions} To convert (startPos, count) to an array of Positions.
    */
   insertAt(
     index: number,
     count?: number
-  ): [startPos: Position, createdBunch: BunchMeta | null];
+  ): [startPos: Position, newMeta: BunchMeta | null];
   insertAt(
     index: number,
     count = 1
-  ): [startPos: Position, createdBunch: BunchMeta | null] {
+  ): [startPos: Position, newMeta: BunchMeta | null] {
     return this.itemList.insertAt(index, count);
   }
 
@@ -305,7 +305,7 @@ export class Outline {
    * Invert with indexOfCursor, possibly on a different List/Outline/LexList or a different device.
    */
   cursorAt(index: number): Position {
-    return index === 0 ? Order.MIN_POSITION : this.positionAt(index - 1);
+    return index === 0 ? MIN_POSITION : this.positionAt(index - 1);
   }
 
   /**
@@ -315,7 +315,7 @@ export class Outline {
    * Inverts cursorAt.
    */
   indexOfCursor(cursor: Position): number {
-    return Order.equalsPosition(cursor, Order.MIN_POSITION)
+    return positionEquals(cursor, MIN_POSITION)
       ? 0
       : this.indexOfPosition(cursor, "left") + 1;
   }
@@ -325,14 +325,14 @@ export class Outline {
   // ----------
 
   /**
-   * Returns an iterator for present positions, in list order.
+   * Iterates over present positions, in list order.
    */
   [Symbol.iterator](): IterableIterator<Position> {
     return this.positions();
   }
 
   /**
-   * Returns an iterator for present positions, in list order.
+   * Iterates over present positions, in list order.
    *
    * Optionally, you may specify a range of indices `[start, end)` instead of
    * iterating the entire list.
@@ -351,7 +351,7 @@ export class Outline {
   }
 
   /**
-   * Returns an iterator for items in list order.
+   * Iterates over items, in list order.
    *
    * Each *item* is a series of entries that have contiguous positions
    * from the same [bunch](https://github.com/mweidner037/list-positions#bunches).
@@ -371,6 +371,22 @@ export class Outline {
     end?: number
   ): IterableIterator<[startPos: Position, count: number]> {
     return this.itemList.items(start, end);
+  }
+
+  /**
+   * Iterates over all dependencies of the current state,
+   * in no particular order.
+   *
+   * These are the combined dependencies of all
+   * currently-present Positions - see [Managing Metadata](https://github.com/mweidner037/list-positions#save-load).
+   *
+   * As an optimization, you can save just these dependencies instead of the entire Order's state.
+   * Be cautious, though, because that may omit BunchMetas that you
+   * need for other reasons - e.g., to understand a cursor stored separately,
+   * or a concurrent message from a collaborator.
+   */
+  dependencies(): IterableIterator<BunchMeta> {
+    return this.itemList.dependencies();
   }
 
   // ----------
@@ -395,7 +411,7 @@ export class Outline {
    * our current state.
    *
    * **Before loading a saved state, you must deliver its dependent metadata
-   * to this.Order**. For example, you could save and load the Order's state
+   * to this.order**. For example, you could save and load the Order's state
    * alongside the Outline's state, making sure to load the Order first.
    * See [Managing Metadata](https://github.com/mweidner037/list-positions#save-load) for an example
    * with List (Outline is analogous).

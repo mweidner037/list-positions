@@ -1,7 +1,7 @@
-import { LexUtils } from "./lex_utils";
+import { LexPosition, LexUtils, MIN_LEX_POSITION } from "./lex_utils";
 import { List } from "./list";
 import { Order } from "./order";
-import { LexPosition, Position } from "./position";
+import { Position } from "./position";
 
 /**
  * A JSON-serializable saved state for a `LexList<T>`.
@@ -64,7 +64,7 @@ export class LexList<T> {
    * Multiple Lists/Outlines/Texts/LexLists can share an Order; they then automatically
    * share metadata. If not provided, a `new Order()` is used.
    *
-   * @see LexList.fromEntries To construct a LexList from an initial set of entries.
+   * @see {@link LexList.fromEntries} To construct a LexList from an initial set of entries.
    */
   constructor(order?: Order);
   /**
@@ -160,7 +160,7 @@ export class LexList<T> {
    * if other users call `LexList.insert` (or similar methods) concurrently.
    *
    * @returns The inserted values' LexPositions.
-   * @throws If prevLexPos is Order.MAX_LEX_POSITION.
+   * @throws If prevLexPos is MAX_LEX_POSITION.
    * @throws If no values are provided.
    */
   insert(prevLexPos: LexPosition, ...values: T[]): LexPosition[] {
@@ -181,7 +181,7 @@ export class LexList<T> {
    * if other users call `LexList.insert` (or similar methods) concurrently.
    *
    * @returns The inserted values' LexPositions.
-   * @throws If prevLexPos is Order.MAX_LEX_POSITION.
+   * @throws If index is not in `[0, this.length]`. The index `this.length` is allowed and will cause an append.
    * @throws If no values are provided.
    */
   insertAt(index: number, ...values: T[]): LexPosition[] {
@@ -275,7 +275,7 @@ export class LexList<T> {
    * Invert with indexOfCursor, possibly on a different List/Text/Outline/LexList or a different device.
    */
   cursorAt(index: number): LexPosition {
-    return index === 0 ? Order.MIN_LEX_POSITION : this.positionAt(index - 1);
+    return index === 0 ? MIN_LEX_POSITION : this.positionAt(index - 1);
   }
 
   /**
@@ -285,7 +285,7 @@ export class LexList<T> {
    * Inverts cursorAt.
    */
   indexOfCursor(cursor: LexPosition): number {
-    return cursor === Order.MIN_LEX_POSITION
+    return cursor === MIN_LEX_POSITION
       ? 0
       : this.indexOfPosition(cursor, "left") + 1;
   }
@@ -294,13 +294,13 @@ export class LexList<T> {
   // Iterators
   // ----------
 
-  /** Returns an iterator for values in the list, in list order. */
+  /** Iterates over values in the list, in list order. */
   [Symbol.iterator](): IterableIterator<T> {
     return this.values();
   }
 
   /**
-   * Returns an iterator for values in the list, in list order.
+   * Iterates over values in the list, in list order.
    *
    * Optionally, you may specify a range of indices `[start, end)` instead of
    * iterating the entire list.
@@ -321,7 +321,7 @@ export class LexList<T> {
   }
 
   /**
-   * Returns an iterator for present positions, in list order.
+   * Iterates over present positions, in list order.
    *
    * Optionally, you may specify a range of indices `[start, end)` instead of
    * iterating the entire list.
@@ -334,7 +334,7 @@ export class LexList<T> {
   }
 
   /**
-   * Returns an iterator for [lexPos, value] pairs in the list, in list order. These are its entries as an ordered map.
+   * Iterates over [lexPos, value] pairs in the list, in list order. These are its entries as an ordered map.
    *
    * Optionally, you may specify a range of indices `[start, end)` instead of
    * iterating the entire list.
@@ -387,7 +387,7 @@ export class LexList<T> {
     // OPT: loop over nodes directly, to avoid double-object.
     const listSavedState: LexListSavedState<T> = {};
     for (const [bunchPrefix, values] of Object.entries(savedState)) {
-      this.order.receive(LexUtils.splitBunchPrefix(bunchPrefix));
+      this.order.addMetas(LexUtils.splitBunchPrefix(bunchPrefix));
       listSavedState[LexUtils.bunchIDFor(bunchPrefix)] = values;
     }
     this.list.load(listSavedState);

@@ -36,11 +36,10 @@ export async function listCustomEncoding() {
     // - Delete: "d", bunchID, innerIndex
     let update: string;
     if (edit[2] !== undefined) {
-      const [pos, createdBunch] = sender.insertAt(edit[0], edit[2]);
+      const [pos, newMeta] = sender.insertAt(edit[0], edit[2]);
       update = "s " + pos.bunchID + " " + pos.innerIndex.toString(36) + " ";
-      if (createdBunch !== null) {
-        update +=
-          createdBunch.parentID + " " + createdBunch.offset.toString(36) + " ";
+      if (newMeta !== null) {
+        update += newMeta.parentID + " " + newMeta.offset.toString(36) + " ";
       }
       update += edit[2];
     } else {
@@ -72,7 +71,7 @@ export async function listCustomEncoding() {
       const char = update.at(-1)!;
       const parts = update.slice(2, -2).split(" ");
       if (parts.length === 4) {
-        receiver.order.receive([
+        receiver.order.addMetas([
           {
             bunchID: parts[0],
             parentID: parts[2],

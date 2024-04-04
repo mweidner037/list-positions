@@ -7,6 +7,7 @@ import {
   Order,
   Outline,
   Position,
+  expandPositions,
 } from "../../src";
 
 /**
@@ -56,7 +57,7 @@ export class Checker {
   set(startPos: Position, ...sameBunchValues: number[]): void {
     this.list.set(startPos, ...sameBunchValues);
     this.outline.add(startPos, sameBunchValues.length);
-    const positions = Order.startPosToArray(startPos, sameBunchValues.length);
+    const positions = expandPositions(startPos, sameBunchValues.length);
     for (let i = 0; i < positions.length; i++) {
       const lexPos = this.order.lex(positions[i]);
       this.lexList.set(lexPos, sameBunchValues[i]);
@@ -83,7 +84,7 @@ export class Checker {
   delete(startPos: Position, sameBunchCount: number): void {
     this.list.delete(startPos, sameBunchCount);
     this.outline.delete(startPos, sameBunchCount);
-    const positions = Order.startPosToArray(startPos, sameBunchCount);
+    const positions = expandPositions(startPos, sameBunchCount);
     for (let i = 0; i < positions.length; i++) {
       const lexPos = this.order.lex(positions[i]);
       this.lexList.delete(lexPos);
@@ -124,7 +125,7 @@ export class Checker {
     // call it one of the data structures.
     const [startPos] = this.list.insert(prevPos, ...values);
     this.outline.add(startPos, values.length);
-    const positions = Order.startPosToArray(startPos, values.length);
+    const positions = expandPositions(startPos, values.length);
     for (let i = 0; i < positions.length; i++) {
       const lexPos = this.order.lex(positions[i]);
       this.lexList.set(lexPos, values[i]);
@@ -143,7 +144,7 @@ export class Checker {
     const [startPos] = this.list.insertAt(index, ...values);
     // console.log(startPos);
     this.outline.add(startPos, values.length);
-    const positions = Order.startPosToArray(startPos, values.length);
+    const positions = expandPositions(startPos, values.length);
     for (let i = 0; i < positions.length; i++) {
       const lexPos = this.order.lex(positions[i]);
       this.lexList.set(lexPos, values[i]);

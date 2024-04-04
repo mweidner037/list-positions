@@ -53,9 +53,9 @@ export class PositionCRDT<T> {
   }
 
   insertAt(index: number, value: T): void {
-    const [pos, createdBunch] = this.list.insertAt(index, value);
+    const [pos, newMeta] = this.list.insertAt(index, value);
     const messageObj: Message<T> = { type: "set", pos, value };
-    if (createdBunch !== null) messageObj.meta = createdBunch;
+    if (newMeta !== null) messageObj.meta = newMeta;
     this.send(JSON.stringify(messageObj));
   }
 
@@ -82,7 +82,7 @@ export class PositionCRDT<T> {
         }
         bunchPending.add(msg);
         return;
-      } else this.list.order.receive([decoded.meta]);
+      } else this.list.order.addMetas([decoded.meta]);
     }
 
     const bunchID = decoded.pos.bunchID;

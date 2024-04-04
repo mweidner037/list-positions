@@ -114,7 +114,7 @@ The library's main class is `List<T>`. It is a list-as-ordered-map with value ty
 Example code:
 
 ```ts
-import { List, Order, Position } from "list-positions";
+import { List, MIN_POSITION, Order, Position } from "list-positions";
 
 // Make an empty Order and an empty List on top of it.
 const order = new Order();
@@ -143,12 +143,8 @@ list.delete(newPos);
 
 // You can create and compare Positions directly in the Order,
 // without affecting its Lists.
-const [otherPos] = order.createPositions(
-  Order.MIN_POSITION,
-  list.positionAt(0),
-  1
-);
-console.log(order.compare(Order.MIN_POSITION, otherPos) < 0); // Prints true
+const [otherPos] = order.createPositions(MIN_POSITION, list.positionAt(0), 1);
+console.log(order.compare(MIN_POSITION, otherPos) < 0); // Prints true
 console.log(order.compare(otherPos, list.positionAt(0)) < 0); // Prints true
 
 // Optionally, set the value at otherPos sometime later.
@@ -217,11 +213,11 @@ type BunchMeta = {
 };
 ```
 
-A List's tree of bunches is stored by a separate class `Order`, accessible from the List's `order` property. Multiple List instances can share the same Order via a constructor option. But when Lists have different Order instances, before using a Position from one List in the other (e.g., calling `list.set` or `list.indexOfPosition`), you must call `list.order.receive` with:
+A List's tree of bunches is stored by a separate class `Order`, accessible from the List's `order` property. Multiple List instances can share the same Order via a constructor option. But when Lists have different Order instances, before using a Position from one List in the other (e.g., calling `list.set` or `list.indexOfPosition`), you must call `list.order.addMetas` with:
 
 - The Position's bunch's BunchMeta.
 - That bunch's parent's BunchMeta.
-- The parent's parent's BunchMeta, etc., up the tree until reaching the root (exclusive).
+- The parent's parent's BunchMeta, etc., up the tree until reaching the root (exclusive). Together, these are the Position's _dependencies_.
 
 Here are some scenarios, in order of difficulty.
 
@@ -244,40 +240,40 @@ function save<T>(list: List<T>): string {
 function load<T>(savedState: string): List<T> {
   const list = new List<T>();
   const { orderSave, listSave } = JSON.parse(savedState);
-  // Load the Order's state first, to receive the saved BunchMetas.
+  // Load the Order's state first, to add the saved BunchMetas.
   list.order.load(orderSave);
   list.load(listSave);
 }
 ```
 
-<a id="createdBunch"></a>
-**Multiple users** Suppose you have multiple users and a single list order, e.g., a collaborative text editor. Any time a user creates a new Position by calling `list.insertAt`, `list.insert`, or `list.order.createPositions`, they might create a new bunch. Other users must learn of the created bunch's BunchMeta before they can use the new Position.
+<a id="newMeta"></a>
+**Multiple users** Suppose you have multiple users and a single list order, e.g., a collaborative text editor. Any time a user creates a new Position by calling `list.insertAt`, `list.insert`, or `list.order.createPositions`, they might create a new bunch. Other users must learn of the new bunch's BunchMeta before they can use the new Position.
 
 One option is to always send LexPositions over the network instead of Positions. Use `list.order.lex` and `list.order.unlex` to translate between the two. This is almost as simple as using [LexList and LexPosition](#lexlist-and-lexposition), but with the same cost in metadata overhead - in our [list CRDT benchmarks](./benchmark_results.md#lexpositioncrdt), it about doubles the size of network messages relative to the second option below. However, the messages are still small in absolute terms (156.6 vs 73.5 bytes/op).
 
-> Equivalently, you could always send Positions together with all of their dependent BunchMetas - extract these using `list.order.getNodeFor(position).ancestors().map(node => node.meta())`.
+> Equivalently, you could always send Positions together with all of their dependent BunchMetas - extract these using `[...list.order.getNodeFor(position).dependencies()]`.
 
-A second option is to distribute a created BunchMeta immediately when it is created, before/together with its new Position. For example:
+A second option is to distribute a new BunchMeta immediately when it is created, before/together with its new Position. For example:
 
 ```ts
 // When a user types "x" at index 7:
-const [position, createdBunch] = list.insertAt(7, "x");
-if (createdBunch !== null) {
+const [position, newMeta] = list.insertAt(7, "x");
+if (newMeta !== null) {
   // Distribute the new bunch's BunchMeta.
-  broadcast(JSON.stringify({ type: "meta", meta: createdBunch }));
+  broadcast(JSON.stringify({ type: "meta", meta: newMeta }));
 } // Else position reused an old bunch - no new metadata.
 // Now you can distribute position:
 broadcast(JSON.stringify({ type: "set", position, value: "x" }));
 
-// Alt: Use an Order.onCreateBunch callback.
-// list.order.onCreateBunch = (createdBunch) => { /* Broadcast createdBunch... */ }
+// Alt: Use an Order.onNewMeta callback.
+// list.order.onNewMeta = (newMeta) => { /* Broadcast newMeta... */ }
 
 // When a user receives a message:
 function onMessage(message: string) {
   const parsed = JSON.parse(message);
   switch (parsed.type) {
     case "meta":
-      list.order.receive([parsed.meta]);
+      list.order.addMetas([parsed.meta]);
       break;
     case "set":
       list.set(parsed.position, parsed.value);
@@ -291,7 +287,7 @@ This works best if your network has ordering guarantees that ensure you won't ac
 
 > Errors you might get if you mis-manage metadata:
 >
-> - "Position references missing bunchID: {...}. You must call Order.receive before referencing a bunch."
+> - "Position references missing bunchID: {...}. You must call Order.addMetas before referencing a bunch."
 > - "Received BunchMeta {...}, but we have not yet received a BunchMeta for its parent node."
 
 ### Outline
@@ -339,8 +335,6 @@ A total order on Positions, independent of any specific assignment of values.
 
 An Order manages metadata (bunches) for any number of Lists, LexLists, and Outlines. You can also use an Order to create Positions independent of a List (`createPositions`), convert between Positions and LexPositions (`lex` and `unlex`), and directly view the tree of bunches (`getBunch`, `getBunchFor`).
 
-Static utilities include `Order.MIN_POSITION` and `Order.MAX_POSITION`.
-
 #### `Text`
 
 A list of characters, represented as an ordered map with Position keys.
@@ -381,11 +375,19 @@ Saved states: Each class lets you save and load its internal states in JSON form
 
 ### Utilities
 
+#### Min and Max Positions
+
+The constants `MIN_POSITION` and `MAX_POSITION` are defined to be the minimum and maximum Positions in any Order. They are the only Positions with `bunchID: "ROOT"`. You'll mostly use these to create positions at the beginning or end of a list: e.g., `order.createPositions(p, MAX_POSITION, 1)` will create a position after `p`.
+
+You can also use `MIN_POSITION` and `MAX_POSITION` as List keys, like any other Position. Note: Attempting to insert before `MIN_POSITION` or after `MAX_POSITION` will throw an error.
+
+For LexPositions, use `MIN_LEX_POSITION` (`""`) and `MAX_LEX_POSITION` (`"~"`).
+
 #### Cursors
 
 A _cursor_ points to a spot in the list between two values - e.g., a cursor in a text document.
 
-Internally, a cursor is represented as the Position (or LexPosition, for LexList) of the value to its left, or `Order.MIN_POSITION` if it is at the start of the list. If that position becomes not-present in the list, the cursor's literal value remains the same, but its current index shifts to the left.
+Internally, a cursor is represented as the Position (or LexPosition, for LexList) of the value to its left, or `MIN_POSITION` if it is at the start of the list. If that position becomes not-present in the list, the cursor's literal value remains the same, but its current index shifts to the left.
 
 Convert indices to cursors and back using methods `cursorAt` and `indexOfCursor`, on classes List, Outline, and LexList. (These are wrappers around `positionAt` and `indexOfPosition` that get the edge cases right.)
 
@@ -407,24 +409,33 @@ Utitilies for generating `bunchIDs`.
 When a method like `List.insertAt` creates a new Position (or LexPosition), it may create a new [bunch](#bunches) internally. This bunch is assigned a new bunchID which should be globally unique - or at least, unique among all bunches that this bunch will ever appear alongside (i.e., in the same Order).
 
 <a id="replica-ids"></a>
-By default, the library uses `BunchIDs.usingReplicaID()`, which returns [causal dots](https://mattweidner.com/2022/10/21/basic-list-crdt.html#causal-dot). You can supply a different bunchID generator in Order's constructor. E.g., to get reproducible bunchIDs in a test environment:
+By default, the library uses [dot IDs](https://mattweidner.com/2023/09/26/crdt-survey-3.html#unique-ids-dots) with a random alphanumeric replicaID, via `BunchIDs.usingReplicaID()`. You can supply a specific replicaID in Order's constructor. E.g., to get reproducible bunchIDs in a test environment:
 
 ```ts
+import { maybeRandomString } from "maybe-random-string";
 import seedrandom from "seedrandom";
 
-const rng = seedrandom("42");
-const order = new Order({ newBunchID: BunchIDs.usingReplicaID({ rng }) });
+const prng = seedrandom("42");
+const order = new Order({ replicaID: maybeRandomString({ prng }) });
 const list = new List(order);
 // Test list...
 ```
+
+More generally, you can supply an arbitrary `newBunchID` function in Order's constructor.
 
 #### Interface `BunchNode`
 
 An Order's internal tree node corresponding to a [bunch](#bunches) of Positions.
 
-You can access a bunch's BunchNode to retrieve its dependent metadata, using the `meta()` and `ancestors()` methods. For advanced usage, BunchNode also gives low-level access to an Order's [internal tree](./internals.md).
+You can access a bunch's BunchNode to retrieve its dependent metadata, using the `meta()` and `dependencies()` methods. For advanced usage, BunchNode also gives low-level access to an Order's [internal tree](./internals.md).
 
 Obtain BunchNodes using `Order.getNode` or `Order.getNodeFor`.
+
+#### Misc Functions
+
+- `expandPositions(startPos: Position, sameBunchCount: number): Position[]` Returns an array of Positions that start at `startPos` and have sequentially increasing `innerIndex`.
+- `positionEquals(a: Position, b: Position): boolean` Equality function for Positions.
+- `compareSiblingNodes(a: BunchNode, b: BunchNode): number` [Compare function](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/sort#comparefn) for BunchNodes with the same parent, giving their order in the [internal tree](./internals.md).
 
 ## Performance
 
@@ -434,16 +445,16 @@ Each benchmark applies the [automerge-perf](https://github.com/automerge/automer
 
 Results for one of the text CRDTs (`PositionCRDT`) on my laptop:
 
-- Sender time (ms): 1134
-- Avg update size (bytes): 73.5
-- Receiver time (ms): 1091
-- Save time (ms): 8
-- Save size (bytes): 752573
-- Load time (ms): 15
-- Save time GZIP'd (ms): 99
-- Save size GZIP'd (bytes): 100014
-- Load time GZIP'd (ms): 44
-- Mem used (MB): 2.5
+- Sender time (ms): 701
+- Avg update size (bytes): 86.8
+- Receiver time (ms): 529
+- Save time (ms): 11
+- Save size (bytes): 909990
+- Load time (ms): 21
+- Save time GZIP'd (ms): 81
+- Save size GZIP'd (bytes): 101895
+- Load time GZIP'd (ms): 41
+- Mem used (MB): 2.7
 
 For more results, see [benchmark_results.md](./benchmark_results.md).
 
@@ -455,6 +466,14 @@ Here are some general performance considerations:
 
 1. The library is optimized for forward (left-to-right) insertions. If you primarily insert backward (right-to-left) or at random, you will see worse efficiency - especially storage overhead. (Internally, only forward insertions reuse [bunches](#bunches), so other patterns lead to fewer Positions per bunch.)
 2. LexPositions and Positions are interchangeable, via the `Order.lex` and `Order.unlex` methods. So you could always start off using the simpler-but-larger LexPositions, then do a data migration to switch to Positions if performance demands it. <!-- TODO: likewise for List/Outline/LexList, via save-conversion methods. -->
-3. The saved states are designed for simplicity, not size. This is why GZIP shrinks them a lot (at the cost of longer save and load times). You can improve on the default performance in various ways: binary encodings, deduplicating [replica IDs](#replica-ids), etc. <!-- TODO: using List.saveOutline and gzipping each separately. --> Before putting too much effort in to this, though, keep in mind that human-written text is small. E.g., the 750 KB CRDT save size above is the size of one image file, even though it represents a 15-page LaTeX paper with 7.5x overhead.
-4. For very large lists, you can choose to call `List.set` on only the Position-value pairs that are currently scrolled into view. This reduces memory and potentially network usage. Likewise, you can choose to deliver only the corresponding BunchMetas to Order.
-5. The Text and Outline classes have smaller memory usage and saved state sizes than List, so prefer those in situations where they are sufficient.
+3. The saved states are designed for simplicity, not size. This is why GZIP shrinks them a lot (at the cost of longer save and load times). You can improve on the default performance in various ways: binary encodings, deduplicating [replicaIDs](#replica-ids), etc. <!-- TODO: using List.saveOutline and gzipping each separately. --> Before putting too much effort in to this, though, keep in mind that human-written text is small. E.g., the 900 KB CRDT save size above is the size of one image file, even though it represents a 15-page LaTeX paper with 9x overhead.
+4. For smaller LexPositions and saved states, you can reduce the size of replicaIDs from their default of 21 chars. E.g., even in a popular document with 10,000 replicaIDs, 8 random alphanumeric chars still guarantee a < 1-in-5,000,000 chance of collisions (cf. [birthday problem](https://en.wikipedia.org/wiki/Birthday_problem#Square_approximation)):
+
+   ```ts
+   import { maybeRandomString } from "maybe-random-string";
+
+   const order = new Order({ replicaID: maybeRandomString({ length: 8 }) });
+   ```
+
+5. For very large lists, you can choose to call `List.set` on only the Position-value pairs that are currently scrolled into view. This reduces memory and potentially network usage. Likewise, you can choose to deliver only the corresponding BunchMetas to Order.
+6. The Text and Outline classes have smaller memory usage and saved state sizes than List, so prefer those in situations where they are sufficient.

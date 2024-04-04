@@ -8,14 +8,14 @@ list-positions' core concept is a special kind of tree. Here is an example:
 
 In general, the tree alternates between two kinds of layers:
 
-- **Bunch layers** in which each node is labeled by a _bunch ID_ - a string that is unique among the whole tree. (Blue nodes in the image.)
+- **Bunch layers** in which each node is labeled by a _bunchID_ - a string that is unique among the whole tree. (Blue nodes in the image.)
 - **Offset layers** in which each node is labeled by a nonnegative integer _offset_. (Orange nodes in the image.)
 
-The tree's root is a bunch node with bunch ID `"ROOT"` (`BunchIDs.ROOT`).
+The tree's root is a bunch node with bunchID `"ROOT"` (`BunchIDs.ROOT`).
 
 The tree's nodes are totally ordered using a depth-first search: visit the root, then traverse each of its child nodes recursively. A node's children are traversed in the order:
 
-- For bunch layers, visit the children in order by bunch ID. Specifically, use the lexicographic order on the strings `bunchID + ","`. (We'll explain the extra comma [later](#lexpositions).)
+- For bunch layers, visit the children in order by bunchID. Specifically, use the lexicographic order on the strings `bunchID + ","`. (We'll explain the extra comma [later](#lexpositions).)
 - For offset layers, visit the children in order by offset.
 
 Each Order instance stores a tree of the above form. The tree's bunch nodes correspond to the bunches described in the readme. A bunch's BunchMeta `{ bunchID, parentID, offset }` says: I am a grandchild of the bunch node `parentID`, a child of its child `offset`.
@@ -30,8 +30,8 @@ Now you can see why a Position depends on the BunchMeta of its bunch and all anc
 
 As a special case, the offset layer below the root always has exactly two nodes:
 
-- Offset 1, which is `Order.MIN_POSITION` (innerIndex 0) and the ancestor of all other nodes.
-- Offset 3, which is `Order.MAX_POSITION` (innerIndex 1).
+- Offset 1, which is `MIN_POSITION` (innerIndex 0) and the ancestor of all other nodes.
+- Offset 3, which is `MAX_POSITION` (innerIndex 1).
 
 This ensures that all other Positions are strictly between the min and max.
 
@@ -70,8 +70,8 @@ We can create an analogous string for any (non-root) bunch node. That gives the 
 Special cases that are handled separately:
 
 - The root's node prefix is defined to be `""`.
-- The minimum LexPosition is `Order.MIN_LEX_POSITION = ""`. This is obviously less than all other LexPositions.
-- The maximum LexPosition is `Order.MAX_LEX_POSITION = "~"`. This is greater than all other LexPositions because they all start with a bunch ID, and we mandate that every bunch ID is less than `"~"`.
+- The minimum LexPosition is `MIN_LEX_POSITION = ""`. This is obviously less than all other LexPositions.
+- The maximum LexPosition is `MAX_LEX_POSITION = "~"`. This is greater than all other LexPositions because they all start with a bunchID, and we mandate that every bunchID is less than `"~"`.
 
 ### Lexicographic Order
 
@@ -79,8 +79,8 @@ Besides embedding dependencies, LexPositions have the nice property that their l
 
 These two sort orders are a natural fit because they both sort by earlier layers first, using lower layers only as a tiebreaker. However, to make them exactly match, we need to do a few things specially:
 
-1. We ban commas and periods in bunch IDs and offsets. Otherwise, the lexicographic order might not respect layer boundaries.
-2. In the tree's depth-first search, we order bunch nodes not by bunch ID, but by `bunchID + ","`. This matches the lexicographic order when there are sibling bunch IDs like `"abc"` vs `"abc "`: descendant nodes will end up comparing `"abc,<...>"` vs `"abc ,<...>"`; the former is greater because `"," > " "`, even though in isolation `"abc" < "abc "`.
+1. We ban commas and periods in bunchIDs and offsets. Otherwise, the lexicographic order might not respect layer boundaries.
+2. In the tree's depth-first search, we order bunch nodes not by bunchID, but by `bunchID + ","`. This matches the lexicographic order when there are sibling bunchIDs like `"abc"` vs `"abc "`: descendant nodes will end up comparing `"abc,<...>"` vs `"abc ,<...>"`; the former is greater because `"," > " "`, even though in isolation `"abc" < "abc "`.
 3. We can't encode offsets directly as strings, because the lexicographic order on numeric strings doesn't match the numeric order: `2 < 11` but `"2" > "11"`. Instead, we use the [lex-sequence](https://github.com/mweidner037/lex-sequence/#readme) package to convert offsets to base-36 strings that have the correct lexicographic order, while still growing slowly for large numbers (the encoding of `n` has `O(log(n))` chars).
 
 ## Creating Positions
@@ -91,7 +91,7 @@ You don't need to understand this section for the Applications below, but it's h
 
 1. They are unique among all Positions returned by this Order and its replicas. This holds even if a replica on a different device concurrently creates Positions at the same place.
 2. Non-interleaving: If two replicas concurrently insert a (forward or backward) sequence of Positions at the same place, their sequences will not be interleaved.
-3. The returned Positions will re-use an existing bunch if possible, to reduce metadata overhead.
+3. The returned Positions will re-use an existing bunch if possible, to reduce metadata overhead. (You can override this behavior by supplying `options.bunchID`.)
 
 To do this, we map Order's tree to a double-sided [Fugue list CRDT](https://arxiv.org/abs/2305.00583) tree, use a variant of Fugue's insert logic to create new nodes, then map those nodes back to Order's tree. Since Fugue is non-interleaving, so is list-positions. (Except in rare situations where Fugue interleaves backward insertions, documented in the linked paper.)
 
@@ -118,8 +118,25 @@ Pedantic notes:
 
 Here are some advanced things you can do once you understand list-positions' internals. To request more info, or to ask about your own ideas, feel free to open an [issue](https://github.com/mweidner037/list-positions/issues).
 
-1. Manipulate BunchMetas to make a custom tree. For example, to stitch together lists that originally used independent Orders (e.g., merged text blocks), create a fake bunch node that is a direct child of `{ parentID: "ROOT", offset: 1 }`, then attach each list's tree to an offset node within that bunch.
+1. Manipulate BunchMetas to make a custom tree. For example, to insert some initial text identically for all users - without explicitly loading the same state - you can start each session by creating "the same" bunch and setting the text there. Order.createPositions' `bunchID` option can help here:
+
+   ```ts
+   const INITIAL_TEXT = "Type something here.";
+   const text = new Text();
+   // Creates a new bunch with bunchID "INIT" that is a child of MIN_POSITION,
+   // with identical BunchMeta every time.
+   const [initStartPos] = text.order.createPositions(
+     MIN_POSITION,
+     MAX_POSITION,
+     INITIAL_TEXT.length,
+     { bunchID: "INIT" }
+   );
+   text.set(initStartPos, INITIAL_TEXT);
+   // Now use text normally...
+   ```
+
 2. Rewrite list-positions in another language, with compatible Positions and LexPositions.
 3. Rewrite just LexUtils in another language, so that you can at least manipulate LexPositions. This is much easier than rewriting the whole library. <!--, and sufficient for basic backend tasks like programmatically inserting text. TODO: needs LexUtils createPositions. -->
-4. Write your own analog of our List class - e.g., to use a more efficient data representation, or to add new low-level features. You can use Order's BunchNodes to access the tree structure - this is needed for traversals, computing a Position's current index, etc.
-5. Store a List's state in a database table that can be queried in order, more efficiently than storing each pair `(lexPosition, value)` as a separate row. You can probably store one _item_ per row, where an item is an array of values that use the same bunch, have sequential innerIndexes, and are still contiguous in the list order (no intervening values). To ensure the latter property, you'll have to "split" an item when you learn of intervening Positions. To allow in-order queries, each item could store a reference to its neighboring items in the list order (forming a doubly-linked list). Or, you can do recursive queries directly against the tree order - there's some discussion [here](https://github.com/vlcn-io/cr-sqlite/issues/65) but it might be over-complicated.
+4. Supply a custom `newBunchID: (parent: BunchNode, offset: number) => string` function to Order's constructor that incorporates a hash of `parent.bunchID`, `offset`, and the local replica ID. That way, a malicious user cannot reuse the same (valid) bunchID for two different bunches.
+5. Write your own analog of our List class - e.g., to use a more efficient data representation, or to add new low-level features. You can use Order's BunchNodes to access the tree structure - this is needed for traversals, computing a Position's current index, etc.
+6. Store a List's state in a database table that can be queried in order, more efficiently than storing each pair `(lexPosition, value)` as a separate row. You can probably store one _item_ per row - see `List.items()`. Note that you'll have to "split" an item when Positions are inserted between its values. To allow in-order queries, each item could store a reference to its neighboring items in the list order (forming a doubly-linked list), or the LexPosition of its first entry.

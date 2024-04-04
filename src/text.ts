@@ -3,7 +3,7 @@ import { BunchMeta } from "./bunch";
 import { ItemList, SparseItemsFactory } from "./internal/item_list";
 import { normalizeSliceRange } from "./internal/util";
 import { Order } from "./order";
-import { Position } from "./position";
+import { MIN_POSITION, Position, positionEquals } from "./position";
 
 const sparseStringFactory: SparseItemsFactory<string, SparseString> = {
   // eslint-disable-next-line @typescript-eslint/unbound-method
@@ -77,7 +77,7 @@ export class Text {
    * Multiple Lists/Outlines/Texts/LexLists can share an Order; they then automatically
    * share metadata. If not provided, a `new Order()` is used.
    *
-   * @see Text.fromEntries To construct a Text from an initial set of entries.
+   * @see {@link Text.fromEntries} To construct a Text from an initial set of entries.
    */
   constructor(order?: Order) {
     this.order = order ?? new Order();
@@ -140,7 +140,7 @@ export class Text {
    * Note that these Positions might not be contiguous anymore, if later
    * Positions were created between them.
    *
-   * @see Order.startPosToArray
+   * @see {@link expandPositions}
    */
   set(startPos: Position, chars: string): void;
   set(startPos: Position, chars: string): void {
@@ -171,7 +171,7 @@ export class Text {
    * Note that these Positions might not be contiguous anymore, if later
    * Positions were created between them.
    *
-   * @see Order.startPosToArray
+   * @see {@link expandPositions}
    */
   delete(startPos: Position, sameBunchCount?: number): void;
   delete(startPos: Position, count = 1): void {
@@ -209,13 +209,13 @@ export class Text {
    * In a collaborative setting, the new Position is *globally unique*, even
    * if other users call `List.insert` (or similar methods) concurrently.
    * 
-   * @returns [insertion Position, [created bunch's](https://github.com/mweidner037/list-positions#createdBunch) BunchMeta (or null)].
-   * @throws If prevPos is Order.MAX_POSITION.
+   * @returns [insertion Position, [new bunch's BunchMeta](https://github.com/mweidner037/list-positions#newMeta) (or null)].
+   * @throws If prevPos is MAX_POSITION.
    */
   insert(
     prevPos: Position,
     char: string
-  ): [pos: Position, createdBunch: BunchMeta | null];
+  ): [pos: Position, newMeta: BunchMeta | null];
   /**
    * Inserts the given chars just after prevPos, at a series of new Positions.
    *
@@ -224,19 +224,19 @@ export class Text {
    * They are originally contiguous, but may become non-contiguous in the future,
    * if new Positions are created between them.
    *
-   * @returns [starting Position, [created bunch's](https://github.com/mweidner037/list-positions#createdBunch) BunchMeta (or null)].
-   * @throws If prevPos is Order.MAX_POSITION.
+   * @returns [starting Position, [new bunch's BunchMeta](https://github.com/mweidner037/list-positions#newMeta) (or null)].
+   * @throws If prevPos is MAX_POSITION.
    * @throws If no chars are provided.
-   * @see Order.startPosToArray To convert (startPos, chars.length) to an array of Positions.
+   * @see {@link expandPositions} To convert (startPos, chars.length) to an array of Positions.
    */
   insert(
     prevPos: Position,
     chars: string
-  ): [startPos: Position, createdBunch: BunchMeta | null];
+  ): [startPos: Position, newMeta: BunchMeta | null];
   insert(
     prevPos: Position,
     chars: string
-  ): [startPos: Position, createdBunch: BunchMeta | null] {
+  ): [startPos: Position, newMeta: BunchMeta | null] {
     return this.itemList.insert(prevPos, chars);
   }
 
@@ -249,13 +249,13 @@ export class Text {
    * In a collaborative setting, the new Position is *globally unique*, even
    * if other users call `List.insertAt` (or similar methods) concurrently.
    *
-   * @returns [insertion Position, [created bunch's](https://github.com/mweidner037/list-positions#createdBunch) BunchMeta (or null)].
-   * @throws If index is not in `[0, this.length]`. The index `this.length` is allowed and will cause an append, unless this list's current last Position is Order.MAX_POSITION.
+   * @returns [insertion Position, [new bunch's BunchMeta](https://github.com/mweidner037/list-positions#newMeta) (or null)].
+   * @throws If index is not in `[0, this.length]`. The index `this.length` is allowed and will cause an append.
    */
   insertAt(
     index: number,
     char: string
-  ): [pos: Position, createdBunch: BunchMeta | null];
+  ): [pos: Position, newMeta: BunchMeta | null];
   /**
    * Inserts the given chars at `index` (i.e., between the chars at `index - 1` and `index`), at a series of new Positions.
    *
@@ -264,19 +264,19 @@ export class Text {
    * They are originally contiguous, but may become non-contiguous in the future,
    * if new Positions are created between them.
    *
-   * @returns [starting Position, [created bunch's](https://github.com/mweidner037/list-positions#createdBunch) BunchMeta (or null)].
-   * @throws If index is not in `[0, this.length]`. The index `this.length` is allowed and will cause an append, unless this list's current last Position is Order.MAX_POSITION.
+   * @returns [starting Position, [new bunch's BunchMeta](https://github.com/mweidner037/list-positions#newMeta) (or null)].
+   * @throws If index is not in `[0, this.length]`. The index `this.length` is allowed and will cause an append.
    * @throws If no chars are provided.
-   * @see Order.startPosToArray To convert (startPos, chars.length) to an array of Positions.
+   * @see {@link expandPositions} To convert (startPos, chars.length) to an array of Positions.
    */
   insertAt(
     index: number,
     chars: string
-  ): [startPos: Position, createdBunch: BunchMeta | null];
+  ): [startPos: Position, newMeta: BunchMeta | null];
   insertAt(
     index: number,
     chars: string
-  ): [startPos: Position, createdBunch: BunchMeta | null] {
+  ): [startPos: Position, newMeta: BunchMeta | null] {
     return this.itemList.insertAt(index, chars);
   }
 
@@ -357,7 +357,7 @@ export class Text {
    * Invert with indexOfCursor, possibly on a different List/Text/Outline/LexList or a different device.
    */
   cursorAt(index: number): Position {
-    return index === 0 ? Order.MIN_POSITION : this.positionAt(index - 1);
+    return index === 0 ? MIN_POSITION : this.positionAt(index - 1);
   }
 
   /**
@@ -367,7 +367,7 @@ export class Text {
    * Inverts cursorAt.
    */
   indexOfCursor(cursor: Position): number {
-    return Order.equalsPosition(cursor, Order.MIN_POSITION)
+    return positionEquals(cursor, MIN_POSITION)
       ? 0
       : this.indexOfPosition(cursor, "left") + 1;
   }
@@ -376,13 +376,13 @@ export class Text {
   // Iterators
   // ----------
 
-  /** Returns an iterator for chars in the list, in list order. */
+  /** Iterates over chars in the list, in list order. */
   [Symbol.iterator](): IterableIterator<string> {
     return this.values();
   }
 
   /**
-   * Returns an iterator for chars in the list, in list order.
+   * Iterates over chars in the list, in list order.
    *
    * Optionally, you may specify a range of indices `[start, end)` instead of
    * iterating the entire list.
@@ -415,7 +415,7 @@ export class Text {
   }
 
   /**
-   * Returns an iterator for present positions, in list order.
+   * Iterates over present positions, in list order.
    *
    * Optionally, you may specify a range of indices `[start, end)` instead of
    * iterating the entire list.
@@ -427,7 +427,7 @@ export class Text {
   }
 
   /**
-   * Returns an iterator for [pos, char] pairs in the list, in list order. These are its entries as an ordered map.
+   * Iterates over [pos, char] pairs in the list, in list order. These are its entries as an ordered map.
    *
    * Optionally, you may specify a range of indices `[start, end)` instead of
    * iterating the entire list.
@@ -449,7 +449,7 @@ export class Text {
   }
 
   /**
-   * Returns an iterator for items in list order.
+   * Iterates over items, in list order.
    *
    * Each *item* is a series of entries that have contiguous positions
    * from the same [bunch](https://github.com/mweidner037/list-positions#bunches).
@@ -469,6 +469,22 @@ export class Text {
     end?: number
   ): IterableIterator<[startPos: Position, chars: string]> {
     return this.itemList.items(start, end);
+  }
+
+  /**
+   * Iterates over all dependencies of the current state,
+   * in no particular order.
+   *
+   * These are the combined dependencies of all
+   * currently-present Positions - see [Managing Metadata](https://github.com/mweidner037/list-positions#save-load).
+   *
+   * As an optimization, you can save just these dependencies instead of the entire Order's state.
+   * Be cautious, though, because that may omit BunchMetas that you
+   * need for other reasons - e.g., to understand a cursor stored separately,
+   * or a concurrent message from a collaborator.
+   */
+  dependencies(): IterableIterator<BunchMeta> {
+    return this.itemList.dependencies();
   }
 
   // ----------
@@ -493,7 +509,7 @@ export class Text {
    * our current state.
    *
    * **Before loading a saved state, you must deliver its dependent metadata
-   * to this.Order**. For example, you could save and load the Order's state
+   * to this.order**. For example, you could save and load the Order's state
    * alongside the List's state, making sure to load the Order first.
    * See [Managing Metadata](https://github.com/mweidner037/list-positions#save-load) for an example.
    */

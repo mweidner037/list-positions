@@ -1,7 +1,44 @@
 import { lexSequence } from "lex-sequence";
 import type { BunchMeta } from "./bunch";
 import { BunchIDs } from "./bunch_ids";
-import type { LexPosition } from "./position";
+
+/**
+ * A position in a list, as a lexicographically-sorted string.
+ *
+ * LexPositions let you treat a list as an ordered map `(position -> value)`,
+ * where a value's *position* doesn't change over time - unlike an array index.
+ *
+ * The list order on LexPositions matches their lexicographic order as strings.
+ * That makes it easy to work with LexPositions outside of this library, but it has a cost in metadata overhead.
+ * See the [readme](https://github.com/mweidner037/list-positions#lexlist-and-lexposition)
+ * for details.
+ *
+ * See also:
+ * - Position: An alternative representation of positions that is used with
+ * List, Text, Outline, and Order and has less metadata overhead.
+ * - LexUtils: Utilities for manipulating LexPositions.
+ */
+export type LexPosition = string;
+
+/**
+ * The minimum LexPosition in any Order.
+ *
+ * This LexPosition is defined to be less than all other LexPositions.
+ * It is equivalent to MIN_POSITION.
+ *
+ * Its value is `""`.
+ */
+export const MIN_LEX_POSITION: LexPosition = "";
+
+/**
+ * The maximum LexPosition in any Order.
+ *
+ * This LexPosition is defined to be greater than all other LexPositions.
+ * It is equivalent to MAX_POSITION.
+ *
+ * Its value is `"~"`.
+ */
+export const MAX_LEX_POSITION: LexPosition = "~";
 
 /**
  * Utilities for manipulating LexPositions.
@@ -11,32 +48,13 @@ import type { LexPosition } from "./position";
  */
 export const LexUtils = {
   /**
-   * The minimum LexPosition in any Order.
-   *
-   * This LexPosition is defined to be less than all other LexPositions.
-   * It is equivalent to Order.MIN_POSITION.
-   *
-   * Copy of Order.MIN_LEX_POSITION.
-   */
-  MIN_LEX_POSITION: "" as LexPosition,
-  /**
-   * The maximum LexPosition in any Order.
-   *
-   * This LexPosition is defined to be greater than all other LexPositions.
-   * It is equivalent to Order.MAX_POSITION.
-   *
-   * Copy of Order.MAX_LEX_POSITION.
-   */
-  MAX_LEX_POSITION: "~" as LexPosition,
-
-  /**
    * Combines a bunch prefix (see LexUtils.splitPos) and `innerIndex` into a LexPosition.
    */
   combinePos(bunchPrefix: string, innerIndex: number): LexPosition {
     if (bunchPrefix === "") {
       // Root node.
-      if (innerIndex === 0) return this.MIN_LEX_POSITION;
-      if (innerIndex === 1) return this.MAX_LEX_POSITION;
+      if (innerIndex === 0) return MIN_LEX_POSITION;
+      if (innerIndex === 1) return MAX_LEX_POSITION;
       throw new Error(
         `Position uses rootNode but is not MIN_POSITION or MAX_POSITION (innerIndex 0 or 1): innerIndex=${innerIndex}`
       );
@@ -60,8 +78,8 @@ export const LexUtils = {
    * Recombine with LexUtils.combine.
    */
   splitPos(lexPos: LexPosition): [bunchPrefix: string, innerIndex: number] {
-    if (lexPos === this.MIN_LEX_POSITION) return ["", 0];
-    if (lexPos === this.MAX_LEX_POSITION) return ["", 1];
+    if (lexPos === MIN_LEX_POSITION) return ["", 0];
+    if (lexPos === MAX_LEX_POSITION) return ["", 1];
     const lastComma = lexPos.lastIndexOf(",");
     if (lastComma === -1) {
       throw new Error(`Not a LexPosition (no comma): "${lexPos}"`);
@@ -112,7 +130,8 @@ export const LexUtils = {
    * Splits a bunch prefix (see LexUtils.splitPos) into its embedded BunchMetas.
    *
    * These are the BunchMetas of the original bunch and all of its ancestors,
-   * excluding the root, in order from the root downwards. It is equivalent to `bunchNode.ancestors().map(node => node.meta())`.
+   * excluding the root, in order from the root downwards.
+   * It is equivalent to the reverse of `bunchNode.dependencies()`.
    */
   splitBunchPrefix(bunchPrefix: string): BunchMeta[] {
     if (bunchPrefix === "") return [];

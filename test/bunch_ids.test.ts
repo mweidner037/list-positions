@@ -1,65 +1,20 @@
 import { assert } from "chai";
+import { maybeRandomString } from "maybe-random-string";
 import { describe, test } from "mocha";
 import seedrandom from "seedrandom";
 import { BunchIDs } from "../src";
 
 describe("BunchIDs", () => {
-  let rng!: seedrandom.PRNG;
+  let prng!: seedrandom.PRNG;
 
   beforeEach(() => {
-    rng = seedrandom("42");
-  });
-
-  describe("newReplicaID", () => {
-    test("random", () => {
-      const previous = new Set<string>();
-      for (let i = 0; i < 1000; i++) {
-        const replicaID = BunchIDs.newReplicaID();
-        assert.lengthOf(replicaID, 8);
-        BunchIDs.validate(replicaID);
-        // All distinct
-        assert(!previous.has(replicaID), replicaID);
-        previous.add(replicaID);
-      }
-    });
-
-    test("pseudorandom", () => {
-      const previous = new Set<string>();
-      for (let i = 0; i < 1000; i++) {
-        const replicaID = BunchIDs.newReplicaID({ rng });
-        assert.lengthOf(replicaID, 8);
-        BunchIDs.validate(replicaID);
-        // All distinct
-        assert(!previous.has(replicaID), replicaID);
-        previous.add(replicaID);
-      }
-    });
-
-    test("different length", () => {
-      const replicaID = BunchIDs.newReplicaID({ length: 6 });
-      assert.lengthOf(replicaID, 6);
-      const replicaID2 = BunchIDs.newReplicaID({ length: 6, rng });
-      assert.lengthOf(replicaID2, 6);
-    });
-
-    test("different chars", () => {
-      const replicaID = BunchIDs.newReplicaID({ chars: "abcdef" });
-      assert.lengthOf(replicaID, 8);
-      for (const char of replicaID) {
-        assert(char.search(/[a-f]/) !== -1);
-      }
-      const replicaID2 = BunchIDs.newReplicaID({ chars: "abcdef", rng });
-      assert.lengthOf(replicaID2, 8);
-      for (const char of replicaID2) {
-        assert(char.search(/[a-f]/) !== -1);
-      }
-    });
+    prng = seedrandom("42");
   });
 
   describe("usingReplicaID", () => {
     test("validates", () => {
       const newBunchID = BunchIDs.usingReplicaID(
-        BunchIDs.newReplicaID({ rng })
+        maybeRandomString({ prng, length: 10 })
       );
       for (let i = 0; i < 10000; i++) {
         BunchIDs.validate(newBunchID());
@@ -70,7 +25,7 @@ describe("BunchIDs", () => {
       const previous = new Set<string>();
       for (let i = 0; i < 100; i++) {
         const newBunchID = BunchIDs.usingReplicaID(
-          BunchIDs.newReplicaID({ rng })
+          maybeRandomString({ prng, length: 10 })
         );
         for (let j = 0; j < 100; j++) {
           const bunchID = newBunchID();
@@ -82,7 +37,7 @@ describe("BunchIDs", () => {
 
     test("parses", () => {
       for (let i = 0; i < 100; i++) {
-        const replicaID = BunchIDs.newReplicaID({ rng });
+        const replicaID = maybeRandomString({ prng, length: 10 });
         const newBunchID = BunchIDs.usingReplicaID(replicaID);
         for (let j = 0; j < 100; j++) {
           const bunchID = newBunchID();

@@ -1,7 +1,7 @@
-import { BunchMeta, BunchNode } from "./bunch";
+import { BunchMeta, BunchNode, compareSiblingNodes } from "./bunch";
 import { BunchIDs } from "./bunch_ids";
-import { LexUtils } from "./lex_utils";
-import { LexPosition, Position } from "./position";
+import { LexPosition, LexUtils } from "./lex_utils";
+import { MAX_POSITION, Position, positionEquals } from "./position";
 
 /**
  * A JSON-serializable saved state for an Order.
@@ -12,7 +12,7 @@ import { LexPosition, Position } from "./position";
  *
  * For advanced usage, you may read and write OrderSavedStates directly.
  *
- * Its format is merely the array `[...order.bunchMetas()]`.
+ * Its format is merely the array `[...order.dependencies()]`.
  */
 export type OrderSavedState = BunchMeta[];
 
@@ -77,8 +77,7 @@ class NodeInternal implements BunchNode {
     };
   }
 
-  ancestors(): BunchNode[] {
-    const ans: BunchNode[] = [];
+  *dependencies(): IterableIterator<BunchMeta> {
     for (
       // eslint-disable-next-line @typescript-eslint/no-this-alias
       let currentNode: BunchNode = this;
@@ -86,16 +85,13 @@ class NodeInternal implements BunchNode {
       currentNode.parent !== null;
       currentNode = currentNode.parent
     ) {
-      ans.push(currentNode);
+      yield currentNode.meta();
     }
-    ans.reverse();
-    return ans;
   }
 
   lexPrefix(): string {
-    return LexUtils.combineBunchPrefix(
-      this.ancestors().map((node) => node.meta())
-    );
+    const topDown = [...this.dependencies()].reverse();
+    return LexUtils.combineBunchPrefix(topDown);
   }
 
   toString() {
@@ -106,6 +102,19 @@ class NodeInternal implements BunchNode {
       offset: this.offset,
     });
   }
+}
+
+// Not exported because I have yet to use it externally.
+// Normally you should compare BunchMetas by their bunchIDs alone.
+/**
+ * Returns whether two BunchMetas are equal, i.e., they have equal contents.
+ */
+function bunchMetaEquals(a: BunchMeta, b: BunchMeta): boolean {
+  return (
+    a.bunchID === b.bunchID &&
+    a.parentID === b.parentID &&
+    a.offset === b.offset
+  );
 }
 
 /**
@@ -120,19 +129,19 @@ class NodeInternal implements BunchNode {
  * (`lex` and `unlex`), and directly view the tree of bunches (`getBunch`, `getBunchFor`).
  */
 export class Order {
-  private readonly newBunchID: () => string;
+  private readonly newBunchID: (parent: BunchNode, offset: number) => string;
 
   /**
    * The root bunch's BunchNode.
    *
-   * The root is the unique bunch with `bunchID == "ROOT"` (`BunchIDs.ROOT`).
+   * The root is the unique bunch with `bunchID == "ROOT"` (BunchIDs.ROOT).
    *
    * It has no parent, no BunchMeta, and only two valid Positions:
-   * - `Order.MIN_POSITION` (innerIndex = 0)
-   * - `Order.MAX_POSITION` (innerIndex = 1).
+   * - MIN_POSITION (innerIndex = 0)
+   * - MAX_POSITION (innerIndex = 1).
    *
-   * All of its child bunches have `offset == 1` so that they sort between
-   * `MIN_POSITION` and `MAX_POSITION`.
+   * All of its child bunches have `offset == 1`, so that they sort between
+   * MIN_POSITION and MAX_POSITION.
    */
   readonly rootNode: BunchNode;
 
@@ -145,11 +154,11 @@ export class Order {
    * Event handler that you can set to be notified when `this.createPositions`
    * creates a new bunch.
    *
-   * It is called with the same `createdBunch` that is returned by the createPositions call.
-   * Other collaborators will need to receive that BunchMeta before they can use
-   * the new Positions; see [Managing Metadata](https://github.com/mweidner037/list-positions#createdBunch).
+   * It is called with the same `newMeta` that is returned by the createPositions call.
+   * Other collaborators will need to add that BunchMeta using `addMetas` before they can use
+   * the new Positions; see [Managing Metadata](https://github.com/mweidner037/list-positions#newMeta).
    */
-  onCreateBunch: ((createdBunch: BunchMeta) => void) | undefined = undefined;
+  onNewMeta: ((newMeta: BunchMeta) => void) | undefined = undefined;
 
   /**
    * Constructs an Order.
@@ -161,15 +170,23 @@ export class Order {
    * [Manage Metadata](https://github.com/mweidner037/list-positions#managing-metadata),
    * or communicate using LexPositions instead of Positions.
    *
-   * @param options.newBunchID Used to assign the bunchID when this Order creates a new
-   * [bunch](https://github.com/mweidner037/list-positions#bunches) of Positions.
+   * @param options.replicaID An ID for this Order, used to generate our bunchIDs (via {@link BunchIDs.usingReplicaID}).
    * It must be *globally unique* among all Orders that share the same Positions,
-   * e.g., a UUID. Also, it must satisfy the rules documented on `BunchIDs.validate`.
-   * Default: `BunchIDs.usingReplicaID()`, which uses a shorter
-   * form of ID than UUIDs.
+   * and it must satisfy the rules documented on {@link BunchIDs.validate}.
+   * Default: A random alphanumeric string from the
+   * [maybe-random-string](https://github.com/mweidner037/maybe-random-string#readme) package.
+   *
+   * @param options.newBunchID For more control over bunchIDs, you may supply
+   * this function in place of `options.replicaID`. Each call must output a new bunchID
+   * that is *globally unique* among all orders that share the same Positions,
+   * and that satisfies the rules documented on {@link BunchIDs.validate}.
    */
-  constructor(options?: { newBunchID?: () => string }) {
-    this.newBunchID = options?.newBunchID ?? BunchIDs.usingReplicaID();
+  constructor(options?: {
+    replicaID?: string;
+    newBunchID?: (parent: BunchNode, offset: number) => string;
+  }) {
+    this.newBunchID =
+      options?.newBunchID ?? BunchIDs.usingReplicaID(options?.replicaID);
 
     this.rootNode = new NodeInternal(BunchIDs.ROOT, null, 0);
     this.tree.set(this.rootNode.bunchID, this.rootNode);
@@ -181,7 +198,7 @@ export class Order {
 
   /**
    * Returns the BunchNode with the given bunchID, or undefined if it is not
-   * yet known (i.e., its BunchMeta has not been delivered to `this.receive`).
+   * yet known (i.e., its BunchMeta has not been delivered to `this.addMetas`).
    */
   getNode(bunchID: string): BunchNode | undefined {
     return this.tree.get(bunchID);
@@ -207,7 +224,7 @@ export class Order {
       throw new Error(
         `Position references missing bunchID: ${JSON.stringify(
           pos
-        )}. You must call Order.receive before referencing a bunch.`
+        )}. You must call Order.addMetas before referencing a bunch.`
       );
     }
     if (
@@ -234,8 +251,7 @@ export class Order {
    * classes, and slower than using LexPositions as keys
    * (with JavaScript's default lexicographic compare function).
    */
-  // Bind as variable instead of class method, in case callers forget to call bind.
-  compare = (a: Position, b: Position): number => {
+  compare(a: Position, b: Position): number {
     const aNode = this.getNodeFor(a);
     const bNode = this.getNodeFor(b);
 
@@ -274,33 +290,33 @@ export class Order {
     }
 
     // Now aAnc and bAnc are distinct siblings. Use sibling order.
-    return Order.compareSiblingNodes(aAnc, bAnc);
-  };
+    return compareSiblingNodes(aAnc, bAnc);
+  }
 
   // ----------
   // Mutators
   // ----------
 
   /**
-   * Receives the given BunchMetas.
+   * Adds the given BunchMetas to this Order.
    *
    * Before using a Position with this Order or an associated List/Text/Outline,
-   * you must deliver its bunch's BunchMeta to this method.
+   * you must add its bunch's BunchMeta using this method.
    * See [Managing Metadata](https://github.com/mweidner037/list-positions#managing-metadata).
    *
    * (You do not need to manage metadata when using LexPositions/LexList,
    * since LexPositions embed all of their metadata.)
    *
    * **Note:** A bunch depends on its parent bunch's metadata. So before (or at the same time
-   * as) you call `receive` on a BunchMeta,
+   * as) you call `addMetas` on a BunchMeta,
    * you must do so for the parent's BunchMeta, unless `parentID == "ROOT"`.
    *
-   * @throws If a received BunchMeta's parentID references a bunch that we have
-   * not already received and that is not included in this call.
-   * @throws If any of the received BunchMetas are invalid or provide
+   * @throws If an added BunchMeta's parentID references a bunch that we have
+   * not already added and that is not included in this call.
+   * @throws If any of the added BunchMetas are invalid or provide
    * conflicting metadata for the same bunchID.
    */
-  receive(bunchMetas: Iterable<BunchMeta>): void {
+  addMetas(bunchMetas: Iterable<BunchMeta>): void {
     // We are careful to avoid changing the Order's state at all if an error
     // is thrown, even if some of the BunchMetas are valid.
 
@@ -328,7 +344,7 @@ export class Order {
       }
       const existing = this.tree.get(bunchMeta.bunchID);
       if (existing !== undefined) {
-        if (!Order.equalsBunchMeta(bunchMeta, existing.meta())) {
+        if (!bunchMetaEquals(bunchMeta, existing.meta())) {
           throw new Error(
             `Received BunchMeta describing an existing node but with different metadata: received=${JSON.stringify(
               bunchMeta
@@ -338,7 +354,7 @@ export class Order {
       } else {
         const otherNew = newBunchMetas.get(bunchMeta.bunchID);
         if (otherNew !== undefined) {
-          if (!Order.equalsBunchMeta(bunchMeta, otherNew)) {
+          if (!bunchMetaEquals(bunchMeta, otherNew)) {
             throw new Error(
               `Received two BunchMetas for the same node but with different metadata: first=${JSON.stringify(
                 otherNew
@@ -447,7 +463,7 @@ export class Order {
       let i = 0;
       for (; i < parentNode.children.length; i++) {
         // Break if sibling > node.
-        if (Order.compareSiblingNodes(parentNode.children[i], node) > 0) break;
+        if (compareSiblingNodes(parentNode.children[i], node) > 0) break;
       }
       // Insert node just before that sibling, or at the end if none.
       parentNode.children.splice(i, 0, node);
@@ -470,15 +486,18 @@ export class Order {
    * They are originally contiguous, but may become non-contiguous in the future,
    * if new Positions are created between them.
    *
-   * @returns [starting Position, [created bunch's](https://github.com/mweidner037/list-positions#createdBunch) BunchMeta (or null)].
+   * @returns [starting Position, [new bunch's BunchMeta](https://github.com/mweidner037/list-positions#newMeta) (or null)].
+   * @see {@link expandPositions} To convert (startPos, count) to an array of Positions.
    * @throws If prevPos >= nextPos (i.e., `this.compare(prevPos, nextPos) >= 0`).
-   * @see Order.startPosToArray To convert (startPos, count) to an array of Positions.
+   * @param options.bunchID Forces the creation of a new bunch with a specific bunchID,
+   * instead of reusing an existing bunch or using the constructor's newBunchID function.
    */
   createPositions(
     prevPos: Position,
     nextPos: Position,
-    count: number
-  ): [startPos: Position, createdBunch: BunchMeta | null] {
+    count: number,
+    options?: { bunchID?: string }
+  ): [startPos: Position, newMeta: BunchMeta | null] {
     // Also validates the positions.
     if (this.compare(prevPos, nextPos) >= 0) {
       throw new Error(
@@ -491,7 +510,9 @@ export class Order {
       throw new Error(`Invalid count: ${count} (must be positive)`);
     }
 
-    /* 
+    /*
+      We map list-position's tree to a Fugue tree as described in internals.md.    
+      
       Unlike in the Fugue paper, we don't track all tombstones (in particular,
       the max innerIndex created for each bunch).
       Instead, we use the provided nextPos as the rightOrigin, and apply the rule:
@@ -506,9 +527,11 @@ export class Order {
       Exception: We don't want to create a Position in the same place as one of
       our existing positions, to minimize same-side siblings.
       Instead, we become a right child of such a Position (or its right child
-      if needed, etc.). As a consequence, if a user repeatedly types and deletes
+      if needed, etc.); since it's our own bunch, the "right child" is actually just the
+      next Position in the same bunch. As a consequence, if a user repeatedly types and deletes
       a char at the same place, then "resurrects" all of the chars, the chars will
       be in time order (LtR) and share a bunch.
+      This exception is ignored when options.bunchID is supplied.
     */
 
     let newNodeParent: NodeInternal;
@@ -517,10 +540,14 @@ export class Order {
     if (!this.isDescendant(nextPos, prevPos)) {
       // Make a right child of prevPos.
       const prevNode = this.tree.get(prevPos.bunchID)!;
-      if (prevNode.createdCounter !== undefined) {
+      if (
+        prevNode.createdCounter !== undefined &&
+        options?.bunchID === undefined
+      ) {
         // We created prevNode. Use its next Position.
         // It's okay if nextinnerIndex is not prevPos.innerIndex + 1:
-        // pos will still be < nextPos, and going farther along prevNode
+        // pos will still be < nextPos (b/c nextPos is not descended from this bunch),
+        // and going farther along prevNode
         // amounts to following the Exception above.
         const startPos: Position = {
           bunchID: prevNode.bunchID,
@@ -542,7 +569,7 @@ export class Order {
     // parent and offset, append a new Position to it instead, which is its
     // right descendant.
     const conflict = newNodeParent.createdChildren?.get(newNodeOffset);
-    if (conflict !== undefined) {
+    if (conflict !== undefined && options?.bunchID === undefined) {
       const startPos: Position = {
         bunchID: conflict.bunchID,
         innerIndex: conflict.createdCounter!,
@@ -551,32 +578,39 @@ export class Order {
       return [startPos, null];
     }
 
-    const createdBunch: BunchMeta = {
-      bunchID: this.newBunchID(),
+    const newMeta: BunchMeta = {
+      bunchID:
+        options?.bunchID ?? this.newBunchID(newNodeParent, newNodeOffset),
       parentID: newNodeParent.bunchID,
       offset: newNodeOffset,
     };
-    if (this.tree.has(createdBunch.bunchID)) {
-      throw new Error(
-        `newBunchID() returned node ID that already exists: ${createdBunch.bunchID}`
-      );
+    if (this.tree.has(newMeta.bunchID)) {
+      if (options?.bunchID === undefined) {
+        throw new Error(
+          `newBunchID returned bunch ID that already exists: ${newMeta.bunchID}`
+        );
+      } else {
+        throw new Error(
+          `options.bunchID supplied bunch ID that already exists: ${newMeta.bunchID}`
+        );
+      }
     }
 
-    const createdBunchNode = this.newNode(createdBunch);
-    createdBunchNode.createdCounter = count;
+    const newMetaNode = this.newNode(newMeta);
+    newMetaNode.createdCounter = count;
     if (newNodeParent.createdChildren === undefined) {
       newNodeParent.createdChildren = new Map();
     }
-    newNodeParent.createdChildren.set(createdBunch.offset, createdBunchNode);
+    newNodeParent.createdChildren.set(newMeta.offset, newMetaNode);
 
-    this.onCreateBunch?.(createdBunch);
+    this.onNewMeta?.(newMeta);
 
     return [
       {
-        bunchID: createdBunchNode.bunchID,
+        bunchID: newMetaNode.bunchID,
         innerIndex: 0,
       },
-      createdBunch,
+      newMeta,
     ];
   }
 
@@ -585,7 +619,7 @@ export class Order {
    * in which a bunch's Positions form a rightward chain.
    */
   private isDescendant(a: Position, b: Position): boolean {
-    if (Order.equalsPosition(a, Order.MAX_POSITION)) {
+    if (positionEquals(a, MAX_POSITION)) {
       // Special case: We don't consider a to be a real node in the
       // implied Fugue tree. So it is never a descendant of b,
       // even when b is MIN_POSITION.
@@ -614,7 +648,7 @@ export class Order {
   // ----------
 
   /**
-   * Returns an iterator for this Order's BunchNodes.
+   * Iterates over this Order's BunchNodes.
    *
    * The root (`this.rootNode`) is always visited first, followed by the remaining
    * nodes in no particular order.
@@ -624,13 +658,12 @@ export class Order {
   }
 
   /**
-   * Returns an iterator for this Order's BunchMetas,
+   * Iterates over all dependencies of the current state,
    * in no particular order.
    *
-   * This is the same as calling `node.meta()` on each output of `this.nodes()`
-   * **except** we skip the root node (which has no BunchMeta).
+   * These are the BunchMetas of all non-root nodes.
    */
-  *bunchMetas(): IterableIterator<BunchMeta> {
+  *dependencies(): IterableIterator<BunchMeta> {
     for (const node of this.tree.values()) {
       if (node === this.rootNode) continue;
       yield node.meta();
@@ -645,12 +678,12 @@ export class Order {
    * Returns a saved state for this Order.
    *
    * The saved state describes all of our known BunchMetas in JSON-serializable form.
-   * (In fact, it is merely the array (`[...this.bunchMetas()]`.)
+   * (In fact, it is merely the array (`[...this.dependencies()]`.)
    * You can load this state on another Order by calling `load(savedState)`,
    * possibly in a different session or on a collaborator's device.
    */
   save(): OrderSavedState {
-    return [...this.bunchMetas()];
+    return [...this.dependencies()];
   }
 
   /**
@@ -661,7 +694,7 @@ export class Order {
    * instead, it merges the known BunchMetas (union of sets).
    */
   load(savedState: OrderSavedState): void {
-    this.receive(savedState);
+    this.addMetas(savedState);
   }
 
   // ----------
@@ -682,128 +715,17 @@ export class Order {
    *
    * Because LexPositions embed all of their dependencies, you do not need to
    * worry about the Position's dependent BunchMetas. They will be extracted
-   * from lexPos and delivered to `this.receive` internally if needed.
+   * from lexPos and delivered to `this.addMetas` internally if needed.
    */
   unlex(lexPos: LexPosition): Position {
     const [bunchPrefix, innerIndex] = LexUtils.splitPos(lexPos);
     const bunchID = LexUtils.bunchIDFor(bunchPrefix);
     if (!this.tree.has(bunchID)) {
-      // Receive the node.
-      this.receive(LexUtils.splitBunchPrefix(bunchPrefix));
+      // Add the node.
+      this.addMetas(LexUtils.splitBunchPrefix(bunchPrefix));
     }
     // Else we skip checking agreement with the existing node, for efficiency.
 
     return { bunchID, innerIndex: innerIndex };
-  }
-
-  // ----------
-  // Static utilities
-  // ----------
-
-  /**
-   * The minimum Position in any Order.
-   *
-   * This Position is defined to be less than all other Positions.
-   */
-  static readonly MIN_POSITION: Position = {
-    bunchID: BunchIDs.ROOT,
-    innerIndex: 0,
-  };
-  /**
-   * The maximum Position in any Order.
-   *
-   * This Position is defined to be greater than all other Positions.
-   */
-  static readonly MAX_POSITION: Position = {
-    bunchID: BunchIDs.ROOT,
-    innerIndex: 1,
-  };
-
-  /**
-   * The minimum LexPosition in any Order.
-   *
-   * This LexPosition is defined to be less than all other LexPositions.
-   * It is equivalent to Order.MIN_POSITION.
-   */
-  static readonly MIN_LEX_POSITION: LexPosition = LexUtils.MIN_LEX_POSITION;
-  /**
-   * The maximum LexPosition in any Order.
-   *
-   * This LexPosition is defined to be greater than all other LexPositions.
-   * It is equivalent to Order.MAX_POSITION.
-   */
-  static readonly MAX_LEX_POSITION: LexPosition = LexUtils.MAX_LEX_POSITION;
-
-  /**
-   * Returns whether two Positions are equal, i.e., they have equal contents.
-   */
-  static equalsPosition(a: Position, b: Position): boolean {
-    return a.bunchID === b.bunchID && a.innerIndex === b.innerIndex;
-  }
-
-  /**
-   * Returns whether two BunchMetas are equal, i.e., they have equal contents.
-   */
-  static equalsBunchMeta(a: BunchMeta, b: BunchMeta): boolean {
-    return (
-      a.bunchID === b.bunchID &&
-      a.parentID === b.parentID &&
-      a.offset === b.offset
-    );
-  }
-
-  /**
-   * Returns the array of Positions corresponding to a startPos and a count of
-   * Positions within the same [bunch](https://github.com/mweidner037/list-positions#bunches)
-   * (with sequential `innerIndex`).
-   *
-   * You can use this method to expand on the startPos returned by
-   * `Order.createPositions` (and the bulk versions of `List.insertAt`, etc.).
-   */
-  static startPosToArray(
-    startPos: Position,
-    sameBunchCount: number
-  ): Position[] {
-    const ans = new Array<Position>(sameBunchCount);
-    for (let i = 0; i < sameBunchCount; i++) {
-      ans[i] = {
-        bunchID: startPos.bunchID,
-        innerIndex: startPos.innerIndex + i,
-      };
-    }
-    return ans;
-  }
-
-  /**
-   * [Compare function](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/sort#comparefn)
-   * for **sibling** BunchNodes in an Order, i.e., BunchNodes with the same `parent`.
-   *
-   * You do not need to call this function unless you are doing something advanced.
-   * To compare Positions, instead use `Order.compare` or a List. To iterate over
-   * a BunchNode's children in order, instead use its childrenLength and getChild properties.
-   *
-   * The sort order is:
-   * - First, sort siblings by `offset`.
-   * - To break ties, sort siblings lexicographically by the strings `sibling.bunchID + ","`.
-   * (The extra comma is a technicality needed to match the sort order on LexPositions.
-   * It has no effect if your bunchIDs only use characters greater than "," (code point 44),
-   * which is true by default.)
-   */
-  static compareSiblingNodes(a: BunchNode, b: BunchNode): number {
-    if (a.parent !== b.parent) {
-      throw new Error(
-        `nodeSiblingCompare can only compare Nodes with the same parentNode, not a=${a}, b=${b}`
-      );
-    }
-
-    // Sibling sort order: first by offset, then by id.
-    if (a.offset !== b.offset) {
-      return a.offset - b.offset;
-    }
-    if (a.bunchID !== b.bunchID) {
-      // Need to add the comma to match how LexPositions are sorted.
-      return a.bunchID + "," > b.bunchID + "," ? 1 : -1;
-    }
-    return 0;
   }
 }
