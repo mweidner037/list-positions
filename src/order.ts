@@ -12,7 +12,7 @@ import { MAX_POSITION, Position, positionEquals } from "./position";
  *
  * For advanced usage, you may read and write OrderSavedStates directly.
  *
- * Its format is merely the array `[...order.bunchMetas()]`.
+ * Its format is merely the array `[...order.dependencies()]`.
  */
 export type OrderSavedState = BunchMeta[];
 
@@ -658,13 +658,12 @@ export class Order {
   }
 
   /**
-   * Iterates over this Order's BunchMetas,
+   * Iterates over all dependencies of the current state,
    * in no particular order.
    *
-   * This is the same as calling `node.meta()` on each output of `this.nodes()`
-   * **except** we skip the root node (which has no BunchMeta).
+   * These are the BunchMetas of all non-root nodes.
    */
-  *bunchMetas(): IterableIterator<BunchMeta> {
+  *dependencies(): IterableIterator<BunchMeta> {
     for (const node of this.tree.values()) {
       if (node === this.rootNode) continue;
       yield node.meta();
@@ -679,12 +678,12 @@ export class Order {
    * Returns a saved state for this Order.
    *
    * The saved state describes all of our known BunchMetas in JSON-serializable form.
-   * (In fact, it is merely the array (`[...this.bunchMetas()]`.)
+   * (In fact, it is merely the array (`[...this.dependencies()]`.)
    * You can load this state on another Order by calling `load(savedState)`,
    * possibly in a different session or on a collaborator's device.
    */
   save(): OrderSavedState {
-    return [...this.bunchMetas()];
+    return [...this.dependencies()];
   }
 
   /**
