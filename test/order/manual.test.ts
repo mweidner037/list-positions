@@ -193,8 +193,8 @@ function testTwoUsers(replicaID1: string, replicaID2: string) {
   let bob!: Order;
 
   beforeEach(() => {
-    alice = new Order({ replicaID1 });
-    bob = new Order({ replicaID2 });
+    alice = new Order({ replicaID: replicaID1 });
+    bob = new Order({ replicaID: replicaID2 });
     // Automatically share metadata.
     alice.onNewMeta = (meta) => bob.receiveMetas([meta]);
     bob.onNewMeta = (meta) => alice.receiveMetas([meta]);
