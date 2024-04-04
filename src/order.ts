@@ -155,7 +155,7 @@ export class Order {
    * creates a new bunch.
    *
    * It is called with the same `newMeta` that is returned by the createPositions call.
-   * Other collaborators will need to receive that BunchMeta before they can use
+   * Other collaborators will need to add that BunchMeta using `addMetas` before they can use
    * the new Positions; see [Managing Metadata](https://github.com/mweidner037/list-positions#newMeta).
    */
   onNewMeta: ((newMeta: BunchMeta) => void) | undefined = undefined;
@@ -198,7 +198,7 @@ export class Order {
 
   /**
    * Returns the BunchNode with the given bunchID, or undefined if it is not
-   * yet known (i.e., its BunchMeta has not been delivered to `this.receiveMetas`).
+   * yet known (i.e., its BunchMeta has not been delivered to `this.addMetas`).
    */
   getNode(bunchID: string): BunchNode | undefined {
     return this.tree.get(bunchID);
@@ -224,7 +224,7 @@ export class Order {
       throw new Error(
         `Position references missing bunchID: ${JSON.stringify(
           pos
-        )}. You must call Order.receiveMetas before referencing a bunch.`
+        )}. You must call Order.addMetas before referencing a bunch.`
       );
     }
     if (
@@ -298,25 +298,25 @@ export class Order {
   // ----------
 
   /**
-   * Receives the given BunchMetas.
+   * Adds the given BunchMetas to this Order.
    *
    * Before using a Position with this Order or an associated List/Text/Outline,
-   * you must deliver its bunch's BunchMeta to this method.
+   * you must add its bunch's BunchMeta using this method.
    * See [Managing Metadata](https://github.com/mweidner037/list-positions#managing-metadata).
    *
    * (You do not need to manage metadata when using LexPositions/LexList,
    * since LexPositions embed all of their metadata.)
    *
    * **Note:** A bunch depends on its parent bunch's metadata. So before (or at the same time
-   * as) you call `receiveMetas` on a BunchMeta,
+   * as) you call `addMetas` on a BunchMeta,
    * you must do so for the parent's BunchMeta, unless `parentID == "ROOT"`.
    *
-   * @throws If a received BunchMeta's parentID references a bunch that we have
-   * not already received and that is not included in this call.
-   * @throws If any of the received BunchMetas are invalid or provide
+   * @throws If an added BunchMeta's parentID references a bunch that we have
+   * not already added and that is not included in this call.
+   * @throws If any of the added BunchMetas are invalid or provide
    * conflicting metadata for the same bunchID.
    */
-  receiveMetas(bunchMetas: Iterable<BunchMeta>): void {
+  addMetas(bunchMetas: Iterable<BunchMeta>): void {
     // We are careful to avoid changing the Order's state at all if an error
     // is thrown, even if some of the BunchMetas are valid.
 
@@ -694,7 +694,7 @@ export class Order {
    * instead, it merges the known BunchMetas (union of sets).
    */
   load(savedState: OrderSavedState): void {
-    this.receiveMetas(savedState);
+    this.addMetas(savedState);
   }
 
   // ----------
@@ -715,14 +715,14 @@ export class Order {
    *
    * Because LexPositions embed all of their dependencies, you do not need to
    * worry about the Position's dependent BunchMetas. They will be extracted
-   * from lexPos and delivered to `this.receiveMetas` internally if needed.
+   * from lexPos and delivered to `this.addMetas` internally if needed.
    */
   unlex(lexPos: LexPosition): Position {
     const [bunchPrefix, innerIndex] = LexUtils.splitPos(lexPos);
     const bunchID = LexUtils.bunchIDFor(bunchPrefix);
     if (!this.tree.has(bunchID)) {
-      // Receive the node.
-      this.receiveMetas(LexUtils.splitBunchPrefix(bunchPrefix));
+      // Add the node.
+      this.addMetas(LexUtils.splitBunchPrefix(bunchPrefix));
     }
     // Else we skip checking agreement with the existing node, for efficiency.
 

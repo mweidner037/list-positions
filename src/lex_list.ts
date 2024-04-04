@@ -387,7 +387,7 @@ export class LexList<T> {
     // OPT: loop over nodes directly, to avoid double-object.
     const listSavedState: LexListSavedState<T> = {};
     for (const [bunchPrefix, values] of Object.entries(savedState)) {
-      this.order.receiveMetas(LexUtils.splitBunchPrefix(bunchPrefix));
+      this.order.addMetas(LexUtils.splitBunchPrefix(bunchPrefix));
       listSavedState[LexUtils.bunchIDFor(bunchPrefix)] = values;
     }
     this.list.load(listSavedState);

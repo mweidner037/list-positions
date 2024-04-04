@@ -71,7 +71,7 @@ export async function listCustomEncoding() {
       const char = update.at(-1)!;
       const parts = update.slice(2, -2).split(" ");
       if (parts.length === 4) {
-        receiver.order.receiveMetas([
+        receiver.order.addMetas([
           {
             bunchID: parts[0],
             parentID: parts[2],

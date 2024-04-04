@@ -213,7 +213,7 @@ type BunchMeta = {
 };
 ```
 
-A List's tree of bunches is stored by a separate class `Order`, accessible from the List's `order` property. Multiple List instances can share the same Order via a constructor option. But when Lists have different Order instances, before using a Position from one List in the other (e.g., calling `list.set` or `list.indexOfPosition`), you must call `list.order.receiveMetas` with:
+A List's tree of bunches is stored by a separate class `Order`, accessible from the List's `order` property. Multiple List instances can share the same Order via a constructor option. But when Lists have different Order instances, before using a Position from one List in the other (e.g., calling `list.set` or `list.indexOfPosition`), you must call `list.order.addMetas` with:
 
 - The Position's bunch's BunchMeta.
 - That bunch's parent's BunchMeta.
@@ -240,7 +240,7 @@ function save<T>(list: List<T>): string {
 function load<T>(savedState: string): List<T> {
   const list = new List<T>();
   const { orderSave, listSave } = JSON.parse(savedState);
-  // Load the Order's state first, to receive the saved BunchMetas.
+  // Load the Order's state first, to add the saved BunchMetas.
   list.order.load(orderSave);
   list.load(listSave);
 }
@@ -273,7 +273,7 @@ function onMessage(message: string) {
   const parsed = JSON.parse(message);
   switch (parsed.type) {
     case "meta":
-      list.order.receiveMetas([parsed.meta]);
+      list.order.addMetas([parsed.meta]);
       break;
     case "set":
       list.set(parsed.position, parsed.value);
@@ -287,7 +287,7 @@ This works best if your network has ordering guarantees that ensure you won't ac
 
 > Errors you might get if you mis-manage metadata:
 >
-> - "Position references missing bunchID: {...}. You must call Order.receiveMetas before referencing a bunch."
+> - "Position references missing bunchID: {...}. You must call Order.addMetas before referencing a bunch."
 > - "Received BunchMeta {...}, but we have not yet received a BunchMeta for its parent node."
 
 ### Outline

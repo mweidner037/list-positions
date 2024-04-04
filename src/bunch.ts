@@ -4,7 +4,7 @@
  *
  * In scenarios with multiple related Lists (e.g., collaborative text editing),
  * you often need to use a Position with a List different from the List that
- * created it. Before doing so, you must call `list.order.receiveMetas` with the
+ * created it. Before doing so, you must call `list.order.addMetas` with the
  * BunchMeta corresponding to that Position's bunch and its ancestors.
  * See [Managing Metadata](https://github.com/mweidner037/list-positions#managing-metadata).
  *
@@ -19,7 +19,7 @@ export type BunchMeta = {
    * The parent bunch's ID.
    *
    * A bunch depends on its parent's metadata. So before (or at the same time
-   * as) you call `list.order.receiveMetas` on this BunchMeta,
+   * as) you call `list.order.addMetas` on this BunchMeta,
    * you must do so for the parent's BunchMeta, unless `parentID == "ROOT"`.
    *
    * Parent relations form a tree that is used to order
@@ -125,7 +125,7 @@ export interface BunchNode {
   /**
    * The number of child nodes in the Order's current tree.
    *
-   * This may increase as more BunchMetas are delivered to `Order.receiveMetas`.
+   * This may increase as more BunchMetas are delivered to `Order.addMetas`.
    */
   readonly childrenLength: number;
   /**
@@ -134,7 +134,7 @@ export interface BunchNode {
    * The children are in sort order, i.e., all of child 0's Positions are less
    * than all of child 1's Positions.
    * Note that some of this bunch's own Positions may be between between adjacent children,
-   * and new children may be inserted as more BunchMetas are delivered to `Order.receiveMetas`.
+   * and new children may be inserted as more BunchMetas are delivered to `Order.addMetas`.
    */
   getChild(index: number): BunchNode;
 

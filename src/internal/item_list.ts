@@ -626,7 +626,7 @@ export class ItemList<I, S extends SparseItems<I>> {
       const node = this.order.getNode(bunchID);
       if (node === undefined) {
         throw new Error(
-          `List/Text/Outline savedState references missing bunchID: "${bunchID}". You must call Order.receive before referencing a bunch.`
+          `List/Text/Outline savedState references missing bunchID: "${bunchID}". You must call Order.addMetas before referencing a bunch.`
         );
       }
 

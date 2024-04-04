@@ -73,7 +73,7 @@ export async function outlineDirect() {
   for (const update of updates) {
     const updateObj: Update = JSON.parse(update);
     if (updateObj.type === "set") {
-      if (updateObj.meta) receiver.order.receiveMetas([updateObj.meta]);
+      if (updateObj.meta) receiver.order.addMetas([updateObj.meta]);
       receiver.add(updateObj.pos);
       // To simulate events, also compute the inserted index.
       void receiver.indexOfPosition(updateObj.pos);

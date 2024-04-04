@@ -82,7 +82,7 @@ export class PositionCRDT<T> {
         }
         bunchPending.add(msg);
         return;
-      } else this.list.order.receiveMetas([decoded.meta]);
+      } else this.list.order.addMetas([decoded.meta]);
     }
 
     const bunchID = decoded.pos.bunchID;

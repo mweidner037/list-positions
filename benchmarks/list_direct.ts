@@ -75,7 +75,7 @@ export async function listDirect() {
   for (const update of updates) {
     const updateObj: Update = JSON.parse(update);
     if (updateObj.type === "set") {
-      if (updateObj.meta) receiver.order.receiveMetas([updateObj.meta]);
+      if (updateObj.meta) receiver.order.addMetas([updateObj.meta]);
       receiver.set(updateObj.pos, updateObj.value);
       // To simulate events, also compute the inserted index.
       void receiver.indexOfPosition(updateObj.pos);

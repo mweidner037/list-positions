@@ -34,7 +34,7 @@ export function newOrders(
       replicaID: maybeRandomString({ prng }),
     });
     if (linkedMeta) {
-      order.onNewMeta = (meta) => orders.forEach((o) => o.receiveMetas([meta]));
+      order.onNewMeta = (meta) => orders.forEach((o) => o.addMetas([meta]));
     }
     orders.push(order);
   }
