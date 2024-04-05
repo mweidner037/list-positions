@@ -6,4 +6,5 @@ export * from "./list";
 export * from "./order";
 export * from "./outline";
 export * from "./position";
+export * from "./position_map";
 export * from "./text";
