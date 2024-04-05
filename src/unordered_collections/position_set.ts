@@ -46,6 +46,7 @@ export class PositionSet {
     let arr = this.state.get(startPos.bunchID);
     if (arr === undefined) {
       arr = SparseIndices.new();
+      this.state.set(startPos.bunchID, arr);
     }
     arr.set(startPos.innerIndex, count);
   }

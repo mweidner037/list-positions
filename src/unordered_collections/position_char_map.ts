@@ -46,6 +46,7 @@ export class PositionCharMap {
     let arr = this.state.get(startPos.bunchID);
     if (arr === undefined) {
       arr = SparseString.new();
+      this.state.set(startPos.bunchID, arr);
     }
     arr.set(startPos.innerIndex, chars);
   }
