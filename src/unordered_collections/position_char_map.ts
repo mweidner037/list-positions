@@ -6,7 +6,7 @@ import { TextSavedState } from "../text";
  * A map from Positions to characters, **without ordering info**.
  *
  * This class is a simplified version of Text that does not consider the list order.
- * As a result, it does not require you to manage metadata, and it is slightly more efficient
+ * As a result, it does not require managing metadata, and it is slightly more efficient
  * than Text.
  *
  * For example, you can use a PositionCharMap to accumulate changes to save in a batch later.

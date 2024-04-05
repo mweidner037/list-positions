@@ -353,6 +353,18 @@ A list of values of type `T`, represented as an ordered map with LexPosition key
 
 LexList's API is a hybrid between `Array<T>` and `Map<LexPosition, T>`. Use `insertAt` or `insert` to insert new values into the list in the style of `Array.splice`.
 
+#### Unordered Collections
+
+The library also comes with _unordered_ collections:
+
+- `PositionMap<T>`: A map from Positions to values of type `T`, like `List<T>` but without ordering info.
+- `PositionCharMap`: A map from Positions to characters, like `Text` but without ordering info.
+- `PositionSet`: A set of Positions, like `Outline` but without ordering info.
+
+These collections do not support in-order or indexed access, but they also do not require managing metadata, and they are slightly more efficient.
+
+For example, you can use a PositionSet to track the set of deleted Positions in a CRDT. See the benchmarks' [PositionCRDT](https://github.com/mweidner037/list-positions/blob/master/benchmarks/internal/position_crdt.ts) for an example.
+
 ### Types
 
 All types are JSON serializable.

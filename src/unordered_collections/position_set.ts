@@ -6,11 +6,12 @@ import { Position } from "../position";
  * A set of Positions, **without ordering info**.
  *
  * This class is a simplified version of Outline that does not consider the list order.
- * As a result, it does not require you to manage metadata, and it is slightly more efficient
+ * As a result, it does not require managing metadata, and it is slightly more efficient
  * than Outline.
  *
- * For example, you can use a PositionSet to track the set of Positions that you've seen
- * so far, without worrying about whether you've seen their dependent BunchMetas.
+ * For example, you can use a PositionSet to track the set of deleted Positions in a CRDT.
+ * See the benchmarks' [PositionCRDT](https://github.com/mweidner037/list-positions/blob/master/benchmarks/internal/position_crdt.ts)
+ * for an example.
  */
 export class PositionSet {
   /**
