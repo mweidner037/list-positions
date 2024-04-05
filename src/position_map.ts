@@ -71,8 +71,9 @@ export class PositionMap<T> {
       return;
     }
     arr.delete(startPos.innerIndex, count);
+
     // Clean up empty bunches.
-    // Note: the invariant "empty -> not present" might not hold if the
+    // Note: the invariant "empty => not present" might not hold if the
     // user directly manipulates this.state.
     if (arr.isEmpty()) this.state.delete(startPos.bunchID);
   }

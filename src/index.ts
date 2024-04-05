@@ -7,4 +7,5 @@ export * from "./order";
 export * from "./outline";
 export * from "./position";
 export * from "./position_map";
+export * from "./position_set";
 export * from "./text";
