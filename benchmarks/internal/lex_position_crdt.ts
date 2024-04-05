@@ -3,8 +3,8 @@ import {
   List,
   ListSavedState,
   OrderSavedState,
-  Outline,
   OutlineSavedState,
+  PositionSet,
 } from "../../src";
 
 type Message<T> =
@@ -38,12 +38,16 @@ export class LexPositionCRDT<T> {
   /**
    * A set of all Positions we've ever seen, whether currently present or deleted.
    * Used for state-based merging and handling reordered messages.
+   *
+   * We use PositionSet here because we don't care about the list order. If you did,
+   * you could use Outline instead, with the same Order as this.list
+   * (`this.seen = new Outline(this.order);`).
    */
-  private readonly seen: Outline;
+  private readonly seen: PositionSet;
 
   constructor(private readonly send: (msg: string) => void) {
     this.list = new List();
-    this.seen = new Outline(this.list.order);
+    this.seen = new PositionSet();
   }
 
   insertAt(index: number, value: T): void {
@@ -74,7 +78,7 @@ export class LexPositionCRDT<T> {
     if (decoded.type === "set") {
       if (!this.seen.has(pos)) {
         this.list.set(pos, decoded.value);
-        // Add to seen even before it's deleted, to reduce sparse-array fragmentation. TODO: test effect
+        // Add to seen even before it's deleted, to reduce sparse-array fragmentation.
         this.seen.add(pos);
         // For a hypothetical event, compute the index.
         void this.list.indexOfPosition(pos);
@@ -101,7 +105,7 @@ export class LexPositionCRDT<T> {
 
   load(savedState: string): void {
     const savedStateObj = JSON.parse(savedState) as SavedState<T>;
-    if (this.seen.length === 0) {
+    if (this.seen.state.size === 0) {
       // Never been used, so okay to load directly instead of doing a state-based
       // merge.
       this.list.order.load(savedStateObj.order);
@@ -111,7 +115,7 @@ export class LexPositionCRDT<T> {
       // TODO: benchmark merging.
       // TODO: events.
       const otherList = new List<T>();
-      const otherSeen = new Outline(otherList.order);
+      const otherSeen = new PositionSet();
       otherList.order.load(savedStateObj.order);
       otherList.load(savedStateObj.list);
       otherSeen.load(savedStateObj.seen);
