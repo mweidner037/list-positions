@@ -26,22 +26,33 @@ const sparseArrayFactory: SparseItemsFactory<
  *
  * See List.save and List.load.
  *
- * ### Format
+ * ## Format
  *
  * For advanced usage, you may read and write ListSavedStates directly.
  *
  * The format is: For each [bunch](https://github.com/mweidner037/list-positions#bunches)
- * with Positions present in the List, map the bunch's ID to a sparse array
- * representing the map
+ * with Positions present in the List, map its bunchID to a serialized form of
+ * the sparse array
  * ```
- * innerIndex -> (value at Position { bunchID, innerIndex }).
+ * innerIndex -> (value at Position { bunchID, innerIndex })
  * ```
- * bunchID keys are in no particular order.
+ * The bunches are in no particular order.
  *
- * Each sparse array of type `(T[] | number)[]` alternates between "runs" of present and deleted
- * values. Each even index is an array of present values; each odd
- * index is a count of deleted values.
- * E.g. `[["a", "b"], 3, ["c"]]` means `["a", "b", null, null, null, "c"]`.
+ * ### Per-Bunch Format
+ *
+ * Each bunch's serialized sparse array (type `(T[] | number)[]`)
+ * uses a compact JSON representation with run-length encoded deletions, identical to `SerializedSparseArray<T>` from the
+ * [sparse-array-rled](https://github.com/mweidner037/sparse-array-rled#readme) package.
+ * It alternates between:
+ * - arrays of present values (even indices), and
+ * - numbers (odd indices), representing that number of deleted values.
+ *
+ * For example, the sparse array `["foo", "bar", , , , "X", "yy"]` serializes to
+ * `[["foo", "bar"], 3, ["X", "yy"]]`.
+ *
+ * Trivial entries (empty arrays, 0s, & trailing deletions) are always omitted,
+ * except that the 0th entry may be an empty array.
+ * For example, the sparse array `[, , "biz", "baz"]` serializes to `[[], 2, ["biz", "baz"]]`.
  */
 export type ListSavedState<T> = {
   [bunchID: string]: (T[] | number)[];

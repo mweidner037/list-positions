@@ -29,22 +29,32 @@ function checkChar(char: string): void {
  *
  * See Text.save and Text.load.
  *
- * ### Format
+ * ## Format
  *
  * For advanced usage, you may read and write TextSavedStates directly.
  *
  * The format is: For each [bunch](https://github.com/mweidner037/list-positions#bunches)
- * with Positions present in the Text, map the bunch's ID to a sparse string
- * representing the map
+ * with Positions present in the Text, map its bunchID to a serialized form of
+ * the sparse string
  * ```
- * innerIndex -> (char at Position { bunchID, innerIndex }).
+ * innerIndex -> (char at Position { bunchID, innerIndex })
  * ```
- * bunchID keys are in no particular order.
+ * The bunches are in no particular order.
  *
- * Each sparse string of type `(string | number)[]` alternates between "runs" of present and deleted
- * values. Each even index is a string of concatenated present chars; each odd
- * index is a count of deleted values.
- * E.g. `["ab", 3, "c"]` means `["a", "b", null, null, null, "c"]`.
+ * ### Per-Bunch Format
+ *
+ * Each bunch's serialized sparse string (type `(string | number)[]`)
+ * uses a compact JSON representation with run-length encoded deletions, identical to `SerializedSparseString` from the
+ * [sparse-array-rled](https://github.com/mweidner037/sparse-array-rled#readme) package.
+ * It alternates between:
+ * - strings of concatenated present chars (even indices), and
+ * - numbers (odd indices), representing that number of deleted values.
+ *
+ * For example, the sparse string `["a", "b", , , , "f", "g"]` serializes to `["ab", 3, "fg"]`.
+ *
+ * Trivial entries (empty strings, 0s, & trailing deletions) are always omitted,
+ * except that the 0th entry may be an empty string.
+ * For example, the sparse string `[, , "x", "y"]` serializes to `["", 2, "xy"]`.
  */
 export type TextSavedState = {
   [bunchID: string]: (string | number)[];
