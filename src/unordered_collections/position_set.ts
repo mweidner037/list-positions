@@ -1,6 +1,6 @@
 import { SerializedSparseIndices, SparseIndices } from "sparse-array-rled";
-import { OutlineSavedState } from "./outline";
-import { Position } from "./position";
+import { OutlineSavedState } from "../outline";
+import { Position } from "../position";
 
 /**
  * A set of Positions, **without ordering info**.

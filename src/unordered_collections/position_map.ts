@@ -1,26 +1,28 @@
-import { SerializedSparseString, SparseString } from "sparse-array-rled";
-import { Position } from "./position";
-import { TextSavedState } from "./text";
+import { SerializedSparseArray, SparseArray } from "sparse-array-rled";
+import { ListSavedState } from "../list";
+import { Position } from "../position";
 
 /**
- * A map from Positions to characters, **without ordering info**.
+ * A map from Positions to values of type `T`, **without ordering info**.
  *
- * This class is a simplified version of Text that does not consider the list order.
+ * This class is a simplified version of `List<T>` that does not consider the list order.
  * As a result, it does not require you to manage metadata, and it is slightly more efficient
- * than Text.
+ * than `List<T>`.
  *
- * For example, you can use a PositionCharMap to accumulate changes to save in a batch later.
+ * For example, you can use a PositionMap to accumulate changes to save in a batch later.
  * There the list order is unnecessary and managing metadata could be inconvenient.
+ *
+ * @typeParam T The value type.
  */
-export class PositionCharMap {
+export class PositionMap<T> {
   /**
-   * The internal state of this PositionCharMap: A map from bunchID
-   * to the [SparseString](https://github.com/mweidner037/sparse-array-rled#readme)
+   * The internal state of this PositionMap: A map from bunchID
+   * to the [SparseArray](https://github.com/mweidner037/sparse-array-rled#readme)
    * of values for that bunch.
    *
    * You are free to manipulate this state directly.
    */
-  readonly state: Map<string, SparseString>;
+  readonly state: Map<string, SparseArray<T>>;
 
   constructor() {
     this.state = new Map();
@@ -31,27 +33,27 @@ export class PositionCharMap {
   // ----------
 
   /**
-   * Sets the char at the given position.
+   * Sets the value at the given position.
    */
-  set(pos: Position, char: string): void;
+  set(pos: Position, value: T): void;
   /**
-   * Sets the chars at a sequence of Positions within the same [bunch](https://github.com/mweidner037/list-positions#bunches).
+   * Sets the values at a sequence of Positions within the same [bunch](https://github.com/mweidner037/list-positions#bunches).
    *
    * The Positions start at `startPos` and have the same `bunchID` but increasing `innerIndex`.
    *
    * @see {@link expandPositions}
    */
-  set(startPos: Position, chars: string): void;
-  set(startPos: Position, chars: string): void {
+  set(startPos: Position, ...sameBunchValues: T[]): void;
+  set(startPos: Position, ...values: T[]): void {
     let arr = this.state.get(startPos.bunchID);
     if (arr === undefined) {
-      arr = SparseString.new();
+      arr = SparseArray.new();
     }
-    arr.set(startPos.innerIndex, chars);
+    arr.set(startPos.innerIndex, ...values);
   }
 
   /**
-   * Deletes the given position, making it and its char no longer present in the list.
+   * Deletes the given position, making it and its value no longer present in the map.
    */
   delete(pos: Position): void;
   /**
@@ -77,7 +79,7 @@ export class PositionCharMap {
   }
 
   /**
-   * Deletes every char in the list, making it empty.
+   * Deletes every position in the map, making it empty.
    */
   clear() {
     this.state.clear();
@@ -88,9 +90,9 @@ export class PositionCharMap {
   // ----------
 
   /**
-   * Returns the char at the given position, or undefined if it is not currently present.
+   * Returns the value at the given position, or undefined if it is not currently present.
    */
-  get(pos: Position): string | undefined {
+  get(pos: Position): T | undefined {
     return this.state.get(pos.bunchID)?.get(pos.innerIndex);
   }
 
@@ -106,16 +108,16 @@ export class PositionCharMap {
   // ----------
 
   /**
-   * Iterates over [pos, char] pairs in the map, **in no particular order**.
+   * Iterates over [pos, value] pairs in the map, **in no particular order**.
    */
-  [Symbol.iterator](): IterableIterator<[pos: Position, char: string]> {
+  [Symbol.iterator](): IterableIterator<[pos: Position, value: T]> {
     return this.entries();
   }
 
   /**
-   * Iterates over [pos, char] pairs in the map, **in no particular order**.
+   * Iterates over [pos, value] pairs in the map, **in no particular order**.
    */
-  *entries(): IterableIterator<[pos: Position, char: string]> {
+  *entries(): IterableIterator<[pos: Position, value: T]> {
     for (const [bunchID, arr] of this.state) {
       for (const [innerIndex, value] of arr.entries()) {
         yield [{ bunchID, innerIndex }, value];
@@ -128,14 +130,14 @@ export class PositionCharMap {
   // ----------
 
   /**
-   * Returns a saved state for this map, which is identical to its saved state as a Text.
+   * Returns a saved state for this map, which is identical to its saved state as a `List<T>`.
    *
-   * The saved state describes our current (Position -> char) map in JSON-serializable form.
-   * You can load this state on another PositionCharMap (or Text) by calling `load(savedState)`,
+   * The saved state describes our current (Position -> value) map in JSON-serializable form.
+   * You can load this state on another PositionMap (or List) by calling `load(savedState)`,
    * possibly in a different session or on a different device.
    */
-  save(): TextSavedState {
-    const savedState: { [bunchID: string]: SerializedSparseString } = {};
+  save(): ListSavedState<T> {
+    const savedState: { [bunchID: string]: SerializedSparseArray<T> } = {};
     for (const [bunchID, arr] of this.state) {
       if (!arr.isEmpty()) {
         savedState[bunchID] = arr.serialize();
@@ -145,16 +147,16 @@ export class PositionCharMap {
   }
 
   /**
-   * Loads a saved state returned by another PositionCharMap's (or Text's) `save()` method.
+   * Loads a saved state returned by another PositionMap's (or List's) `save()` method.
    *
-   * Loading sets our (Position -> char) map to match the saved PositionCharMap, *overwriting*
+   * Loading sets our (Position -> value) map to match the saved PositionMap, *overwriting*
    * our current state.
    */
-  load(savedState: TextSavedState): void {
+  load(savedState: ListSavedState<T>): void {
     this.clear();
 
     for (const [bunchID, savedArr] of Object.entries(savedState)) {
-      this.state.set(bunchID, SparseString.deserialize(savedArr));
+      this.state.set(bunchID, SparseArray.deserialize(savedArr));
     }
   }
 }
