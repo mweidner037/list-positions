@@ -7,8 +7,6 @@
  * created it. Before doing so, you must call `list.order.addMetas` with the
  * BunchMeta corresponding to that Position's bunch and its ancestors.
  * See [Managing Metadata](https://github.com/mweidner037/list-positions#managing-metadata).
- *
- * @see {@link bunchMetaEquals} Equality function for BunchMetas.
  */
 export type BunchMeta = {
   /**

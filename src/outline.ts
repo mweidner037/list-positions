@@ -22,22 +22,31 @@ const sparseIndicesFactory: SparseItemsFactory<number, SparseIndices> = {
  *
  * See Outline.save and Outline.load.
  *
- * ### Format
+ * ## Format
  *
  * For advanced usage, you may read and write OutlineSavedStates directly.
  *
  * The format is: For each [bunch](https://github.com/mweidner037/list-positions#bunches)
- * with Positions present in the Outline, map the bunch's ID to a sparse array
- * representing the map
+ * with Positions present in the Outline, map its bunchID to a serialized form of the sparse array
  * ```
- * innerIndex -> (true if Position { bunchID, innerIndex } is present).
+ * innerIndex -> (true if Position { bunchID, innerIndex } is present)
  * ```
- * bunchID keys are in no particular order.
+ * The bunches are in no particular order.
  *
- * Each sparse array of type `number[]` alternates between "runs" of present and deleted
- * values. Each even index is a count of present values; each odd
- * index is a count of deleted values.
- * E.g. `[2, 3, 1]` means `[true, true, null, null, null, true]`.
+ * ### Per-Bunch Format
+ *
+ * Each bunch's serialized sparse array (type `number[]`)
+ * uses a compact JSON representation with run-length encoding, identical to `SerializedSparseIndices` from the
+ * [sparse-array-rled](https://github.com/mweidner037/sparse-array-rled#readme) package.
+ * It alternates between:
+ * - counts of present values (even indices), and
+ * - counts of deleted values (odd indices).
+ *
+ * For example, the sparse array `[true, true, , , , true, true]` serializes to `[2, 3, 2]`.
+ *
+ * Trivial entries (0s & trailing deletions) are always omitted,
+ * except that the 0th entry may be 0.
+ * For example, the sparse array `[, , true, true, true]` serializes to `[0, 2, 3]`.
  */
 export type OutlineSavedState = {
   [bunchID: string]: number[];

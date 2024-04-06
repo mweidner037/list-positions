@@ -6,6 +6,7 @@ import {
   Outline,
   OutlineSavedState,
   Position,
+  PositionSet,
 } from "../../src";
 
 type Message<T> =
@@ -38,8 +39,12 @@ export class PositionCRDT<T> {
   /**
    * A set of all Positions we've ever seen, whether currently present or deleted.
    * Used for state-based merging and handling reordered messages.
+   *
+   * We use PositionSet here because we don't care about the list order. If you did,
+   * you could use Outline instead, with the same Order as this.list
+   * (`this.seen = new Outline(this.order);`).
    */
-  private readonly seen: Outline;
+  private readonly seen: PositionSet;
   /**
    * Maps from bunchID to a Set of messages that are waiting on that
    * bunch's BunchMeta before they can be processed.
@@ -48,7 +53,7 @@ export class PositionCRDT<T> {
 
   constructor(private readonly send: (msg: string) => void) {
     this.list = new List();
-    this.seen = new Outline(this.list.order);
+    this.seen = new PositionSet();
     this.pending = new Map();
   }
 
@@ -69,41 +74,55 @@ export class PositionCRDT<T> {
   receive(msg: string): void {
     // TODO: test dedupe & partial ordering.
     const decoded = JSON.parse(msg) as Message<T>;
-
-    if (decoded.type === "set" && decoded.meta) {
-      const parentID = decoded.meta.parentID;
-      if (this.list.order.getNode(parentID) === undefined) {
-        // The meta can't be processed yet because its parent bunch is unknown.
-        // Add it to pending.
-        let bunchPending = this.pending.get(parentID);
-        if (bunchPending === undefined) {
-          bunchPending = new Set();
-          this.pending.set(parentID, bunchPending);
-        }
-        bunchPending.add(msg);
-        return;
-      } else this.list.order.addMetas([decoded.meta]);
-    }
-
     const bunchID = decoded.pos.bunchID;
-    if (this.list.order.getNode(bunchID) === undefined) {
-      // The message can't be processed yet because its bunch is unknown.
-      // Add it to pending.
-      let bunchPending = this.pending.get(bunchID);
-      if (bunchPending === undefined) {
-        bunchPending = new Set();
-        this.pending.set(bunchID, bunchPending);
-      }
-      bunchPending.add(msg);
-      return;
-    }
 
-    // At this point, BunchMeta dependencies are satisfied. Process the message.
+    switch (decoded.type) {
+      case "delete":
+        // Mark the position as seen immediately, even if we don't have metadata
+        // for its bunch yet. Okay because this.seen is a PositionSet instead of an Outline.
+        this.seen.add(decoded.pos);
+        // Delete the position if present.
+        // If the bunch is unknown, it's definitely not present, and we
+        // should skip calling list.has to avoid a "Missing metadata" error.
+        if (
+          this.list.order.getNode(bunchID) !== undefined &&
+          this.list.has(decoded.pos)
+        ) {
+          // For a hypothetical event, compute the index.
+          void this.list.indexOfPosition(decoded.pos);
 
-    if (decoded.type === "set") {
-      if (!this.seen.has(decoded.pos)) {
+          this.list.delete(decoded.pos);
+        }
+        break;
+      case "set":
+        // This check is okay even if we don't have metadata for pos's bunch yet,
+        // because this.seen is a PositionSet instead of an Outline.
+        if (this.seen.has(decoded.pos)) {
+          // The position has already been seen (inserted, inserted & deleted, or
+          // deleted by an out-of-order message). So don't need to insert it again.
+          return;
+        }
+
+        if (decoded.meta) {
+          const parentID = decoded.meta.parentID;
+          if (this.list.order.getNode(parentID) === undefined) {
+            // The meta can't be processed yet because its parent bunch is unknown.
+            // Add it to pending.
+            this.addToPending(parentID, msg);
+            return;
+          } else this.list.order.addMetas([decoded.meta]);
+
+          if (this.list.order.getNode(bunchID) === undefined) {
+            // The message can't be processed yet because its bunch is unknown.
+            // Add it to pending.
+            this.addToPending(bunchID, msg);
+            return;
+          }
+        }
+
+        // At this point, BunchMeta dependencies are satisfied. Process the message.
         this.list.set(decoded.pos, decoded.value);
-        // Add to seen even before it's deleted, to reduce sparse-array fragmentation. TODO: test effect
+        // Add to seen even before it's deleted, to reduce sparse-array fragmentation.
         this.seen.add(decoded.pos);
         // For a hypothetical event, compute the index.
         void this.list.indexOfPosition(decoded.pos);
@@ -117,16 +136,17 @@ export class PositionCRDT<T> {
             for (const msg2 of unblocked) this.receive(msg2);
           }
         }
-      }
-      // Else redundant or already deleted.
-    } else {
-      if (this.list.has(decoded.pos)) {
-        this.list.delete(decoded.pos);
-        // For a hypothetical event, compute the index.
-        void this.list.indexOfPosition(decoded.pos);
-      }
-      this.seen.add(decoded.pos);
+        break;
     }
+  }
+
+  private addToPending(bunchID: string, msg: string): void {
+    let bunchPending = this.pending.get(bunchID);
+    if (bunchPending === undefined) {
+      bunchPending = new Set();
+      this.pending.set(bunchID, bunchPending);
+    }
+    bunchPending.add(msg);
   }
 
   save(): string {
@@ -140,7 +160,7 @@ export class PositionCRDT<T> {
 
   load(savedState: string): void {
     const savedStateObj = JSON.parse(savedState) as SavedState<T>;
-    if (this.seen.length === 0) {
+    if (this.seen.state.size === 0) {
       // Never been used, so okay to load directly instead of doing a state-based
       // merge.
       this.list.order.load(savedStateObj.order);
@@ -161,7 +181,7 @@ export class PositionCRDT<T> {
       // all of its dependent metadata.
       for (const pos of otherSeen) {
         if (!this.seen.has(pos)) {
-          // pos is new to use. Copy its state from the other list.
+          // pos is new to us. Copy its state from the other list.
           if (otherList.has(pos)) this.list.set(pos, otherList.get(pos)!);
           this.seen.add(pos);
         } else {

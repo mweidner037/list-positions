@@ -7,3 +7,6 @@ export * from "./order";
 export * from "./outline";
 export * from "./position";
 export * from "./text";
+export * from "./unordered_collections/position_char_map";
+export * from "./unordered_collections/position_map";
+export * from "./unordered_collections/position_set";
