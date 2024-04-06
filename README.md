@@ -363,7 +363,7 @@ The library also comes with _unordered_ collections:
 
 These collections do not support in-order or indexed access, but they also do not require managing metadata, and they are slightly more efficient.
 
-For example, you can use a PositionSet to track the set of deleted Positions in a CRDT. See the benchmarks' [PositionCRDT](https://github.com/mweidner037/list-positions/blob/master/benchmarks/internal/position_crdt.ts) for an example.
+For example, you can use a PositionSet to track the set of deleted Positions in a CRDT. See the benchmarks' [PositionCRDT](./benchmarks/internal/position_crdt.ts) for an example.
 
 ### Types
 
