@@ -1,6 +1,7 @@
+import { AbsPosition } from "./abs_position";
 import { BunchMeta, BunchNode, compareSiblingNodes } from "./bunch";
 import { BunchIDs } from "./bunch_ids";
-import { LexPosition, LexUtils } from "./lex_utils";
+import { LexUtils } from "./lex_utils";
 import { MAX_POSITION, Position, positionEquals } from "./position";
 
 /**
@@ -123,9 +124,9 @@ function bunchMetaEquals(a: BunchMeta, b: BunchMeta): boolean {
  * See [List, Position, and Order](https://github.com/mweidner037/list-positions#list-position-and-order) in the readme.
  *
  * An Order manages metadata ([bunches](https://github.com/mweidner037/list-positions#bunches))
- * for any number of Lists, LexLists, and Outlines.
+ * for any number of Lists, AbsLists, and Outlines.
  * You can also use an Order to create Positions independent of a List (`createPositions`),
- * convert between Positions and LexPositions
+ * convert between Positions and AbsPositions
  * (`lex` and `unlex`), and directly view the tree of bunches (`getBunch`, `getBunchFor`).
  */
 export class Order {
@@ -163,12 +164,12 @@ export class Order {
   /**
    * Constructs an Order.
    *
-   * Any data structures (List, Text, Outline, LexList) that share this Order
+   * Any data structures (List, Text, Outline, AbsList) that share this Order
    * automatically share the same total order on Positions.
    * To share total orders between Order instances (possibly on different devices),
    * you will need to
    * [Manage Metadata](https://github.com/mweidner037/list-positions#managing-metadata),
-   * or communicate using LexPositions instead of Positions.
+   * or communicate using AbsPositions instead of Positions.
    *
    * @param options.replicaID An ID for this Order, used to generate our bunchIDs (via {@link BunchIDs.usingReplicaID}).
    * It must be *globally unique* among all Orders that share the same Positions,
@@ -243,13 +244,11 @@ export class Order {
    * for Positions within this Order.
    *
    * You may use this method to work with Positions in a list-as-ordered-map
-   * data structure other than our built-in classes (List, Text, Outline, LexList), e.g.,
+   * data structure other than our built-in classes, e.g.,
    * [functional-red-black-tree](https://www.npmjs.com/package/functional-red-black-tree)
    * or `Array.sort`.
    *
-   * However, doing so is likely less memory-efficient than using our built-in
-   * classes, and slower than using LexPositions as keys
-   * (with JavaScript's default lexicographic compare function).
+   * However, doing so is less memory-efficient than using our built-in classes.
    */
   compare(a: Position, b: Position): number {
     const aNode = this.getNodeFor(a);
@@ -304,8 +303,8 @@ export class Order {
    * you must add its bunch's BunchMeta using this method.
    * See [Managing Metadata](https://github.com/mweidner037/list-positions#managing-metadata).
    *
-   * (You do not need to manage metadata when using LexPositions/LexList,
-   * since LexPositions embed all of their metadata.)
+   * (You do not need to manage metadata when using AbsPositions/AbsList,
+   * since AbsPositions embed all of their metadata.)
    *
    * **Note:** A bunch depends on its parent bunch's metadata. So before (or at the same time
    * as) you call `addMetas` on a BunchMeta,
@@ -698,26 +697,26 @@ export class Order {
   }
 
   // ----------
-  // LexPosition
+  // AbsPosition
   // ----------
 
   /**
-   * Converts a Position to the equivalent LexPosition.
+   * Converts a Position to the equivalent AbsPosition.
    */
-  lex(pos: Position): LexPosition {
+  abs(pos: Position): AbsPosition {
     const node = this.getNodeFor(pos);
     // OPT: construct it directly with a tree walk and single join.
     return LexUtils.combinePos(node.lexPrefix(), pos.innerIndex);
   }
 
   /**
-   * Converts a LexPosition to the equivalent Position.
+   * Converts a AbsPosition to the equivalent Position.
    *
-   * Because LexPositions embed all of their dependencies, you do not need to
+   * Because AbsPositions embed all of their dependencies, you do not need to
    * worry about the Position's dependent BunchMetas. They will be extracted
    * from lexPos and delivered to `this.addMetas` internally if needed.
    */
-  unlex(lexPos: LexPosition): Position {
+  unabs(lexPos: AbsPosition): Position {
     const [bunchPrefix, innerIndex] = LexUtils.splitPos(lexPos);
     const bunchID = LexUtils.bunchIDFor(bunchPrefix);
     if (!this.tree.has(bunchID)) {

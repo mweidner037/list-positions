@@ -1,7 +1,7 @@
 import { BunchMeta } from "./bunch";
 
 /**
- * All of the metadata for a bunch.
+ * All of the metadata for a bunch, in a compressed form.
  */
 export type AbsBunchMeta = {
   replicaIDs: readonly string[];
@@ -69,7 +69,7 @@ export const AbsPositions = {
    */
   MAX_POSITION,
 
-  encodeMetas(pathToRoot: BunchMeta[]): AbsBunchMeta {},
+  encodeMetas(pathToRoot: Iterable<BunchMeta>): AbsBunchMeta {},
 
   decodeMetas(absBunchMeta: AbsBunchMeta): BunchMeta[] {},
 

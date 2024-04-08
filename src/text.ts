@@ -67,7 +67,8 @@ export type TextSavedState = {
  *
  * Text is functionally equivalent to `List<string>` with single-char values,
  * but it uses strings internally and in bulk methods, instead of arrays
- * of single chars. This reduces memory usage and the size of saved states.
+ * of single chars. This reduces memory usag
+   * e and the size of saved states.
  *
  * Technically, Text is a sequence of UTF-16 code units, like an ordinary JavaScript
  * string ([MDN reference](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String#utf-16_characters_unicode_code_points_and_grapheme_clusters)).
@@ -84,7 +85,7 @@ export class Text {
    * Constructs a Text, initially empty.
    *
    * @param order The Order to use for `this.order`.
-   * Multiple Lists/Outlines/Texts/LexLists can share an Order; they then automatically
+   * Multiple Lists/Outlines/Texts/AbsLists can share an Order; they then automatically
    * share metadata. If not provided, a `new Order()` is used.
    *
    * @see {@link Text.fromEntries} To construct a Text from an initial set of entries.
@@ -364,7 +365,7 @@ export class Text {
    * Returns the cursor at `index` within the list, i.e., between the positions at `index - 1` and `index`.
    * See [Cursors](https://github.com/mweidner037/list-positions#cursors).
    *
-   * Invert with indexOfCursor, possibly on a different List/Text/Outline/LexList or a different device.
+   * Invert with indexOfCursor, possibly on a different List/Text/Outline/AbsList or a different device.
    */
   cursorAt(index: number): Position {
     return index === 0 ? MIN_POSITION : this.positionAt(index - 1);

@@ -73,7 +73,7 @@ export class Outline {
    * Constructs an Outline, initially empty.
    *
    * @param order The Order to use for `this.order`.
-   * Multiple Lists/Outlines/Texts/LexLists can share an Order; they then automatically
+   * Multiple Lists/Outlines/Texts/AbsLists can share an Order; they then automatically
    * share metadata. If not provided, a `new Order()` is used.
    *
    * @see {@link Outline.fromPositions} To construct an Outline from an initial set of Positions.
@@ -311,7 +311,7 @@ export class Outline {
    * Returns the cursor at `index` within the list, i.e., between the positions at `index - 1` and `index`.
    * See [Cursors](https://github.com/mweidner037/list-positions#cursors).
    *
-   * Invert with indexOfCursor, possibly on a different List/Outline/LexList or a different device.
+   * Invert with indexOfCursor, possibly on a different List/Outline/AbsList or a different device.
    */
   cursorAt(index: number): Position {
     return index === 0 ? MIN_POSITION : this.positionAt(index - 1);
