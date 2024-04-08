@@ -1,3 +1,5 @@
+import { AbsBunchMeta } from "./abs_position";
+
 /**
  * Metadata for a [bunch](https://github.com/mweidner037/list-positions#bunches)
  * of Positions, as a JSON object.
@@ -111,14 +113,16 @@ export interface BunchNode {
   dependencies(): IterableIterator<BunchMeta>;
 
   /**
-   * Returns this bunch's *bunch prefix* - a string that embeds all of its
-   * dependencies (including its ancestors' BunchMetas), and that appears as a
-   * prefix of all of its LexPositions.
-   *
-   * You can use LexUtils to convert between a LexPosition and its
-   * (bunch prefix, innerIndex) pair.
+   * Returns the bunch's AbsBunchMeta: a struct that encodes all of its dependencies in a
+   * compressed form.
+   * 
+   * AbsBunchMeta is used internally by AbsPosition/AbsList. You can also use it independently,
+   * as an efficient substitute for `[...this.dependencies()]`.
+   * 
+   * @see {@link AbsPositions.decodeMetas} To convert the AbsBunchMeta back into the array
+   * `[...this.dependencies()]`, e.g., for passing to `Order.addMetas`.
    */
-  lexPrefix(): string;
+  absMeta(): AbsBunchMeta;
 
   /**
    * The number of child nodes in the Order's current tree.

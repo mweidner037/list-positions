@@ -1,7 +1,6 @@
-import { AbsPosition } from "./abs_position";
+import { AbsBunchMeta, AbsPosition, AbsPositions } from "./abs_position";
 import { BunchMeta, BunchNode, compareSiblingNodes } from "./bunch";
 import { BunchIDs } from "./bunch_ids";
-import { LexUtils } from "./lex_utils";
 import { MAX_POSITION, Position, positionEquals } from "./position";
 
 /**
@@ -90,9 +89,8 @@ class NodeInternal implements BunchNode {
     }
   }
 
-  lexPrefix(): string {
-    const topDown = [...this.dependencies()].reverse();
-    return LexUtils.combineBunchPrefix(topDown);
+  absMeta(): AbsBunchMeta {
+    return AbsPositions.encodeMetas(this.dependencies());
   }
 
   toString() {
@@ -705,8 +703,10 @@ export class Order {
    */
   abs(pos: Position): AbsPosition {
     const node = this.getNodeFor(pos);
-    // OPT: construct it directly with a tree walk and single join.
-    return LexUtils.combinePos(node.lexPrefix(), pos.innerIndex);
+    return {
+      bunchMeta: node.absMeta(),
+      innerIndex: pos.innerIndex,
+    };
   }
 
   /**
@@ -714,17 +714,16 @@ export class Order {
    *
    * Because AbsPositions embed all of their dependencies, you do not need to
    * worry about the Position's dependent BunchMetas. They will be extracted
-   * from lexPos and delivered to `this.addMetas` internally if needed.
+   * from absPos and delivered to `this.addMetas` internally if needed.
    */
-  unabs(lexPos: AbsPosition): Position {
-    const [bunchPrefix, innerIndex] = LexUtils.splitPos(lexPos);
-    const bunchID = LexUtils.bunchIDFor(bunchPrefix);
+  unabs(absPos: AbsPosition): Position {
+    const bunchID = AbsPositions.getBunchID(absPos.bunchMeta);
     if (!this.tree.has(bunchID)) {
-      // Add the node.
-      this.addMetas(LexUtils.splitBunchPrefix(bunchPrefix));
+      // Add all of the bunch's dependencies.
+      this.addMetas(AbsPositions.decodeMetas(absPos.bunchMeta));
     }
-    // Else we skip checking agreement with the existing node, for efficiency.
+    // Else we skip checking agreement with existing BunchMetas, for efficiency.
 
-    return { bunchID, innerIndex: innerIndex };
+    return { bunchID, innerIndex: absPos.innerIndex };
   }
 }
