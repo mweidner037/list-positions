@@ -68,7 +68,7 @@ export type TextSavedState = {
  * Text is functionally equivalent to `List<string>` with single-char values,
  * but it uses strings internally and in bulk methods, instead of arrays
  * of single chars. This reduces memory usag
-   * e and the size of saved states.
+ * e and the size of saved states.
  *
  * Technically, Text is a sequence of UTF-16 code units, like an ordinary JavaScript
  * string ([MDN reference](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String#utf-16_characters_unicode_code_points_and_grapheme_clusters)).
@@ -85,7 +85,7 @@ export class Text {
    * Constructs a Text, initially empty.
    *
    * @param order The Order to use for `this.order`.
-   * Multiple Lists/Outlines/Texts/AbsLists can share an Order; they then automatically
+   * Multiple Lists/Texts/Outlines/AbsLists can share an Order; they then automatically
    * share metadata. If not provided, a `new Order()` is used.
    *
    * @see {@link Text.fromEntries} To construct a Text from an initial set of entries.
@@ -236,9 +236,9 @@ export class Text {
    * if new Positions are created between them.
    *
    * @returns [starting Position, [new bunch's BunchMeta](https://github.com/mweidner037/list-positions#newMeta) (or null)].
+   * Use {@link expandPositions} to convert (startPos, chars.length) to an array of Positions.
    * @throws If prevPos is MAX_POSITION.
    * @throws If no chars are provided.
-   * @see {@link expandPositions} To convert (startPos, chars.length) to an array of Positions.
    */
   insert(
     prevPos: Position,
@@ -276,9 +276,9 @@ export class Text {
    * if new Positions are created between them.
    *
    * @returns [starting Position, [new bunch's BunchMeta](https://github.com/mweidner037/list-positions#newMeta) (or null)].
+   * Use {@link expandPositions} to convert (startPos, chars.length) to an array of Positions.
    * @throws If index is not in `[0, this.length]`. The index `this.length` is allowed and will cause an append.
    * @throws If no chars are provided.
-   * @see {@link expandPositions} To convert (startPos, chars.length) to an array of Positions.
    */
   insertAt(
     index: number,
@@ -468,7 +468,7 @@ export class Text {
    * and have the same `bunchID` but increasing `innerIndex`.
    *
    * You can use this method as an optimized version of other iterators, or as
-   * an alternative in-order save format (see List.fromItems).
+   * an alternative in-order save format (see {@link Text.fromItems}).
    *
    * Optionally, you may specify a range of indices `[start, end)` instead of
    * iterating the entire list.

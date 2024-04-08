@@ -80,7 +80,7 @@ export class List<T> {
    * Constructs a List, initially empty.
    *
    * @param order The Order to use for `this.order`.
-   * Multiple Lists/Outlines/Texts/AbsLists can share an Order; they then automatically
+   * Multiple Lists/Texts/Outlines/AbsLists can share an Order; they then automatically
    * share metadata. If not provided, a `new Order()` is used.
    *
    * @see {@link List.fromEntries} To construct a List from an initial set of entries.
@@ -232,9 +232,9 @@ export class List<T> {
    * if new Positions are created between them.
    *
    * @returns [starting Position, [new bunch's BunchMeta](https://github.com/mweidner037/list-positions#newMeta) (or null)].
+   * Use {@link expandPositions} to convert (startPos, values.length) to an array of Positions.
    * @throws If prevPos is MAX_POSITION.
    * @throws If no values are provided.
-   * @see {@link expandPositions} To convert (startPos, values.length) to an array of Positions.
    */
   insert(
     prevPos: Position,
@@ -269,9 +269,9 @@ export class List<T> {
    * if new Positions are created between them.
    *
    * @returns [starting Position, [new bunch's BunchMeta](https://github.com/mweidner037/list-positions#newMeta) (or null)].
+   * Use {@link expandPositions} to convert (startPos, values.length) to an array of Positions.
    * @throws If index is not in `[0, this.length]`. The index `this.length` is allowed and will cause an append.
    * @throws If no values are provided.
-   * @see {@link expandPositions} To convert (startPos, values.length) to an array of Positions.
    */
   insertAt(
     index: number,
@@ -454,7 +454,7 @@ export class List<T> {
    * and have the same `bunchID` but increasing `innerIndex`.
    *
    * You can use this method as an optimized version of other iterators, or as
-   * an alternative in-order save format (see List.fromItems).
+   * an alternative in-order save format (see {@link List.fromItems}).
    *
    * Optionally, you may specify a range of indices `[start, end)` instead of
    * iterating the entire list.

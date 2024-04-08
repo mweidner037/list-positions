@@ -73,7 +73,7 @@ export class Outline {
    * Constructs an Outline, initially empty.
    *
    * @param order The Order to use for `this.order`.
-   * Multiple Lists/Outlines/Texts/AbsLists can share an Order; they then automatically
+   * Multiple Lists/Texts/Outlines/AbsLists can share an Order; they then automatically
    * share metadata. If not provided, a `new Order()` is used.
    *
    * @see {@link Outline.fromPositions} To construct an Outline from an initial set of Positions.
@@ -205,9 +205,9 @@ export class Outline {
    * if new Positions are created between them.
    *
    * @returns [starting Position, [new bunch's BunchMeta](https://github.com/mweidner037/list-positions#newMeta) (or null)].
+   * Use {@link expandPositions} to convert (startPos, count) to an array of Positions.
    * @throws If prevPos is MAX_POSITION.
    * @throws If no values are provided.
-   * @see {@link expandPositions} To convert (startPos, count) to an array of Positions.
    */
   insert(
     prevPos: Position,
@@ -242,9 +242,9 @@ export class Outline {
    * if new Positions are created between them.
    *
    * @returns [starting Position, [new bunch's BunchMeta](https://github.com/mweidner037/list-positions#newMeta) (or null)].
+   * Use {@link expandPositions} to convert (startPos, count) to an array of Positions.
    * @throws If index is not in `[0, this.length]`. The index `this.length` is allowed and will cause an append.
    * @throws If count is 0.
-   * @see {@link expandPositions} To convert (startPos, count) to an array of Positions.
    */
   insertAt(
     index: number,
@@ -311,7 +311,7 @@ export class Outline {
    * Returns the cursor at `index` within the list, i.e., between the positions at `index - 1` and `index`.
    * See [Cursors](https://github.com/mweidner037/list-positions#cursors).
    *
-   * Invert with indexOfCursor, possibly on a different List/Outline/AbsList or a different device.
+   * Invert with indexOfCursor, possibly on a different List/Text/Outline/AbsList or a different device.
    */
   cursorAt(index: number): Position {
     return index === 0 ? MIN_POSITION : this.positionAt(index - 1);
@@ -368,7 +368,7 @@ export class Outline {
    * and have the same `bunchID` but increasing `innerIndex`.
    *
    * You can use this method as an optimized version of other iterators, or as
-   * an alternative in-order save format (see Outline.fromItems).
+   * an alternative in-order save format (see {@link Outline.fromItems}).
    *
    * Optionally, you may specify a range of indices `[start, end)` instead of
    * iterating the entire list.

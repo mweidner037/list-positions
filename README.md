@@ -451,7 +451,7 @@ Obtain BunchNodes using `Order.getNode` or `Order.getNodeFor`.
 
 ## Performance
 
-The `benchmarks/` folder contains benchmarks using List/Outline/LexList directly (modeling single-user or clien-server collaboration) and using text CRDTs built around a List+Outline.
+The `benchmarks/` folder contains benchmarks using List/Text/Outline/LexList directly (modeling single-user or clien-server collaboration) and using text CRDTs built around a List+Outline.
 
 Each benchmark applies the [automerge-perf](https://github.com/automerge/automerge-perf) 260k edit text trace and measures various stats, modeled on [crdt-benchmarks](https://github.com/dmonad/crdt-benchmarks/)' B4 experiment.
 
@@ -477,7 +477,7 @@ For questions about performance, optimizations, or specific use cases, feel free
 Here are some general performance considerations:
 
 1. The library is optimized for forward (left-to-right) insertions. If you primarily insert backward (right-to-left) or at random, you will see worse efficiency - especially storage overhead. (Internally, only forward insertions reuse [bunches](#bunches), so other patterns lead to fewer Positions per bunch.)
-2. LexPositions and Positions are interchangeable, via the `Order.lex` and `Order.unlex` methods. So you could always start off using the simpler-but-larger LexPositions, then do a data migration to switch to Positions if performance demands it. <!-- TODO: likewise for List/Outline/LexList, via save-conversion methods. -->
+2. LexPositions and Positions are interchangeable, via the `Order.lex` and `Order.unlex` methods. So you could always start off using the simpler-but-larger LexPositions, then do a data migration to switch to Positions if performance demands it. <!-- TODO: likewise for List/Text/Outline/LexList, via save-conversion methods. -->
 3. The saved states are designed for simplicity, not size. This is why GZIP shrinks them a lot (at the cost of longer save and load times). You can improve on the default performance in various ways: binary encodings, deduplicating [replicaIDs](#replica-ids), etc. <!-- TODO: using List.saveOutline and gzipping each separately. --> Before putting too much effort in to this, though, keep in mind that human-written text is small. E.g., the 900 KB CRDT save size above is the size of one image file, even though it represents a 15-page LaTeX paper with 9x overhead.
 4. For smaller LexPositions and saved states, you can reduce the size of replicaIDs from their default of 21 chars. E.g., even in a popular document with 10,000 replicaIDs, 8 random alphanumeric chars still guarantee a < 1-in-5,000,000 chance of collisions (cf. [birthday problem](https://en.wikipedia.org/wiki/Birthday_problem#Square_approximation)):
 

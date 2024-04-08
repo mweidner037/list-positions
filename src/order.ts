@@ -484,7 +484,7 @@ export class Order {
    * if new Positions are created between them.
    *
    * @returns [starting Position, [new bunch's BunchMeta](https://github.com/mweidner037/list-positions#newMeta) (or null)].
-   * @see {@link expandPositions} To convert (startPos, count) to an array of Positions.
+   * Use {@link expandPositions} to convert (startPos, count) to an array of Positions.
    * @throws If prevPos >= nextPos (i.e., `this.compare(prevPos, nextPos) >= 0`).
    * @param options.bunchID Forces the creation of a new bunch with a specific bunchID,
    * instead of reusing an existing bunch or using the constructor's newBunchID function.

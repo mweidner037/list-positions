@@ -74,7 +74,7 @@ export class AbsList<T> {
    * Constructs a AbsList, initially empty.
    *
    * @param order The Order to use for `this.order`.
-   * Multiple Lists/Outlines/Texts/AbsLists can share an Order; they then automatically
+   * Multiple Lists/Texts/Outlines/AbsLists can share an Order; they then automatically
    * share metadata. If not provided, a `new Order()` is used.
    *
    * @see {@link AbsList.fromEntries} To construct a AbsList from an initial set of entries.
@@ -245,8 +245,8 @@ export class AbsList<T> {
    * In a collaborative setting, the new AbsPositions are *globally unique*, even
    * if other users call `AbsList.insert` (or similar methods) concurrently.
    *
-   * @returns The starting AbsPosition.
-   * @see {@link AbsPositions.expandPositions} To convert (returned position, values.length) to an array of AbsPositions.
+   * @returns The starting AbsPosition. Use {@link AbsPositions.expandPositions} to convert
+   * (returned position, values.length) to an array of AbsPositions.
    * @throws If index is not in `[0, this.length]`. The index `this.length` is allowed and will cause an append.
    * @throws If no values are provided.
    */
@@ -412,7 +412,7 @@ export class AbsList<T> {
    * and have the same `bunchMeta` but increasing `innerIndex`.
    *
    * You can use this method as an optimized version of other iterators, or as
-   * an alternative in-order save format (see AbsList.fromItems).
+   * an alternative in-order save format (see {@link AbsList.fromItems}).
    *
    * Optionally, you may specify a range of indices `[start, end)` instead of
    * iterating the entire list.
