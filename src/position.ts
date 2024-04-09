@@ -12,9 +12,8 @@ import { BunchIDs } from "./bunch_ids";
  * for details.
  *
  * See also:
- * - {@link LexPosition}: An alternative representation of positions that is used with
- * LexList and can be sorted independent of this library.
  * - {@link positionEquals}: Equality function for Positions.
+ * - {@link AbsPosition}: An alternative representation of positions that is easier to work with, used with AbsList.
  */
 export type Position = {
   /**

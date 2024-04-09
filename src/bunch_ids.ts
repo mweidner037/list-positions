@@ -1,12 +1,5 @@
 import { maybeRandomString } from "maybe-random-string";
-
-/**
- * Base (radix) for stringifying the counter in usingReplicaIDs.
- *
- * Higher is better (shorter nodeIDs), but JavaScript only supports up to 36
- * by default.
- */
-const COUNTER_BASE = 36;
+import { parseMaybeDotID, stringifyMaybeDotID } from "./internal/util";
 
 /**
  * Utilities for generating `bunchIDs`.
@@ -67,7 +60,7 @@ export const BunchIDs = {
 
     let counter = 0;
     return function () {
-      const bunchID = theReplicaID + "_" + counter.toString(COUNTER_BASE);
+      const bunchID = stringifyMaybeDotID(theReplicaID, counter);
       counter++;
       return bunchID;
     };
@@ -96,23 +89,12 @@ export const BunchIDs = {
    * just as well.)
    */
   parseUsingReplicaID(bunchID: string): [replicaID: string, counter: number] {
-    const underscore = bunchID.lastIndexOf("_");
-    if (underscore === -1) {
+    const [replicaID, counter] = parseMaybeDotID(bunchID);
+    if (counter === -1) {
       throw new Error(
-        `bunchID is not from BunchIDs.usingReplicaID (missing "_"): ${bunchID}`
+        `bunchID is not from BunchIDs.usingReplicaID: "${bunchID}"`
       );
     }
-
-    const counter = Number.parseInt(
-      bunchID.slice(underscore + 1),
-      COUNTER_BASE
-    );
-    if (isNaN(counter)) {
-      throw new Error(
-        `bunchID is not from BunchIDs.usingReplicaID (bad counter): ${bunchID}`
-      );
-    }
-
-    return [bunchID.slice(0, underscore), counter];
+    return [replicaID, counter];
   },
 } as const;
