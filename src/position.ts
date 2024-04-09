@@ -73,12 +73,12 @@ export function expandPositions(
   startPos: Position,
   sameBunchCount: number
 ): Position[] {
-  const ans = new Array<Position>(sameBunchCount);
+  const ans: Position[] = [];
   for (let i = 0; i < sameBunchCount; i++) {
-    ans[i] = {
+    ans.push({
       bunchID: startPos.bunchID,
       innerIndex: startPos.innerIndex + i,
-    };
+    });
   }
   return ans;
 }

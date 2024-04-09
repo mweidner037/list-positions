@@ -229,12 +229,12 @@ export const AbsPositions = {
     startPos: AbsPosition,
     sameBunchCount: number
   ): AbsPosition[] {
-    const ans = new Array<AbsPosition>(sameBunchCount);
+    const ans: AbsPosition[] = [];
     for (let i = 0; i < sameBunchCount; i++) {
-      ans[i] = {
+      ans.push({
         bunchMeta: startPos.bunchMeta,
         innerIndex: startPos.innerIndex + i,
-      };
+      });
     }
     return ans;
   },

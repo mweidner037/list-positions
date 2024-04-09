@@ -195,9 +195,9 @@ export class Text {
    * @throws If any of `index`, ..., `index + count - 1` are not in `[0, this.length)`.
    */
   deleteAt(index: number, count = 1): void {
-    const toDelete = new Array<Position>(count);
+    const toDelete: Position[] = [];
     for (let i = 0; i < count; i++) {
-      toDelete[i] = this.positionAt(index + i);
+      toDelete.push(this.positionAt(index + i));
     }
     for (const pos of toDelete) this.itemList.delete(pos, 1);
   }
