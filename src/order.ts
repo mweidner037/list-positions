@@ -359,7 +359,6 @@ export class Order {
             );
           }
         } else {
-          BunchIDs.validate(bunchMeta.bunchID);
           newBunchMetas.set(bunchMeta.bunchID, bunchMeta);
         }
       }

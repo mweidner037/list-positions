@@ -13,34 +13,6 @@ export const BunchIDs = {
   ROOT: "ROOT",
 
   /**
-   * Throws an error if bunchID is invalid.
-   *
-   * Rules:
-   * - Must not be "ROOT" (`BunchIDs.ROOT`).
-   * - Must not contain "." or ",".
-   * - Must be lexicographically less than "\~".
-   * (This is a technicality needed to match the sort order on LexPositions,
-   * since `MAX_LEX_POSITION = "~"`.)
-   */
-  validate(bunchID: string): void {
-    if (bunchID === this.ROOT) {
-      throw new Error(
-        `Invalid bunchID or replicaID: "${this.ROOT}" (NodeIDs.ROOT) is reserved.`
-      );
-    }
-    if (bunchID.indexOf(".") !== -1 || bunchID.indexOf(",") !== -1) {
-      throw new Error(
-        `Invalid bunchID or replicaID "${bunchID}": must not contain "." or ",".`
-      );
-    }
-    if (!(bunchID < "~")) {
-      throw new Error(
-        `Invalid bunchID or replicaID "${bunchID}": must be lexicographically less than "~".`
-      );
-    }
-  },
-
-  /**
    * Returns a `newBunchID` function for Order's constructor that uses
    * [dot IDs](https://mattweidner.com/2023/09/26/crdt-survey-3.html#unique-ids-dots):
    * each bunchID has the form `` `${replicaID}_${counter.toString(36)}` ``,
@@ -52,10 +24,6 @@ export const BunchIDs = {
    * @see {@link BunchIDs.parseUsingReplicaID}
    */
   usingReplicaID(replicaID?: string): () => string {
-    if (replicaID !== undefined) {
-      // Validate replicaID. It must follow the same rules as node IDs.
-      this.validate(replicaID);
-    }
     const theReplicaID = replicaID ?? maybeRandomString();
 
     let counter = 0;

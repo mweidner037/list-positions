@@ -15,7 +15,7 @@ The tree's root is a bunch node with bunchID `"ROOT"` (`BunchIDs.ROOT`).
 
 The tree's nodes are totally ordered using a depth-first search: visit the root, then traverse each of its child nodes recursively. A node's children are traversed in the order:
 
-- For bunch layers, visit the children in order by bunchID. Specifically, use the lexicographic order on the strings `bunchID + ","`. (We'll explain the extra comma [later](#lexpositions).)
+- For bunch layers, visit the children in order by bunchID (lexicographically).
 - For offset layers, visit the children in order by offset.
 
 Each Order instance stores a tree of the above form. The tree's bunch nodes correspond to the bunches described in the readme. A bunch's BunchMeta `{ bunchID, parentID, offset }` says: I am a grandchild of the bunch node `parentID`, a child of its child `offset`.
@@ -78,6 +78,8 @@ Special cases that are handled separately:
 Besides embedding dependencies, LexPositions have the nice property that their lexicographic order matches the tree order.
 
 These two sort orders are a natural fit because they both sort by earlier layers first, using lower layers only as a tiebreaker. However, to make them exactly match, we need to do a few things specially:
+
+TODO: 1,2: rules replaced with escaping. Also: tilde rule/escaping.
 
 1. We ban commas and periods in bunchIDs and offsets. Otherwise, the lexicographic order might not respect layer boundaries.
 2. In the tree's depth-first search, we order bunch nodes not by bunchID, but by `bunchID + ","`. This matches the lexicographic order when there are sibling bunchIDs like `"abc"` vs `"abc "`: descendant nodes will end up comparing `"abc,<...>"` vs `"abc ,<...>"`; the former is greater because `"," > " "`, even though in isolation `"abc" < "abc "`.
