@@ -245,7 +245,6 @@ export class Order {
    * data structure other than our built-in classes, e.g.,
    * [functional-red-black-tree](https://www.npmjs.com/package/functional-red-black-tree)
    * or `Array.sort`.
-   *
    * However, doing so is less memory-efficient than using our built-in classes.
    */
   compare(a: Position, b: Position): number {

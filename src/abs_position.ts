@@ -117,6 +117,7 @@ export const AbsPositions = {
    * does not match the next entry's `bunchID`.
    */
   encodeMetas(pathToRoot: Iterable<BunchMeta>): AbsBunchMeta {
+    // Encode the pathToRoot in order, deduplicating replicaIDs.
     const replicaIDs: string[] = [];
     const replicaIDsInv = new Map<string, number>();
     const replicaIndices: number[] = [];
@@ -237,5 +238,71 @@ export const AbsPositions = {
       });
     }
     return ans;
+  },
+
+  /**
+   * [Compare function](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/sort#comparefn)
+   * for AbsPositions.
+   *
+   * You may use this method to work with AbsPositions in a list-as-ordered-map
+   * data structure other than our built-in classes, e.g.,
+   * [functional-red-black-tree](https://www.npmjs.com/package/functional-red-black-tree)
+   * or `Array.sort`.
+   * However, doing so is less memory-efficient than using our built-in classes.
+   *
+   * Equivalent to Order.compare.
+   */
+  compare(a: AbsPosition, b: AbsPosition): number {
+    const aLen = a.bunchMeta.replicaIndices.length;
+    const bLen = b.bunchMeta.replicaIndices.length;
+
+    // WLOG aLen <= bLen.
+    if (bLen > aLen) {
+      return -AbsPositions.compare(b, a);
+    }
+
+    // Walk down the tree until we find a difference.
+    // TODO: need to adjust offset indices by one.
+    for (let i = 0; i < aLen; i++) {
+      const aI = aLen - 1 - i;
+      const bI = bLen - 1 - i;
+
+      const aOffset = a.bunchMeta.offsets[aI];
+      const bOffset = b.bunchMeta.offsets[bI];
+      if (aOffset !== bOffset) {
+        return aOffset - bOffset;
+      }
+
+      const aReplicaID = a.bunchMeta.replicaIDs[a.bunchMeta.replicaIndices[aI]];
+      const bReplicaID = b.bunchMeta.replicaIDs[b.bunchMeta.replicaIndices[bI]];
+
+      if (
+        !(
+          aReplicaID === bReplicaID &&
+          a.bunchMeta.counterIncs[aI] === b.bunchMeta.counterIncs[bI]
+        )
+      ) {
+        const aBunchID = stringifyMaybeDotID(
+          aReplicaID,
+          a.bunchMeta.counterIncs[aI] - 1
+        );
+        const bBunchID = stringifyMaybeDotID(
+          bReplicaID,
+          b.bunchMeta.counterIncs[bI] - 1
+        );
+        return aBunchID > bBunchID ? 1 : -1;
+      }
+    }
+
+    if (aLen === bLen) {
+      // Same bunches. Compare innerIndex.
+      return a.innerIndex - b.innerIndex;
+    }
+
+    // Here aLen < bLen, so a is a prefix of b.
+    // TODO: case aLen = 0 (root bunch). I think okay once we fix the offsets off-by-1?
+    const bNextInnerIndex = (b.bunchMeta.offsets[bLen - aLen] + 1) >> 1;
+    if (bNextInnerIndex === a.innerIndex + 1) return -1;
+    else return -(bNextInnerIndex - (a.innerIndex + 1));
   },
 } as const;
