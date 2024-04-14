@@ -115,10 +115,10 @@ export interface BunchNode {
   /**
    * Returns the bunch's AbsBunchMeta: a struct that encodes all of its dependencies in a
    * compressed form.
-   * 
+   *
    * AbsBunchMeta is used internally by AbsPosition/AbsList. You can also use it independently,
    * as an efficient substitute for `[...this.dependencies()]`.
-   * 
+   *
    * @see {@link AbsPositions.decodeMetas} To convert the AbsBunchMeta back into the array
    * `[...this.dependencies()]`, e.g., for passing to `Order.addMetas`.
    */
@@ -153,10 +153,7 @@ export interface BunchNode {
  *
  * The sort order is:
  * - First, sort siblings by `offset`.
- * - To break ties, sort siblings lexicographically by the strings `sibling.bunchID + ","`.
- * (The extra comma is a technicality needed to match the sort order on LexPositions.
- * It has no effect if your bunchIDs only use characters greater than "," (code unit 44),
- * which is true by default.)
+ * - To break ties, sort lexicographically by `bunchID`.
  */
 export function compareSiblingNodes(a: BunchNode, b: BunchNode): number {
   if (a.parent !== b.parent) {
@@ -170,8 +167,7 @@ export function compareSiblingNodes(a: BunchNode, b: BunchNode): number {
     return a.offset - b.offset;
   }
   if (a.bunchID !== b.bunchID) {
-    // Need to add the comma to match how LexPositions are sorted.
-    return a.bunchID + "," > b.bunchID + "," ? 1 : -1;
+    return a.bunchID > b.bunchID ? 1 : -1;
   }
   return 0;
 }
