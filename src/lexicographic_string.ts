@@ -25,9 +25,9 @@ const { sequence } = lexSequence(OFFSET_BASE);
  * [position-strings](https://github.com/mweidner037/position-strings#readme)
  * package instead, which is optimized for that use case (smaller JS bundle & more compact strings).
  *
- * To call this function on a Position `pos` belonging to an Order `order`, use `asLexicographicString(order.abs(pos))`.
+ * To call this function on a Position `pos` belonging to an Order `order`, use `lexicographicString(order.abs(pos))`.
  */
-export function asLexicographicString(pos: AbsPosition): string {
+export function lexicographicString(pos: AbsPosition): string {
   const { replicaIndices, replicaIDs, counterIncs, offsets } = pos.bunchMeta;
 
   // See https://github.com/mweidner037/list-positions/blob/master/internals.md

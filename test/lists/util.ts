@@ -6,7 +6,7 @@ import {
   Order,
   Outline,
   Position,
-  asLexicographicString,
+  lexicographicString,
   expandPositions,
 } from "../../src";
 
@@ -42,7 +42,7 @@ export class Checker {
     );
     assert.deepStrictEqual(
       this.tree.keys,
-      positions.map((pos) => asLexicographicString(this.order.abs(pos)))
+      positions.map((pos) => lexicographicString(this.order.abs(pos)))
     );
 
     // Check that individual accessors agree.
@@ -55,7 +55,7 @@ export class Checker {
       assert.strictEqual(this.list.getAt(i), iter.value!);
       assert.deepStrictEqual(
         iter.key!,
-        asLexicographicString(this.order.abs(pos))
+        lexicographicString(this.order.abs(pos))
       );
       assert.strictEqual(this.list.get(pos), iter.value);
       assert.strictEqual(this.list.indexOfPosition(pos), i);
@@ -71,7 +71,7 @@ export class Checker {
     for (let i = 0; i < positions.length; i++) {
       const absPos = this.order.abs(positions[i]);
       this.absList.set(absPos, sameBunchValues[i]);
-      const lex = asLexicographicString(absPos);
+      const lex = lexicographicString(absPos);
       this.tree = this.tree.find(lex).remove().insert(lex, sameBunchValues[i]);
     }
 
@@ -96,7 +96,7 @@ export class Checker {
     for (let i = 0; i < positions.length; i++) {
       const absPos = this.order.abs(positions[i]);
       this.absList.delete(absPos);
-      const lex = asLexicographicString(absPos);
+      const lex = lexicographicString(absPos);
       this.tree = this.tree.find(lex).remove();
     }
 
@@ -138,7 +138,7 @@ export class Checker {
     for (let i = 0; i < positions.length; i++) {
       const absPos = this.order.abs(positions[i]);
       this.absList.set(absPos, values[i]);
-      const lex = asLexicographicString(absPos);
+      const lex = lexicographicString(absPos);
       this.tree = this.tree.find(lex).remove().insert(lex, values[i]);
     }
 
@@ -158,7 +158,7 @@ export class Checker {
     for (let i = 0; i < positions.length; i++) {
       const absPos = this.order.abs(positions[i]);
       this.absList.set(absPos, values[i]);
-      const lex = asLexicographicString(absPos);
+      const lex = lexicographicString(absPos);
       this.tree = this.tree.find(lex).remove().insert(lex, values[i]);
     }
 

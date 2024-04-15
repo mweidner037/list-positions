@@ -6,7 +6,7 @@ import {
   MIN_POSITION,
   Order,
   Position,
-  asLexicographicString,
+  lexicographicString,
   expandPositions,
 } from "../../src";
 import { assertIsOrdered, testUniqueAfterDelete } from "./util";
@@ -97,7 +97,7 @@ function testSingleUser(replicaID: string) {
     const list = expandPositions(startPos, 1000);
     assertIsOrdered(list, alice);
     // Lexicographic string efficiency check.
-    assert.isBelow(asLexicographicString(alice.abs(list.at(-1)!)).length, 30);
+    assert.isBelow(lexicographicString(alice.abs(list.at(-1)!)).length, 30);
   });
 
   it("LtR long", () => {
@@ -109,7 +109,7 @@ function testSingleUser(replicaID: string) {
     }
     assertIsOrdered(list, alice);
     // Lexicographic string efficiency check.
-    assert.isBelow(asLexicographicString(alice.abs(list.at(-1)!)).length, 30);
+    assert.isBelow(lexicographicString(alice.abs(list.at(-1)!)).length, 30);
   });
 
   it("RtL long", () => {

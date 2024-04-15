@@ -6,7 +6,7 @@ import {
   MIN_POSITION,
   Order,
   Position,
-  asLexicographicString,
+  lexicographicString,
 } from "../../src";
 
 /**
@@ -24,8 +24,8 @@ export function assertIsOrdered(positions: Position[], order: Order) {
     );
   }
   for (let i = 0; i < positions.length - 1; i++) {
-    const lexA = asLexicographicString(order.abs(positions[i]));
-    const lexB = asLexicographicString(order.abs(positions[i + 1]));
+    const lexA = lexicographicString(order.abs(positions[i]));
+    const lexB = lexicographicString(order.abs(positions[i + 1]));
     assert(lexA < lexB, `Out of order @ ${i}: ${lexA} !< ${lexB}`);
   }
   for (let i = 0; i < positions.length; i++) {
@@ -77,8 +77,8 @@ export function testUniqueAfterDelete(positions: Position[], order: Order) {
     );
     assert.notDeepEqual(a, b);
     assert.notStrictEqual(
-      asLexicographicString(order.abs(a)),
-      asLexicographicString(order.abs(b))
+      lexicographicString(order.abs(a)),
+      lexicographicString(order.abs(b))
     );
   }
 }
