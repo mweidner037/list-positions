@@ -44,7 +44,6 @@ export async function absListDirect() {
       updateObj = { type: "delete", pos };
     }
 
-    // TODO: try gzip? See comment in list_direct.ts.
     updates.push(JSON.stringify(updateObj));
   }
 

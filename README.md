@@ -51,7 +51,7 @@ This library provides positions (types `Position`/`AbsPosition`) and correspondi
 
 ### Related Work
 
-- [position-strings](https://www.npmjs.com/package/position-strings), another library that implements immutable positions, but with a minimalist API that only provides lexicographically-sortable strings. (Note: Its positions are _not_ compatible with this library's.)
+- [position-strings](https://www.npmjs.com/package/position-strings), another library that implements immutable positions, but with a minimalist API that only provides lexicographically-sortable strings.
 - [Fractional indexing](https://www.figma.com/blog/realtime-editing-of-ordered-sequences/#fractional-indexing),
   a related but less general idea.
 - [Blog post](https://mattweidner.com/2022/10/21/basic-list-crdt.html) describing the Fugue list CRDT and how it relates to the "list position" abstraction. This library implements an optimized version of that post's tree implementation (List/Position) and an analog of its string implementation (AbsList/AbsPosition).
@@ -101,7 +101,7 @@ list.delete(newPos);
 
 AbsPositions are easy to use because they are self-contained: you can use AbsPositions in an AbsList without any prior setup. In other words, their sort order is "absolute", not "relative" to some separate metadata.
 
-The downside of AbsPositions is metadata overhead - their JSON encodings have variable length and can become long in certain scenarios (an average of TODO characters in our [benchmarks](./benchmark_results.md#abslist-direct)).
+The downside of AbsPositions is metadata overhead - their JSON encodings have variable length and can become long in certain scenarios (an average of 188 characters in our [benchmarks](./benchmark_results.md#abslist-direct)).
 
 > Using AbsList is more efficient than storing all of the literal pairs `(absPosition, value)` in your own data structure. In fact, it is nearly as efficient as the next section's List class - see [AbsList benchmark results](./benchmark_results.md#abslist-direct). If you do need to use your own data structure (e.g., a DB table with one pair per row), it should be practical for short lists of perhaps <1,000 values - e.g., the items in a todo list, or the scenarios where [Figma uses fractional indexing](https://www.figma.com/blog/how-figmas-multiplayer-technology-works/#syncing-trees-of-objects).
 
@@ -270,7 +270,7 @@ function load<T>(savedState: string): List<T> {
 <a id="newMeta"></a>
 **Multiple users** Suppose you have multiple users and a single list order, e.g., a collaborative text editor. Any time a user creates a new Position by calling `list.insertAt`, `list.insert`, or `list.order.createPositions`, they might create a new bunch. Other users must learn of the new bunch's BunchMeta before they can use the new Position.
 
-One option is to always send AbsPositions over the network instead of Positions. Use `list.order.abs` and `list.order.unabs` to translate between the two. This is almost as simple as using [AbsList and AbsPosition](#abslist-and-absposition), but with the same cost in metadata overhead - in our [list CRDT benchmarks](./benchmark_results.md#abspositioncrdt), it about doubles TODO the size of network messages relative to the second option below. However, the messages are still small in absolute terms (156.6 vs 73.5 bytes/op TODO).
+One option is to always send AbsPositions over the network instead of Positions. Use `list.order.abs` and `list.order.unabs` to translate between the two. This is almost as simple as using [AbsList and AbsPosition](#abslist-and-absposition), but with the same cost in metadata overhead - in our [list CRDT benchmarks](./benchmark_results.md#abspositioncrdt), it has about 2.5x larger network messages than the second option below. However, the messages are still small in absolute terms (216.2 bytes/op). <!-- TODO: replicaID rotation benchmarks will make this worse. -->
 
 A second option is to distribute a new BunchMeta immediately when it is created, before/together with its new Position. For example:
 
@@ -424,6 +424,12 @@ Internally, a cursor is represented as the Position (or AbsPosition, for AbsList
 
 Convert indices to cursors and back using methods `cursorAt` and `indexOfCursor`, on classes List, Text, Outline, and AbsList. (These are wrappers around `positionAt` and `indexOfPosition` that get the edge cases right.)
 
+#### Lexicographic Strings
+
+The function `lexicographicString(pos: AbsPosition): string` returns a string with the property: The lexicographic order on strings matches the list order on positions. These are useful as an escape hatch for interacting with external systems (e.g., `ORDER BY` in a database), but they should be used sparingly for efficiency reasons.
+
+> If you plan to use lexicographic strings exclusively, consider using the [position-strings](https://github.com/mweidner037/position-strings#readme) package instead, which is optimized for that use case (smaller JS bundle & more compact strings). Note: Its strings are **not compatible** with this library's.
+
 #### `AbsPositions`
 
 Utilities for manipulating [AbsPositions](#abslist-and-absposition).
@@ -477,16 +483,16 @@ Each benchmark applies the [automerge-perf](https://github.com/automerge/automer
 
 Results for one of the list CRDTs (`PositionCRDT`) on my laptop:
 
-- Sender time (ms): 701
+- Sender time (ms): 660
 - Avg update size (bytes): 86.8
-- Receiver time (ms): 529
-- Save time (ms): 11
+- Receiver time (ms): 436
+- Save time (ms): 13
 - Save size (bytes): 909990
-- Load time (ms): 21
-- Save time GZIP'd (ms): 81
-- Save size GZIP'd (bytes): 101895
-- Load time GZIP'd (ms): 41
-- Mem used (MB): 2.7
+- Load time (ms): 14
+- Save time GZIP'd (ms): 74
+- Save size GZIP'd (bytes): 101899
+- Load time GZIP'd (ms): 33
+- Mem used (MB): 2.6
 
 For more results, see [benchmark_results.md](./benchmark_results.md).
 
@@ -499,7 +505,7 @@ Here are some general performance considerations:
 1. The library is optimized for forward (left-to-right) insertions. If you primarily insert backward (right-to-left) or at random, you will see worse efficiency - especially storage overhead. (Internally, only forward insertions reuse [bunches](#bunches), so other patterns lead to fewer Positions per bunch.)
 2. AbsPositions and Positions are interchangeable, via the `Order.abs` and `Order.unabs` methods. So you could always start off using the simpler-but-larger AbsPositions, then do a data migration to switch to Positions if performance demands it. <!-- TODO: likewise for List/Text/Outline/AbsList, via save-conversion methods. -->
 3. The saved states are designed for simplicity, not size. This is why GZIP shrinks them a lot (at the cost of longer save and load times). You can improve on the default performance in various ways: binary encodings, deduplicating [replicaIDs](#replica-ids), etc. <!-- TODO: using List.saveOutline and gzipping each separately. --> Before putting too much effort into this, though, keep in mind that human-written text is small. E.g., the 900 KB CRDT save size above is the size of one image file, even though it represents a 15-page LaTeX paper with 9x overhead.
-4. For smaller AbsPositions, saved states, and [lexicographic strings](TODO), you can reduce the size of replicaIDs from their default of 21 chars. E.g., even in a popular document with 10,000 replicaIDs, 8 random alphanumeric chars still guarantee a < 1-in-5,000,000 chance of collisions (cf. [birthday problem](https://en.wikipedia.org/wiki/Birthday_problem#Square_approximation)):
+4. For smaller AbsPositions, saved states, and [lexicographic strings](#lexicographic-strings), you can reduce the size of replicaIDs from their default of 21 chars. E.g., even in a popular document with 10,000 replicaIDs, 8 random alphanumeric chars still guarantee a < 1-in-5,000,000 chance of collisions (cf. [birthday problem](https://en.wikipedia.org/wiki/Birthday_problem#Square_approximation)):
 
    ```ts
    import { maybeRandomString } from "maybe-random-string";

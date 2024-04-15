@@ -18,10 +18,11 @@ const { sequence } = lexSequence(OFFSET_BASE);
  * E.g., you can `ORDER BY` the lexicographic strings in a database table.
  *
  * However, storing a set of (lexicographic string, value) pairs directly uses much
- * more memory than our built-in data structures. The strings are best used sparingly, or
- * for short lists only.
+ * more memory than our built-in data structures.
+ * Also, a lexicographic string is generally somewhat larger than its corresponding AbsPosition.
+ * Thus the strings are best used sparingly, or for short lists only.
  *
- * > If you plan to use lexicographic strings exclusively, consider using the
+ * - If you plan to use lexicographic strings exclusively, consider using the
  * [position-strings](https://github.com/mweidner037/position-strings#readme)
  * package instead, which is optimized for that use case (smaller JS bundle & more compact strings).
  *
