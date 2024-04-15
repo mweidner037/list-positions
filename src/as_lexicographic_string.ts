@@ -68,5 +68,8 @@ export function asLexicographicString(pos: AbsPosition): string {
     ans += bunchID.slice(lastB) + ",";
   }
 
+  // Final innerIndex, converted to an offset.
+  ans += sequence(2 * pos.innerIndex + 1).toString(OFFSET_BASE);
+
   return ans;
 }

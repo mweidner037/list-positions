@@ -30,9 +30,8 @@ export class Checker {
 
   check() {
     // Check that all list values are equivalent.
-    // TODO: uncomment
-    // assert.deepStrictEqual([...this.list.values()], this.tree.values);
-    // assert.deepStrictEqual([...this.absList.values()], this.tree.values);
+    assert.deepStrictEqual([...this.list.values()], this.tree.values);
+    assert.deepStrictEqual([...this.absList.values()], this.tree.values);
 
     // Check that all list positions are equivalent.
     const positions = [...this.list.positions()];
@@ -41,30 +40,28 @@ export class Checker {
       [...this.absList.positions()],
       positions.map((pos) => this.order.abs(pos))
     );
-    // TODO: uncomment
-    // assert.deepStrictEqual(
-    //   this.tree.keys,
-    //   positions.map((pos) => asLexicographicString(this.order.abs(pos)))
-    // );
+    assert.deepStrictEqual(
+      this.tree.keys,
+      positions.map((pos) => asLexicographicString(this.order.abs(pos)))
+    );
 
     // Check that individual accessors agree.
     // We skip AbsList b/c it is the same code as List.
-    // TODO: uncomment
-    // assert.strictEqual(this.list.length, this.tree.length);
-    // assert.strictEqual(this.outline.length, this.tree.length);
-    // for (let i = 0; i < this.list.length; i++) {
-    //   const iter = this.tree.at(i);
-    //   const pos = this.list.positionAt(i);
-    //   assert.strictEqual(this.list.getAt(i), iter.value!);
-    //   assert.deepStrictEqual(
-    //     iter.key!,
-    //     asLexicographicString(this.order.abs(pos))
-    //   );
-    //   assert.strictEqual(this.list.get(pos), iter.value);
-    //   assert.strictEqual(this.list.indexOfPosition(pos), i);
-    //   assert.deepStrictEqual(this.outline.positionAt(i), pos);
-    //   assert.strictEqual(this.outline.indexOfPosition(pos), i);
-    // }
+    assert.strictEqual(this.list.length, this.tree.length);
+    assert.strictEqual(this.outline.length, this.tree.length);
+    for (let i = 0; i < this.list.length; i++) {
+      const iter = this.tree.at(i);
+      const pos = this.list.positionAt(i);
+      assert.strictEqual(this.list.getAt(i), iter.value!);
+      assert.deepStrictEqual(
+        iter.key!,
+        asLexicographicString(this.order.abs(pos))
+      );
+      assert.strictEqual(this.list.get(pos), iter.value);
+      assert.strictEqual(this.list.indexOfPosition(pos), i);
+      assert.deepStrictEqual(this.outline.positionAt(i), pos);
+      assert.strictEqual(this.outline.indexOfPosition(pos), i);
+    }
   }
 
   set(startPos: Position, ...sameBunchValues: number[]): void {
@@ -113,13 +110,12 @@ export class Checker {
     this.outline.deleteAt(index, count);
     this.absList.deleteAt(index, count);
     const keys: string[] = [];
-    // TODO: uncomment
-    // for (let i = 0; i < count; i++) {
-    //   keys.push(this.tree.at(index + i).key!);
-    // }
-    // for (const key of keys) {
-    //   this.tree = this.tree.find(key).remove();
-    // }
+    for (let i = 0; i < count; i++) {
+      keys.push(this.tree.at(index + i).key!);
+    }
+    for (const key of keys) {
+      this.tree = this.tree.find(key).remove();
+    }
 
     this.check();
   }
@@ -168,8 +164,7 @@ export class Checker {
 
     // insertAt should be equivalent to a splice.
     before.splice(index, 0, ...values);
-    // TODO: uncomment
-    // assert.deepStrictEqual(this.tree.values, before);
+    assert.deepStrictEqual(this.tree.values, before);
     this.check();
   }
 }
