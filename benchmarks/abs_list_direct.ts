@@ -1,6 +1,6 @@
 import { assert } from "chai";
 import pako from "pako";
-import { LexList, LexListSavedState, LexPosition } from "../src";
+import { AbsList, AbsListSavedState, AbsPosition } from "../src";
 import realTextTraceEdits from "./internal/real_text_trace_edits.json";
 import { avg, getMemUsed, percentiles, sleep } from "./internal/util";
 
@@ -12,35 +12,32 @@ const { edits, finalText } = realTextTraceEdits as unknown as {
 type Update =
   | {
       type: "set";
-      pos: LexPosition;
+      pos: AbsPosition;
       value: string;
-      // No meta because LexPosition embeds all dependencies.
+      // No meta because AbsPosition embeds all dependencies.
     }
-  | { type: "delete"; pos: LexPosition };
+  | { type: "delete"; pos: AbsPosition };
 
-// No OrderSavedState because LexListSavedState embeds all dependencies.
-type SavedState = LexListSavedState<string>;
+// No OrderSavedState because AbsListSavedState embeds all dependencies.
+type SavedState = AbsListSavedState<string>;
 
-export async function lexListDirect() {
-  console.log("\n## LexList Direct\n");
+export async function absListDirect() {
+  console.log("\n## AbsList Direct\n");
   console.log(
-    "Use `LexList` and send updates directly over a reliable link (e.g. WebSocket)."
+    "Use `AbsList` and send updates directly over a reliable link (e.g. WebSocket)."
   );
   console.log(
     "Updates and saved states use JSON encoding, with optional GZIP for saved states.\n"
   );
 
-  // Out of curiosity, also store the distribution of LexPosition lengths.
   const updates: string[] = [];
-  const lexPosLengths: number[] = [];
   let startTime = process.hrtime.bigint();
-  const sender = new LexList<string>();
+  const sender = new AbsList<string>();
   for (const edit of edits) {
     let updateObj: Update;
     if (edit[2] !== undefined) {
-      const [pos] = sender.insertAt(edit[0], edit[2]);
+      const pos = sender.insertAt(edit[0], edit[2]);
       updateObj = { type: "set", pos, value: edit[2] };
-      lexPosLengths.push(pos.length);
     } else {
       const pos = sender.positionAt(edit[0]);
       sender.delete(pos);
@@ -62,19 +59,13 @@ export async function lexListDirect() {
     avg(updates.map((message) => message.length)).toFixed(1)
   );
   assert.strictEqual(sender.slice().join(""), finalText);
-  console.log(
-    `- LexPosition length stats: avg = ${avg(lexPosLengths).toFixed(
-      1
-    )}, percentiles [25, 50, 75, 100] = ${percentiles(
-      lexPosLengths,
-      [25, 50, 75, 100]
-    )}`
-  );
-  // TODO: could also gzip LexPositions, either in updates or just for percentiles.
+
+  // Out of curiosity, also report the distribution of AbsPosition JSON sizes.
+  reportPositionSizes();
 
   // Receive all updates.
   startTime = process.hrtime.bigint();
-  const receiver = new LexList<string>();
+  const receiver = new AbsList<string>();
   for (const update of updates) {
     const updateObj: Update = JSON.parse(update);
     if (updateObj.type === "set") {
@@ -105,8 +96,34 @@ export async function lexListDirect() {
   await memory(savedState);
 }
 
+function reportPositionSizes(): void {
+  const absPosLengths: number[] = [];
+  const sender = new AbsList<string>();
+  for (const edit of edits) {
+    let updateObj: Update;
+    if (edit[2] !== undefined) {
+      const pos = sender.insertAt(edit[0], edit[2]);
+      updateObj = { type: "set", pos, value: edit[2] };
+      absPosLengths.push(JSON.stringify(pos).length);
+    } else {
+      const pos = sender.positionAt(edit[0]);
+      sender.delete(pos);
+      updateObj = { type: "delete", pos };
+    }
+  }
+
+  console.log(
+    `- AbsPosition length stats: avg = ${avg(absPosLengths).toFixed(
+      1
+    )}, percentiles [25, 50, 75, 100] = ${percentiles(
+      absPosLengths,
+      [25, 50, 75, 100]
+    )}`
+  );
+}
+
 async function saveLoad(
-  saver: LexList<string>,
+  saver: AbsList<string>,
   gzip: boolean
 ): Promise<string | Uint8Array> {
   // Save.
@@ -129,7 +146,7 @@ async function saveLoad(
 
   // Load the saved state.
   startTime = process.hrtime.bigint();
-  const loader = new LexList<string>();
+  const loader = new AbsList<string>();
   const toLoadStr = gzip
     ? pako.ungzip(savedState as Uint8Array, { to: "string" })
     : (savedState as string);
@@ -154,7 +171,7 @@ async function memory(savedState: string) {
   await sleep(1000);
   const startMem = getMemUsed();
 
-  const loader = new LexList<string>();
+  const loader = new AbsList<string>();
   // Keep the parsed saved state in a separate scope so it can be GC'd
   // before we measure memory.
   (function () {

@@ -1,6 +1,6 @@
 import { assert } from "chai";
 import pako from "pako";
-import { LexPositionCRDT } from "./internal/lex_position_crdt";
+import { AbsPositionCRDT } from "./internal/abs_position_crdt";
 import { PositionCRDT } from "./internal/position_crdt";
 import realTextTraceEdits from "./internal/real_text_trace_edits.json";
 import { avg, getMemUsed, sleep } from "./internal/util";
@@ -10,7 +10,7 @@ const { edits, finalText } = realTextTraceEdits as unknown as {
   edits: Array<[number, number, string | undefined]>;
 };
 
-export async function crdt(CRDT: typeof PositionCRDT | typeof LexPositionCRDT) {
+export async function crdt(CRDT: typeof PositionCRDT | typeof AbsPositionCRDT) {
   console.log("\n## " + CRDT.name + "\n");
   console.log("Use a hybrid op-based/state-based CRDT on top of List+Outline.");
   if (CRDT === PositionCRDT) {
@@ -19,7 +19,7 @@ export async function crdt(CRDT: typeof PositionCRDT | typeof LexPositionCRDT) {
     );
   } else {
     console.log(
-      "This variant uses LexPositions in messages instead of manually managing BunchMetas."
+      "This variant uses AbsPositions in messages instead of manually managing BunchMetas."
     );
   }
   console.log(
@@ -70,8 +70,8 @@ export async function crdt(CRDT: typeof PositionCRDT | typeof LexPositionCRDT) {
 }
 
 async function saveLoad(
-  CRDT: typeof PositionCRDT | typeof LexPositionCRDT,
-  saver: PositionCRDT<string> | LexPositionCRDT<string>,
+  CRDT: typeof PositionCRDT | typeof AbsPositionCRDT,
+  saver: PositionCRDT<string> | AbsPositionCRDT<string>,
   gzip: boolean
 ): Promise<string | Uint8Array> {
   // Save.
@@ -109,7 +109,7 @@ async function saveLoad(
 }
 
 async function memory(
-  CRDT: typeof PositionCRDT | typeof LexPositionCRDT,
+  CRDT: typeof PositionCRDT | typeof AbsPositionCRDT,
   savedState: string
 ) {
   // Measure memory usage of loading the saved state.

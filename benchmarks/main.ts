@@ -1,7 +1,7 @@
 import { crdt } from "./crdt";
-import { LexPositionCRDT } from "./internal/lex_position_crdt";
+import { AbsPositionCRDT } from "./internal/abs_position_crdt";
 import { PositionCRDT } from "./internal/position_crdt";
-import { lexListDirect } from "./lex_list_direct";
+import { absListDirect } from "./abs_list_direct";
 import { listCustomEncoding } from "./list_custom_encoding";
 import { listDirect } from "./list_direct";
 import { outlineDirect } from "./outline_direct";
@@ -20,10 +20,10 @@ import { textDirect } from "./text_direct";
   );
 
   await listDirect();
-  await lexListDirect();
+  await absListDirect();
   await listCustomEncoding();
   await textDirect();
   await outlineDirect();
   await crdt(PositionCRDT);
-  await crdt(LexPositionCRDT);
+  await crdt(AbsPositionCRDT);
 })();
