@@ -1,5 +1,6 @@
 export * from "./abs_list";
 export * from "./abs_position";
+export * from "./as_lexicographic_string";
 export * from "./bunch";
 export * from "./bunch_ids";
 export * from "./list";
