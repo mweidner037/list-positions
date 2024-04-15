@@ -41,11 +41,51 @@ We could choose to represent the tree literally, with one object per node and a 
 
 Instead, Order only stores an object per bunch node, of type [BunchNode](./README.md#interface-bunchnode); offset nodes are implied. Each BunchNode stores a pointer to the bunch node's "parent bunch node" (actually its grandparent), its offset (which tells you the actual parent node), and pointers to its "children bunch nodes" in tree order (actually its grandchildren). This info is sufficient to compare Positions and traverse the tree.
 
-List, Text, Outline, and LexList likewise avoid storing an object per Position/value. Instead, they store a map (BunchNode -> sparse array), where the sparse array represents the sub-map (innerIndex -> value) corresponding to that bunch. The sparse arrays come from the [sparse-array-rled](https://github.com/mweidner037/sparse-array-rled#readme) package, which uses run-length encoded deletions, both internally and in saved states.
+List, Text, Outline, and AbsList likewise avoid storing an object per Position/value. Instead, they store a map (BunchNode -> sparse array), where the sparse array represents the sub-map (innerIndex -> value) corresponding to that bunch. The sparse arrays come from the [sparse-array-rled](https://github.com/mweidner037/sparse-array-rled#readme) package, which uses run-length encoded deletions, both in memory and in saved states.
 
-## LexPositions
+## AbsPositions
 
-> For code implementing this section, see [LexUtils' source code](./src/lex_utils.ts).
+> For code implementing this section, see [AbsPositions' source code](./src/abs_position.ts).
+
+An AbsPosition encodes a Position together with all of its dependent metadata: the offsets and bunchIDs on its path to root. (The position's `innerIndex` is stored separately.)
+
+We could store this path as two arrays, `bunchIDs: string[]` and `offsets: number[]`. For compactness, we instead use a few encoding tricks:
+
+- Since the last offset is always 1 and the last bunchID is always `"ROOT"`, we omit those.
+- Instead of storing bunchIDs directly, we attempt to parse each one into the default form `${replicaID}_${counter.toString(36)}`, then store `replicaID`s in a separate array to deduplicate them.
+  - It's okay if a bunchID can't be parsed in that form; we just store it as `replicaID = bunchID, counter = -1`.
+  - Except, we don't actually want to store -1s, to allow unsigned ints. Instead, we increment _all_ counters ("counterInc").
+
+So the final format is:
+```ts
+type AbsPosition = {
+  bunchMeta: AbsBunchMeta;
+  innerIndex: number;
+};
+
+type AbsBunchMeta = {
+  /**
+   * Deduplicated replicaIDs, indexed into by replicaIndices.
+   */
+  replicaIDs: readonly string[];
+  /**
+   * Non-negative integers.
+   */
+  replicaIndices: readonly number[];
+  /**
+   * Non-negative integers. Same length as replicaIndices.
+   */
+  counterIncs: readonly number[];
+  /**
+   * Non-negative integers. One shorter than replicaIndices, unless both are empty.
+   */
+  offsets: readonly number[];
+};
+```
+
+## Lexicographic strings
+
+> For code implementing this section, see [lexicographicString's source code](./src/lexicographic_string.ts).
 
 We can address any node in the tree by the sequence of node labels on the path from the root that node:
 

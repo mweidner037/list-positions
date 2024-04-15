@@ -11,6 +11,12 @@ import { parseMaybeDotID, stringifyMaybeDotID } from "./internal/util";
  * @see {@link AbsPositions} Utilities for manipulating AbsBunchMetas and AbsPositions.
  */
 export type AbsBunchMeta = {
+  // See https://github.com/mweidner037/list-positions/blob/master/internals.md#abspositions
+  // for a description of the format.
+
+  /**
+   * Deduplicated replicaIDs, indexed into by replicaIndices.
+   */
   replicaIDs: readonly string[];
   /**
    * Non-negative integers.
@@ -118,6 +124,9 @@ export const AbsPositions = {
    */
   encodeMetas(pathToRoot: Iterable<BunchMeta>): AbsBunchMeta {
     // Encode the pathToRoot in order, deduplicating replicaIDs.
+    // See https://github.com/mweidner037/list-positions/blob/master/internals.md#abspositions
+    // for a description of the format.
+
     const replicaIDs: string[] = [];
     const replicaIDsInv = new Map<string, number>();
     const replicaIndices: number[] = [];
