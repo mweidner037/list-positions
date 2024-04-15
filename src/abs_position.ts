@@ -21,7 +21,7 @@ export type AbsBunchMeta = {
    */
   counterIncs: readonly number[];
   /**
-   * Non-negative integers. Same length as replicaIndices.
+   * Non-negative integers. One shorter than replicaIndices, unless both are empty.
    */
   offsets: readonly number[];
 };
@@ -152,11 +152,15 @@ export const AbsPositions = {
       return ROOT_BUNCH_META;
     }
 
+    // The last node must be a child of MIN_POSITION.
     if (prevParentID !== BunchIDs.ROOT) {
       throw new Error(
         `Invalid pathToRoot: final parentID "${prevParentID}" is not BunchIDs.ROOT`
       );
     }
+    // We omit the offset because it is always 1.
+    offsets.pop();
+
     return { replicaIDs, replicaIndices, counterIncs, offsets };
   },
 
@@ -175,14 +179,11 @@ export const AbsPositions = {
       absBunchMeta.replicaIDs[absBunchMeta.replicaIndices[0]],
       absBunchMeta.counterIncs[0] - 1
     );
-    for (let i = 0; i < absBunchMeta.replicaIndices.length; i++) {
-      const parentID =
-        i === absBunchMeta.replicaIndices.length - 1
-          ? BunchIDs.ROOT
-          : stringifyMaybeDotID(
-              absBunchMeta.replicaIDs[absBunchMeta.replicaIndices[i + 1]],
-              absBunchMeta.counterIncs[i + 1] - 1
-            );
+    for (let i = 0; i < absBunchMeta.replicaIndices.length - 1; i++) {
+      const parentID = stringifyMaybeDotID(
+        absBunchMeta.replicaIDs[absBunchMeta.replicaIndices[i + 1]],
+        absBunchMeta.counterIncs[i + 1] - 1
+      );
       bunchMetas.push({
         bunchID: nextBunchID,
         parentID,
@@ -190,6 +191,12 @@ export const AbsPositions = {
       });
       nextBunchID = parentID;
     }
+    // The last bunch is a child of MIN_POSITION.
+    bunchMetas.push({
+      bunchID: nextBunchID,
+      parentID: BunchIDs.ROOT,
+      offset: 1,
+    });
     return bunchMetas;
   },
 
