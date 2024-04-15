@@ -125,7 +125,7 @@ function bunchMetaEquals(a: BunchMeta, b: BunchMeta): boolean {
  * for any number of Lists, AbsLists, and Outlines.
  * You can also use an Order to create Positions independent of a List (`createPositions`),
  * convert between Positions and AbsPositions
- * (`lex` and `unlex`), and directly view the tree of bunches (`getBunch`, `getBunchFor`).
+ * (`abs` and `unabs`), and directly view the tree of bunches (`getBunch`, `getBunchFor`).
  */
 export class Order {
   private readonly newBunchID: (parent: BunchNode, offset: number) => string;
