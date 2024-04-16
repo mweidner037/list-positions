@@ -51,11 +51,11 @@ This library provides positions (types `Position`/`AbsPosition`) and correspondi
 
 ### Related Work
 
-- [position-strings](https://www.npmjs.com/package/position-strings), another library that implements immutable positions, but with a minimalist API that only provides lexicographically-ordered strings.
 - [Fractional indexing](https://www.figma.com/blog/realtime-editing-of-ordered-sequences/#fractional-indexing),
   a related but less general idea.
 - [Blog post](https://mattweidner.com/2022/10/21/basic-list-crdt.html) describing the Fugue list CRDT and how it relates to the "list position" abstraction. This library implements an optimized version of that post's tree implementation (List/Position) and an analog of its string implementation (AbsList/AbsPosition).
 - [Paper](https://arxiv.org/abs/2305.00583) with more details about Fugue - in particular, its non-interleaving guarantees.
+- [Rope](<https://en.wikipedia.org/wiki/Rope_(data_structure)>), a data structure for efficient text editing that works similarly to our List class.
 
 ## Usage
 
