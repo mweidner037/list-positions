@@ -46,7 +46,7 @@ export function stringifyMaybeDotID(
  * Parses a dot ID of the form `` `${replicaID}_${counter.toString(36)}` ``
  * if possible, returning `[replicaID, counter]`.
  *
- * If not possible, returns `[bunchID, -1]`.
+ * If not possible, returns `[maybeDotID, -1]`.
  */
 export function parseMaybeDotID(
   maybeDotID: string

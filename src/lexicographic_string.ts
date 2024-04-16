@@ -7,7 +7,7 @@ const { sequence } = lexSequence(OFFSET_BASE);
 
 // This function is on its own, instead of a method on Order or AbsPositions,
 // to avoid bringing in the lex-sequence dependency unless you actually
-// use lexicographic strings.
+// call lexicographicString.
 
 /**
  * Returns a string with the property: The lexicographic order on strings matches
@@ -18,7 +18,7 @@ const { sequence } = lexSequence(OFFSET_BASE);
  * E.g., you can `ORDER BY` the lexicographic strings in a database table.
  *
  * However, storing a set of (lexicographic string, value) pairs directly uses much
- * more memory than our built-in data structures.
+ * more memory than our built-in data structures (List etc.).
  * Also, a lexicographic string is generally somewhat larger than its corresponding AbsPosition.
  * Thus the strings are best used sparingly, or for short lists only.
  *

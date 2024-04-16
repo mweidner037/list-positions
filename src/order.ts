@@ -6,7 +6,7 @@ import { MAX_POSITION, Position, positionEquals } from "./position";
 /**
  * A JSON-serializable saved state for an Order.
  *
- * See Order.save and Order.load.
+ * See {@link Order.save} and {@link Order.load}.
  *
  * ### Format
  *
@@ -122,7 +122,7 @@ function bunchMetaEquals(a: BunchMeta, b: BunchMeta): boolean {
  * See [List, Position, and Order](https://github.com/mweidner037/list-positions#list-position-and-order) in the readme.
  *
  * An Order manages metadata ([bunches](https://github.com/mweidner037/list-positions#bunches))
- * for any number of Lists, AbsLists, and Outlines.
+ * for any number of Lists, Texts, Outlines, and AbsLists.
  * You can also use an Order to create Positions independent of a List (`createPositions`),
  * convert between Positions and AbsPositions
  * (`abs` and `unabs`), and directly view the tree of bunches (`getBunch`, `getBunchFor`).

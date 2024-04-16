@@ -27,7 +27,7 @@ function checkChar(char: string): void {
 /**
  * A JSON-serializable saved state for a `Text`.
  *
- * See Text.save and Text.load.
+ * See {@link Text.save} and {@link Text.load}.
  *
  * ## Format
  *
@@ -67,8 +67,7 @@ export type TextSavedState = {
  *
  * Text is functionally equivalent to `List<string>` with single-char values,
  * but it uses strings internally and in bulk methods, instead of arrays
- * of single chars. This reduces memory usag
- * e and the size of saved states.
+ * of single chars. This reduces memory usage and the size of saved states.
  *
  * Technically, Text is a sequence of UTF-16 code units, like an ordinary JavaScript
  * string ([MDN reference](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String#utf-16_characters_unicode_code_points_and_grapheme_clusters)).
@@ -116,7 +115,7 @@ export class Text {
 
   /**
    * Returns a new Text using the given Order and with the given
-   * items (as defined by Text.items).
+   * items (as defined by {@link Text.items}).
    *
    * Like when loading a saved state, you must deliver all of the Positions'
    * dependent metadata to `order` before calling this method.
@@ -220,7 +219,7 @@ export class Text {
    * In a collaborative setting, the new Position is *globally unique*, even
    * if other users call `List.insert` (or similar methods) concurrently.
    * 
-   * @returns [insertion Position, [new bunch's BunchMeta](https://github.com/mweidner037/list-positions#newMeta) (or null)].
+   * @returns [new Position, [new bunch's BunchMeta](https://github.com/mweidner037/list-positions#newMeta) (or null)].
    * @throws If prevPos is MAX_POSITION.
    */
   insert(
@@ -260,7 +259,7 @@ export class Text {
    * In a collaborative setting, the new Position is *globally unique*, even
    * if other users call `List.insertAt` (or similar methods) concurrently.
    *
-   * @returns [insertion Position, [new bunch's BunchMeta](https://github.com/mweidner037/list-positions#newMeta) (or null)].
+   * @returns [new Position, [new bunch's BunchMeta](https://github.com/mweidner037/list-positions#newMeta) (or null)].
    * @throws If index is not in `[0, this.length]`. The index `this.length` is allowed and will cause an append.
    */
   insertAt(
@@ -468,7 +467,7 @@ export class Text {
    * and have the same `bunchID` but increasing `innerIndex`.
    *
    * You can use this method as an optimized version of other iterators, or as
-   * an alternative in-order save format (see {@link Text.fromItems}).
+   * an alternative save format that is in list order (see {@link Text.fromItems}).
    *
    * Optionally, you may specify a range of indices `[start, end)` instead of
    * iterating the entire list.

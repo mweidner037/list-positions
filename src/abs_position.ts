@@ -8,12 +8,12 @@ import { parseMaybeDotID, stringifyMaybeDotID } from "./internal/util";
  * It encodes a bunch's ID together with all of its dependent metadata,
  * in a compressed form.
  *
+ * The precise encoding is described in
+ * [Internals.md](https://github.com/mweidner037/list-positions/blob/master/internals.md#abspositions).
+ *
  * @see {@link AbsPositions} Utilities for manipulating AbsBunchMetas and AbsPositions.
  */
 export type AbsBunchMeta = {
-  // See https://github.com/mweidner037/list-positions/blob/master/internals.md#abspositions
-  // for a description of the format.
-
   /**
    * Deduplicated replicaIDs, indexed into by replicaIndices.
    */
@@ -110,7 +110,7 @@ export const AbsPositions = {
   MAX_POSITION,
 
   /**
-   * Encodes a bunch's dependent BunchMetas as an AbsBunchMeta.
+   * Encodes a bunch's ID and dependencies as an AbsBunchMeta.
    *
    * Typically, you will not call this method directly, instead using either
    * `Order.abs` or `BunchNode.absMeta`.
@@ -162,19 +162,17 @@ export const AbsPositions = {
     }
 
     // The last node must be a child of MIN_POSITION.
-    if (prevParentID !== BunchIDs.ROOT) {
-      throw new Error(
-        `Invalid pathToRoot: final parentID "${prevParentID}" is not BunchIDs.ROOT`
-      );
+    if (!(prevParentID === BunchIDs.ROOT && offsets.at(-1) === 1)) {
+      throw new Error("Invalid pathToRoot: does not end at root");
     }
-    // We omit the offset because it is always 1.
+    // We omit the last offset because it is always 1.
     offsets.pop();
 
     return { replicaIDs, replicaIndices, counterIncs, offsets };
   },
 
   /**
-   * Decodes an AbsBunchMeta, returning the corresponding bunch's dependent BunchMetas.
+   * Decodes an AbsBunchMeta, returning the corresponding bunch's dependencies.
    *
    * Inverse of {@link AbsPositions.encodeMetas}.
    *
@@ -239,7 +237,7 @@ export const AbsPositions = {
    * Returns an array of AbsPositions that start at `startPos` and have
    * sequentially increasing `innerIndex`.
    *
-   * You can use this method to expand on the startPos returned by
+   * You can use this method to expand on the `startPos` returned by
    * the bulk versions of `AbsList.insertAt`, etc.
    */
   expandPositions(

@@ -20,7 +20,7 @@ const sparseIndicesFactory: SparseItemsFactory<number, SparseIndices> = {
 /**
  * A JSON-serializable saved state for an Outline.
  *
- * See Outline.save and Outline.load.
+ * See {@link Outline.save} and {@link Outline.load}.
  *
  * ## Format
  *
@@ -99,7 +99,7 @@ export class Outline {
 
   /**
    * Returns a new Outline using the given Order and with the given
-   * items (as defined by Outline.items).
+   * items (as defined by {@link Outline.items}).
    *
    * Like when loading a saved state, you must deliver all of the Positions'
    * dependent metadata to `order` before calling this method.
@@ -192,7 +192,7 @@ export class Outline {
    * In a collaborative setting, the new Position is *globally unique*, even
    * if other users call `Outline.insert` (or similar methods) concurrently.
    * 
-   * @returns [insertion Position, [new bunch's BunchMeta](https://github.com/mweidner037/list-positions#newMeta) (or null)].
+   * @returns [new Position, [new bunch's BunchMeta](https://github.com/mweidner037/list-positions#newMeta) (or null)].
    * @throws If prevPos is MAX_POSITION.
    */
   insert(prevPos: Position): [pos: Position, newMeta: BunchMeta | null];
@@ -229,7 +229,7 @@ export class Outline {
    * In a collaborative setting, the new Position is *globally unique*, even
    * if other users call `Outline.insertAt` (or similar methods) concurrently.
    *
-   * @returns [insertion Position, [new bunch's BunchMeta](https://github.com/mweidner037/list-positions#newMeta) (or null)].
+   * @returns [new Position, [new bunch's BunchMeta](https://github.com/mweidner037/list-positions#newMeta) (or null)].
    * @throws If index is not in `[0, this.length]`. The index `this.length` is allowed and will cause an append.
    */
   insertAt(index: number): [pos: Position, newMeta: BunchMeta | null];
@@ -368,7 +368,7 @@ export class Outline {
    * and have the same `bunchID` but increasing `innerIndex`.
    *
    * You can use this method as an optimized version of other iterators, or as
-   * an alternative in-order save format (see {@link Outline.fromItems}).
+   * an alternative save format that is in list order (see {@link Outline.fromItems}).
    *
    * Optionally, you may specify a range of indices `[start, end)` instead of
    * iterating the entire list.

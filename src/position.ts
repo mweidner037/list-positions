@@ -66,7 +66,7 @@ export function positionEquals(a: Position, b: Position): boolean {
  * Returns an array of Positions that start at `startPos` and have
  * sequentially increasing `innerIndex`.
  *
- * You can use this method to expand on the startPos returned by
+ * You can use this method to expand on the `startPos` returned by
  * `Order.createPositions` (and the bulk versions of `List.insertAt`, etc.).
  */
 export function expandPositions(

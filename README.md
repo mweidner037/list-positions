@@ -47,11 +47,11 @@ This library provides positions (types `Position`/`AbsPosition`) and correspondi
 
 **Non-interleaving** In collaborative scenarios, if two users concurrently insert a (forward or backward) sequence at the same place, their sequences will not be interleaved. For example, in a collaborative text editor, if Alice types "Hello" while Bob types "World" at the same place, then the resulting order will be "HelloWorld" or "WorldHello", not "HWeolrllod".
 
-**Flexible usage** There are multiple inter-compatible ways to work with our positions and lists. For example, you can ask for a [lexicographically-sortable version of a position](#lexicographic-strings) to use indendently of this library, or [store list values in your own data structure](#outline) instead of our default List class.
+**Flexible usage** There are multiple inter-compatible ways to work with our positions and lists. For example, you can ask for a [lexicographically-ordered version of a position](#lexicographic-strings) to use indendently of this library, or [store list values in your own data structure](#outline) instead of our default List class.
 
 ### Related Work
 
-- [position-strings](https://www.npmjs.com/package/position-strings), another library that implements immutable positions, but with a minimalist API that only provides lexicographically-sortable strings.
+- [position-strings](https://www.npmjs.com/package/position-strings), another library that implements immutable positions, but with a minimalist API that only provides lexicographically-ordered strings.
 - [Fractional indexing](https://www.figma.com/blog/realtime-editing-of-ordered-sequences/#fractional-indexing),
   a related but less general idea.
 - [Blog post](https://mattweidner.com/2022/10/21/basic-list-crdt.html) describing the Fugue list CRDT and how it relates to the "list position" abstraction. This library implements an optimized version of that post's tree implementation (List/Position) and an analog of its string implementation (AbsList/AbsPosition).
@@ -101,7 +101,7 @@ list.delete(newPos);
 
 AbsPositions are easy to use because they are self-contained: you can use AbsPositions in an AbsList without any prior setup. In other words, their sort order is "absolute", not "relative" to some separate metadata.
 
-The downside of AbsPositions is metadata overhead - their JSON encodings have variable length and can become long in certain scenarios (an average of 188 characters in our [benchmarks](./benchmark_results.md#abslist-direct)).
+The downside of AbsPositions is metadata overhead - their JSON encodings have variable size and can become long in certain scenarios (an average of 188 characters in our [benchmarks](./benchmark_results.md#abslist-direct)).
 
 > Using AbsList is more efficient than storing all of the literal pairs `(absPosition, value)` in your own data structure. In fact, it is nearly as efficient as the next section's List class - see [AbsList benchmark results](./benchmark_results.md#abslist-direct). If you do need to use your own data structure (e.g., a DB table with one pair per row), it should be practical for short lists of perhaps <1,000 values - e.g., the items in a todo list, or the scenarios where [Figma uses fractional indexing](https://www.figma.com/blog/how-figmas-multiplayer-technology-works/#syncing-trees-of-objects).
 
@@ -219,7 +219,7 @@ Notes:
 
 #### Managing Metadata
 
-Each Position depends on some metadata, which is stored separately. (In contrast, an AbsPosition embeds all of its metadata - this is why AbsPositions have a variable length.) To use the same Positions with different instances of the List class (possibly on different devices), you must first transfer this metadata between the Lists.
+Each Position depends on some metadata, which is stored separately. (In contrast, an AbsPosition embeds all of its metadata - this is why AbsPositions have a variable size.) To use the same Positions with different instances of the List class (possibly on different devices), you must first transfer this metadata between the Lists.
 
 Specifically, a List's [bunches](#bunches) form a tree. Each bunch, except for the special root with bunchID `"ROOT"`, has a `BunchMeta` that describes its location in the tree:
 
@@ -505,7 +505,7 @@ Here are some general performance considerations:
 1. The library is optimized for forward (left-to-right) insertions. If you primarily insert backward (right-to-left) or at random, you will see worse efficiency - especially storage overhead. (Internally, only forward insertions reuse [bunches](#bunches), so other patterns lead to fewer Positions per bunch.)
 2. AbsPositions and Positions are interchangeable, via the `Order.abs` and `Order.unabs` methods. So you could always start off using the simpler-but-larger AbsPositions, then do a data migration to switch to Positions if performance demands it. <!-- TODO: likewise for List/Text/Outline/AbsList, via save-conversion methods. -->
 3. The saved states are designed for simplicity, not size. This is why GZIP shrinks them a lot (at the cost of longer save and load times). You can improve on the default performance in various ways: binary encodings, deduplicating [replicaIDs](#replica-ids), etc. <!-- TODO: using List.saveOutline and gzipping each separately. --> Before putting too much effort into this, though, keep in mind that human-written text is small. E.g., the 900 KB CRDT save size above is the size of one image file, even though it represents a 15-page LaTeX paper with 9x overhead.
-4. For smaller AbsPositions, saved states, and [lexicographic strings](#lexicographic-strings), you can reduce the size of replicaIDs from their default of 21 chars. E.g., even in a popular document with 10,000 replicaIDs, 8 random alphanumeric chars still guarantee a < 1-in-5,000,000 chance of collisions (cf. [birthday problem](https://en.wikipedia.org/wiki/Birthday_problem#Square_approximation)):
+4. For smaller AbsPositions, saved states, and [lexicographic strings](#lexicographic-strings), you can reduce the size of replicaIDs from their default of 21 chars. E.g., even in a popular document with 10,000 replicaIDs, 8 random alphanumeric chars still guarantee a < 1-in-5,000,000 chance of accidental replicaID reuse (cf. [birthday problem](https://en.wikipedia.org/wiki/Birthday_problem#Square_approximation)):
 
    ```ts
    import { maybeRandomString } from "maybe-random-string";

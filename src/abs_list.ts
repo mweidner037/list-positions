@@ -5,7 +5,7 @@ import { Order } from "./order";
 /**
  * A JSON-serializable saved state for an `AbsList<T>`.
  *
- * See AbsList.save and AbsList.load.
+ * See {@link AbsList.save} and {@link AbsList.load}.
  *
  * ## Format
  *
@@ -113,7 +113,7 @@ export class AbsList<T> {
 
   /**
    * Returns a new AbsList with the given
-   * items (as defined by AbsList.items).
+   * items (as defined by {@link AbsList.items}).
    *
    * @param order Optionally, the Order to use for the AbsList's `order`.
    * Unlike with List.from, you do not need to deliver metadata to this
@@ -213,7 +213,7 @@ export class AbsList<T> {
    * In a collaborative setting, the new AbsPosition is *globally unique*, even
    * if other users call `List.insert` (or similar methods) concurrently.
    * 
-   * @returns [insertion AbsPosition, [new bunch's BunchMeta](https://github.com/mweidner037/list-positions#newMeta) (or null)].
+   * @returns The new AbsPosition.
    * @throws If prevPos is AbsPositions.MAX_POSITION.
    */
   insert(prevPos: AbsPosition, value: T): AbsPosition;
@@ -226,7 +226,7 @@ export class AbsList<T> {
    * if new positions are created between them.
    *
    * @returns The starting AbsPosition.
-   * @see {@link AbsPositions.expandPositions} To convert (returned position, values.length) to an array of AbsPositions.
+   * Use {@link AbsPositions.expandPositions} to convert (returned position, values.length) to an array of AbsPositions.
    * @throws If prevPos is AbsPositions.MAX_POSITION.
    * @throws If no values are provided.
    */
@@ -325,7 +325,8 @@ export class AbsList<T> {
    * Returns the cursor at `index` within the list, i.e., between the positions at `index - 1` and `index`.
    * See [Cursors](https://github.com/mweidner037/list-positions#cursors).
    *
-   * Invert with indexOfCursor, possibly on a different List/Text/Outline/AbsList or a different device.
+   * Invert with indexOfCursor, possibly on a different AbsList/List/Text/Outline or a different device.
+   * (For non-AbsLists, you will need to convert it to a Position using {@link Order.unabs}.)
    */
   cursorAt(index: number): AbsPosition {
     return index === 0 ? AbsPositions.MIN_POSITION : this.positionAt(index - 1);
@@ -412,7 +413,7 @@ export class AbsList<T> {
    * and have the same `bunchMeta` but increasing `innerIndex`.
    *
    * You can use this method as an optimized version of other iterators, or as
-   * an alternative in-order save format (see {@link AbsList.fromItems}).
+   * an alternative save format that is in list order (see {@link AbsList.fromItems}).
    *
    * Optionally, you may specify a range of indices `[start, end)` instead of
    * iterating the entire list.

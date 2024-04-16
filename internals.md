@@ -114,7 +114,7 @@ The corrections are:
 
    To fix this, we escape bunchID chars `<= ','`, prefixing them with a `'-'`. (We then also need to escape `'-'`.)
 
-3. To ensure that all strings are less than the max position's `"~"`, we also escape the first char in a bunchID if it is `>= '~'`, prefixing it with `'}'`. (We then also need to escape `}`.)
+3. To ensure that all strings are less than the max position's `"~"`, we also escape the first char in a bunchID if it is `>= '~'`, prefixing it with `'}'`. (We then also need to escape `'}'`.)
 
 ## Creating Positions
 
