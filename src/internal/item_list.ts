@@ -33,8 +33,6 @@ type NodeData<S> = {
   parentValuesBefore: number;
   /**
    * The values at the node's positions, in order from left to right.
-   *
-   * OPT: omit when empty (replace with null).
    */
   values: S;
 };
@@ -203,7 +201,6 @@ export class ItemList<I, S extends SparseItems<I>> {
     prevPos: Position,
     item: I
   ): [startPos: Position, newMeta: BunchMeta | null] {
-    // OPT: find nextPos without getting index, at least in common cases.
     const nextIndex = this.indexOfPosition(prevPos, "left") + 1;
     const nextPos =
       nextIndex === this.length ? MAX_POSITION : this.positionAt(nextIndex);
@@ -500,7 +497,6 @@ export class ItemList<I, S extends SparseItems<I>> {
 
       // Emit node values between the previous and next child.
       // Use nextinnerIndex b/c it's an exclusive end.
-      // OPT: shortcut if we won't start by the end.
       const endInnerIndex =
         top.nextChildIndex === node.childrenLength
           ? null
@@ -618,10 +614,6 @@ export class ItemList<I, S extends SparseItems<I>> {
   load(savedState: { [bunchID: string]: (I | number)[] }): void {
     this.clear();
 
-    // OPT: Wait to update all metadata in bottom-up order, so that we can
-    // compute all of a node's child parentValuesBefore and its own total in
-    // a single pass.
-
     for (const [bunchID, savedArr] of Object.entries(savedState)) {
       const node = this.order.getNode(bunchID);
       if (node === undefined) {
@@ -644,8 +636,6 @@ export class ItemList<I, S extends SparseItems<I>> {
           const child = node.getChild(i);
           const childData = this.state.get(child);
           if (childData === undefined) continue;
-          // OPT: in principle can make this loop O((# runs) + (# children)) instead
-          // of O((# runs) * (# children)), e.g., using a loop with newSlicer.
           childData.parentValuesBefore = data.values.countAt(
             child.nextInnerIndex
           );

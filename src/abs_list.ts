@@ -445,7 +445,6 @@ export class AbsList<T> {
    * However, `save` and `load` use a more compact representation.
    */
   save(): AbsListSavedState<T> {
-    // OPT: loop over nodes directly, to avoid double-object.
     const savedState: AbsListSavedState<T> = [];
     for (const [bunchID, values] of Object.entries(this.list.save())) {
       savedState.push({
@@ -468,7 +467,6 @@ export class AbsList<T> {
    * beforehand.
    */
   load(savedState: AbsListSavedState<T>): void {
-    // OPT: loop over nodes directly, to avoid double-object.
     const listSavedState: ListSavedState<T> = {};
     for (const { bunchMeta, values } of savedState) {
       this.order.addMetas(AbsPositions.decodeMetas(bunchMeta));
