@@ -1,6 +1,10 @@
 import { BunchMeta } from "./bunch";
 import { BunchIDs } from "./bunch_ids";
-import { parseMaybeDotID, stringifyMaybeDotID } from "./internal/util";
+import {
+  parseMaybeDotID,
+  stringifyMaybeDotID,
+  arrayShallowEquals,
+} from "./internal/util";
 
 /**
  * AbsPosition analog of a BunchMeta.
@@ -31,6 +35,21 @@ export type AbsBunchMeta = {
    */
   offsets: readonly number[];
 };
+
+// Not exported because I have yet to use it externally.
+// Normally you should compare AbsBunchMetas by their bunchIDs alone.
+/**
+ * Returns whether two AbsBunchMetas are equal, i.e., they have equal contents.
+ */
+function absBunchMetaEquals(a: AbsBunchMeta, b: AbsBunchMeta): boolean {
+  if (a === b) return true;
+  return (
+    arrayShallowEquals(a.replicaIndices, b.replicaIndices) &&
+    arrayShallowEquals(a.counterIncs, b.counterIncs) &&
+    arrayShallowEquals(a.offsets, b.offsets) &&
+    arrayShallowEquals(a.replicaIDs, b.replicaIDs)
+  );
+}
 
 /**
  * A position in a list, as a JSON object that embeds all of its dependent metadata.
@@ -221,15 +240,12 @@ export const AbsPositions = {
   },
 
   /**
-   * Returns whether two AbsPositions are equal, i.e., they correspond to the same position.
-   *
-   * Note: We do **not** check the dependent metadata for equality, only the final bunchID and innerIndex.
+   * Returns whether two Positions are equal, i.e., they have equal contents.
    */
   positionEquals(a: AbsPosition, b: AbsPosition): boolean {
     return (
       a.innerIndex === b.innerIndex &&
-      (a.bunchMeta === b.bunchMeta ||
-        this.getBunchID(a.bunchMeta) === this.getBunchID(b.bunchMeta))
+      absBunchMetaEquals(a.bunchMeta, b.bunchMeta)
     );
   },
 
