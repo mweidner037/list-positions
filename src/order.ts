@@ -1,12 +1,12 @@
+import { AbsBunchMeta, AbsPosition, AbsPositions } from "./abs_position";
 import { BunchMeta, BunchNode, compareSiblingNodes } from "./bunch";
 import { BunchIDs } from "./bunch_ids";
-import { LexPosition, LexUtils } from "./lex_utils";
 import { MAX_POSITION, Position, positionEquals } from "./position";
 
 /**
  * A JSON-serializable saved state for an Order.
  *
- * See Order.save and Order.load.
+ * See {@link Order.save} and {@link Order.load}.
  *
  * ### Format
  *
@@ -89,9 +89,8 @@ class NodeInternal implements BunchNode {
     }
   }
 
-  lexPrefix(): string {
-    const topDown = [...this.dependencies()].reverse();
-    return LexUtils.combineBunchPrefix(topDown);
+  absMeta(): AbsBunchMeta {
+    return AbsPositions.encodeMetas(this.dependencies());
   }
 
   toString() {
@@ -123,10 +122,10 @@ function bunchMetaEquals(a: BunchMeta, b: BunchMeta): boolean {
  * See [List, Position, and Order](https://github.com/mweidner037/list-positions#list-position-and-order) in the readme.
  *
  * An Order manages metadata ([bunches](https://github.com/mweidner037/list-positions#bunches))
- * for any number of Lists, LexLists, and Outlines.
+ * for any number of Lists, Texts, Outlines, and AbsLists.
  * You can also use an Order to create Positions independent of a List (`createPositions`),
- * convert between Positions and LexPositions
- * (`lex` and `unlex`), and directly view the tree of bunches (`getBunch`, `getBunchFor`).
+ * convert between Positions and AbsPositions
+ * (`abs` and `unabs`), and directly view the tree of bunches (`getBunch`, `getBunchFor`).
  */
 export class Order {
   private readonly newBunchID: (parent: BunchNode, offset: number) => string;
@@ -163,12 +162,12 @@ export class Order {
   /**
    * Constructs an Order.
    *
-   * Any data structures (List, Text, Outline, LexList) that share this Order
+   * Any data structures (List, Text, Outline, AbsList) that share this Order
    * automatically share the same total order on Positions.
    * To share total orders between Order instances (possibly on different devices),
    * you will need to
    * [Manage Metadata](https://github.com/mweidner037/list-positions#managing-metadata),
-   * or communicate using LexPositions instead of Positions.
+   * or communicate using AbsPositions instead of Positions.
    *
    * @param options.replicaID An ID for this Order, used to generate our bunchIDs (via {@link BunchIDs.usingReplicaID}).
    * It must be *globally unique* among all Orders that share the same Positions,
@@ -243,13 +242,10 @@ export class Order {
    * for Positions within this Order.
    *
    * You may use this method to work with Positions in a list-as-ordered-map
-   * data structure other than our built-in classes (List, Text, Outline, LexList), e.g.,
+   * data structure other than our built-in classes, e.g.,
    * [functional-red-black-tree](https://www.npmjs.com/package/functional-red-black-tree)
    * or `Array.sort`.
-   *
-   * However, doing so is likely less memory-efficient than using our built-in
-   * classes, and slower than using LexPositions as keys
-   * (with JavaScript's default lexicographic compare function).
+   * However, doing so is less memory-efficient than using our built-in classes.
    */
   compare(a: Position, b: Position): number {
     const aNode = this.getNodeFor(a);
@@ -304,8 +300,8 @@ export class Order {
    * you must add its bunch's BunchMeta using this method.
    * See [Managing Metadata](https://github.com/mweidner037/list-positions#managing-metadata).
    *
-   * (You do not need to manage metadata when using LexPositions/LexList,
-   * since LexPositions embed all of their metadata.)
+   * (You do not need to manage metadata when using AbsPositions/AbsList,
+   * since AbsPositions embed all of their metadata.)
    *
    * **Note:** A bunch depends on its parent bunch's metadata. So before (or at the same time
    * as) you call `addMetas` on a BunchMeta,
@@ -362,7 +358,6 @@ export class Order {
             );
           }
         } else {
-          BunchIDs.validate(bunchMeta.bunchID);
           newBunchMetas.set(bunchMeta.bunchID, bunchMeta);
         }
       }
@@ -487,7 +482,7 @@ export class Order {
    * if new Positions are created between them.
    *
    * @returns [starting Position, [new bunch's BunchMeta](https://github.com/mweidner037/list-positions#newMeta) (or null)].
-   * @see {@link expandPositions} To convert (startPos, count) to an array of Positions.
+   * Use {@link expandPositions} to convert (startPos, count) to an array of Positions.
    * @throws If prevPos >= nextPos (i.e., `this.compare(prevPos, nextPos) >= 0`).
    * @param options.bunchID Forces the creation of a new bunch with a specific bunchID,
    * instead of reusing an existing bunch or using the constructor's newBunchID function.
@@ -698,34 +693,35 @@ export class Order {
   }
 
   // ----------
-  // LexPosition
+  // AbsPosition
   // ----------
 
   /**
-   * Converts a Position to the equivalent LexPosition.
+   * Converts a Position to the equivalent AbsPosition.
    */
-  lex(pos: Position): LexPosition {
+  abs(pos: Position): AbsPosition {
     const node = this.getNodeFor(pos);
-    // OPT: construct it directly with a tree walk and single join.
-    return LexUtils.combinePos(node.lexPrefix(), pos.innerIndex);
+    return {
+      bunchMeta: node.absMeta(),
+      innerIndex: pos.innerIndex,
+    };
   }
 
   /**
-   * Converts a LexPosition to the equivalent Position.
+   * Converts a AbsPosition to the equivalent Position.
    *
-   * Because LexPositions embed all of their dependencies, you do not need to
+   * Because AbsPositions embed all of their dependencies, you do not need to
    * worry about the Position's dependent BunchMetas. They will be extracted
-   * from lexPos and delivered to `this.addMetas` internally if needed.
+   * from absPos and delivered to `this.addMetas` internally if needed.
    */
-  unlex(lexPos: LexPosition): Position {
-    const [bunchPrefix, innerIndex] = LexUtils.splitPos(lexPos);
-    const bunchID = LexUtils.bunchIDFor(bunchPrefix);
+  unabs(absPos: AbsPosition): Position {
+    const bunchID = AbsPositions.getBunchID(absPos.bunchMeta);
     if (!this.tree.has(bunchID)) {
-      // Add the node.
-      this.addMetas(LexUtils.splitBunchPrefix(bunchPrefix));
+      // Add all of the bunch's dependencies.
+      this.addMetas(AbsPositions.decodeMetas(absPos.bunchMeta));
     }
-    // Else we skip checking agreement with the existing node, for efficiency.
+    // Else we skip checking agreement with existing BunchMetas, for efficiency.
 
-    return { bunchID, innerIndex: innerIndex };
+    return { bunchID, innerIndex: absPos.innerIndex };
   }
 }

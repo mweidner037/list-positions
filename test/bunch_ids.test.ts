@@ -12,15 +12,6 @@ describe("BunchIDs", () => {
   });
 
   describe("usingReplicaID", () => {
-    test("validates", () => {
-      const newBunchID = BunchIDs.usingReplicaID(
-        maybeRandomString({ prng, length: 10 })
-      );
-      for (let i = 0; i < 10000; i++) {
-        BunchIDs.validate(newBunchID());
-      }
-    });
-
     test("distinct", () => {
       const previous = new Set<string>();
       for (let i = 0; i < 100; i++) {

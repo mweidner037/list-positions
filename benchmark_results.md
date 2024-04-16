@@ -13,65 +13,65 @@ For perspective on the save sizes: the final text (excluding deleted chars) is 1
 Use `List` and send updates directly over a reliable link (e.g. WebSocket).
 Updates and saved states use JSON encoding, with optional GZIP for saved states.
 
-- Sender time (ms): 650
+- Sender time (ms): 633
 - Avg update size (bytes): 86.8
-- Receiver time (ms): 392
+- Receiver time (ms): 364
 - Save time (ms): 8
 - Save size (bytes): 804020
-- Load time (ms): 19
-- Save time GZIP'd (ms): 116
-- Save size GZIP'd (bytes): 88987
-- Load time GZIP'd (ms): 40
-- Mem used (MB): 2.4
+- Load time (ms): 20
+- Save time GZIP'd (ms): 79
+- Save size GZIP'd (bytes): 88988
+- Load time GZIP'd (ms): 43
+- Mem used (MB): 2.3
 
-## LexList Direct
+## AbsList Direct
 
-Use `LexList` and send updates directly over a reliable link (e.g. WebSocket).
+Use `AbsList` and send updates directly over a reliable link (e.g. WebSocket).
 Updates and saved states use JSON encoding, with optional GZIP for saved states.
 
-- Sender time (ms): 1488
-- Avg update size (bytes): 267.1
-- LexPosition length stats: avg = 239.1, percentiles [25, 50, 75, 100] = 191,224,280,479
-- Receiver time (ms): 669
-- Save time (ms): 16
-- Save size (bytes): 1043918
-- Load time (ms): 32
-- Save time GZIP'd (ms): 86
-- Save size GZIP'd (bytes): 84202
-- Load time GZIP'd (ms): 45
-- Mem used (MB): 2.4
+- Sender time (ms): 1539
+- Avg update size (bytes): 216.2
+- AbsPosition length stats: avg = 187.4, percentiles [25, 50, 75, 100] = 170,184,202,272
+- Receiver time (ms): 761
+- Save time (ms): 17
+- Save size (bytes): 868579
+- Load time (ms): 21
+- Save time GZIP'd (ms): 74
+- Save size GZIP'd (bytes): 85360
+- Load time GZIP'd (ms): 39
+- Mem used (MB): 2.1
 
 ## List Direct w/ Custom Encoding
 
 Use `List` and send updates directly over a reliable link (e.g. WebSocket).
 Updates use a custom string encoding; saved states use JSON with optional GZIP.
 
-- Sender time (ms): 553
+- Sender time (ms): 529
 - Avg update size (bytes): 31.2
-- Receiver time (ms): 342
-- Save time (ms): 6
+- Receiver time (ms): 324
+- Save time (ms): 8
 - Save size (bytes): 804020
-- Load time (ms): 11
-- Save time GZIP'd (ms): 87
-- Save size GZIP'd (bytes): 88984
-- Load time GZIP'd (ms): 33
-- Mem used (MB): 2.2
+- Load time (ms): 12
+- Save time GZIP'd (ms): 66
+- Save size GZIP'd (bytes): 88989
+- Load time GZIP'd (ms): 31
+- Mem used (MB): 2.4
 
 ## Text Direct
 
 Use `Text` and send updates directly over a reliable link (e.g. WebSocket).
 Updates and saved states use JSON encoding, with optional GZIP for saved states.
 
-- Sender time (ms): 706
+- Sender time (ms): 667
 - Avg update size (bytes): 86.8
-- Receiver time (ms): 467
-- Save time (ms): 6
+- Receiver time (ms): 413
+- Save time (ms): 5
 - Save size (bytes): 493835
-- Load time (ms): 12
-- Save time GZIP'd (ms): 68
-- Save size GZIP'd (bytes): 71575
+- Load time (ms): 8
+- Save time GZIP'd (ms): 44
+- Save size GZIP'd (bytes): 71570
 - Load time GZIP'd (ms): 23
-- Mem used (MB): 1.5
+- Mem used (MB): 1.4
 
 ## Outline Direct
 
@@ -79,14 +79,14 @@ Use `Outline` and send updates directly over a reliable link (e.g. WebSocket).
 Updates and saved states use JSON encoding, with optional GZIP for saved states.
 Neither updates nor saved states include values (chars).
 
-- Sender time (ms): 667
+- Sender time (ms): 620
 - Avg update size (bytes): 78.4
-- Receiver time (ms): 393
-- Save time (ms): 4
+- Receiver time (ms): 349
+- Save time (ms): 5
 - Save size (bytes): 382419
-- Load time (ms): 9
-- Save time GZIP'd (ms): 52
-- Save size GZIP'd (bytes): 38305
+- Load time (ms): 8
+- Save time GZIP'd (ms): 40
+- Save size GZIP'd (bytes): 38311
 - Load time GZIP'd (ms): 19
 - Mem used (MB): 1.3
 
@@ -96,30 +96,30 @@ Use a hybrid op-based/state-based CRDT on top of List+Outline.
 This variant uses Positions in messages, manually managing BunchMetas.
 Updates and saved states use JSON encoding, with optional GZIP for saved states.
 
-- Sender time (ms): 709
+- Sender time (ms): 660
 - Avg update size (bytes): 86.8
-- Receiver time (ms): 463
-- Save time (ms): 12
+- Receiver time (ms): 436
+- Save time (ms): 13
 - Save size (bytes): 909990
-- Load time (ms): 17
-- Save time GZIP'd (ms): 89
-- Save size GZIP'd (bytes): 101901
-- Load time GZIP'd (ms): 40
-- Mem used (MB): 2.5
+- Load time (ms): 14
+- Save time GZIP'd (ms): 74
+- Save size GZIP'd (bytes): 101899
+- Load time GZIP'd (ms): 33
+- Mem used (MB): 2.6
 
-## LexPositionCRDT
+## AbsPositionCRDT
 
 Use a hybrid op-based/state-based CRDT on top of List+Outline.
-This variant uses LexPositions in messages instead of manually managing BunchMetas.
+This variant uses AbsPositions in messages instead of manually managing BunchMetas.
 Updates and saved states use JSON encoding, with optional GZIP for saved states.
 
-- Sender time (ms): 1545
-- Avg update size (bytes): 267.1
-- Receiver time (ms): 621
-- Save time (ms): 8
+- Sender time (ms): 1563
+- Avg update size (bytes): 216.2
+- Receiver time (ms): 734
+- Save time (ms): 12
 - Save size (bytes): 909990
-- Load time (ms): 20
-- Save time GZIP'd (ms): 82
-- Save size GZIP'd (bytes): 101899
-- Load time GZIP'd (ms): 38
-- Mem used (MB): 2.7
+- Load time (ms): 14
+- Save time GZIP'd (ms): 74
+- Save size GZIP'd (bytes): 101900
+- Load time GZIP'd (ms): 32
+- Mem used (MB): 2.6

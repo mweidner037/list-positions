@@ -27,7 +27,7 @@ function checkChar(char: string): void {
 /**
  * A JSON-serializable saved state for a `Text`.
  *
- * See Text.save and Text.load.
+ * See {@link Text.save} and {@link Text.load}.
  *
  * ## Format
  *
@@ -84,7 +84,7 @@ export class Text {
    * Constructs a Text, initially empty.
    *
    * @param order The Order to use for `this.order`.
-   * Multiple Lists/Outlines/Texts/LexLists can share an Order; they then automatically
+   * Multiple Lists/Texts/Outlines/AbsLists can share an Order; they then automatically
    * share metadata. If not provided, a `new Order()` is used.
    *
    * @see {@link Text.fromEntries} To construct a Text from an initial set of entries.
@@ -115,7 +115,7 @@ export class Text {
 
   /**
    * Returns a new Text using the given Order and with the given
-   * items (as defined by Text.items).
+   * items (as defined by {@link Text.items}).
    *
    * Like when loading a saved state, you must deliver all of the Positions'
    * dependent metadata to `order` before calling this method.
@@ -194,9 +194,9 @@ export class Text {
    * @throws If any of `index`, ..., `index + count - 1` are not in `[0, this.length)`.
    */
   deleteAt(index: number, count = 1): void {
-    const toDelete = new Array<Position>(count);
+    const toDelete: Position[] = [];
     for (let i = 0; i < count; i++) {
-      toDelete[i] = this.positionAt(index + i);
+      toDelete.push(this.positionAt(index + i));
     }
     for (const pos of toDelete) this.itemList.delete(pos, 1);
   }
@@ -219,7 +219,7 @@ export class Text {
    * In a collaborative setting, the new Position is *globally unique*, even
    * if other users call `List.insert` (or similar methods) concurrently.
    * 
-   * @returns [insertion Position, [new bunch's BunchMeta](https://github.com/mweidner037/list-positions#newMeta) (or null)].
+   * @returns [new Position, [new bunch's BunchMeta](https://github.com/mweidner037/list-positions#newMeta) (or null)].
    * @throws If prevPos is MAX_POSITION.
    */
   insert(
@@ -235,9 +235,9 @@ export class Text {
    * if new Positions are created between them.
    *
    * @returns [starting Position, [new bunch's BunchMeta](https://github.com/mweidner037/list-positions#newMeta) (or null)].
+   * Use {@link expandPositions} to convert (startPos, chars.length) to an array of Positions.
    * @throws If prevPos is MAX_POSITION.
    * @throws If no chars are provided.
-   * @see {@link expandPositions} To convert (startPos, chars.length) to an array of Positions.
    */
   insert(
     prevPos: Position,
@@ -259,7 +259,7 @@ export class Text {
    * In a collaborative setting, the new Position is *globally unique*, even
    * if other users call `List.insertAt` (or similar methods) concurrently.
    *
-   * @returns [insertion Position, [new bunch's BunchMeta](https://github.com/mweidner037/list-positions#newMeta) (or null)].
+   * @returns [new Position, [new bunch's BunchMeta](https://github.com/mweidner037/list-positions#newMeta) (or null)].
    * @throws If index is not in `[0, this.length]`. The index `this.length` is allowed and will cause an append.
    */
   insertAt(
@@ -275,9 +275,9 @@ export class Text {
    * if new Positions are created between them.
    *
    * @returns [starting Position, [new bunch's BunchMeta](https://github.com/mweidner037/list-positions#newMeta) (or null)].
+   * Use {@link expandPositions} to convert (startPos, chars.length) to an array of Positions.
    * @throws If index is not in `[0, this.length]`. The index `this.length` is allowed and will cause an append.
    * @throws If no chars are provided.
-   * @see {@link expandPositions} To convert (startPos, chars.length) to an array of Positions.
    */
   insertAt(
     index: number,
@@ -364,7 +364,7 @@ export class Text {
    * Returns the cursor at `index` within the list, i.e., between the positions at `index - 1` and `index`.
    * See [Cursors](https://github.com/mweidner037/list-positions#cursors).
    *
-   * Invert with indexOfCursor, possibly on a different List/Text/Outline/LexList or a different device.
+   * Invert with indexOfCursor, possibly on a different List/Text/Outline/AbsList or a different device.
    */
   cursorAt(index: number): Position {
     return index === 0 ? MIN_POSITION : this.positionAt(index - 1);
@@ -467,7 +467,7 @@ export class Text {
    * and have the same `bunchID` but increasing `innerIndex`.
    *
    * You can use this method as an optimized version of other iterators, or as
-   * an alternative in-order save format (see List.fromItems).
+   * an alternative save format that is in list order (see {@link Text.fromItems}).
    *
    * Optionally, you may specify a range of indices `[start, end)` instead of
    * iterating the entire list.

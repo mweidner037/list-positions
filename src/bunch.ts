@@ -1,3 +1,5 @@
+import { AbsBunchMeta } from "./abs_position";
+
 /**
  * Metadata for a [bunch](https://github.com/mweidner037/list-positions#bunches)
  * of Positions, as a JSON object.
@@ -111,14 +113,16 @@ export interface BunchNode {
   dependencies(): IterableIterator<BunchMeta>;
 
   /**
-   * Returns this bunch's *bunch prefix* - a string that embeds all of its
-   * dependencies (including its ancestors' BunchMetas), and that appears as a
-   * prefix of all of its LexPositions.
+   * Returns the bunch's AbsBunchMeta: a struct that encodes all of its dependencies in a
+   * compressed form.
    *
-   * You can use LexUtils to convert between a LexPosition and its
-   * (bunch prefix, innerIndex) pair.
+   * AbsBunchMeta is used internally by AbsPosition/AbsList. You can also use it independently,
+   * as an efficient substitute for `[...this.dependencies()]`.
+   *
+   * @see {@link AbsPositions.decodeMetas} To convert the AbsBunchMeta back into the array
+   * `[...this.dependencies()]`, e.g., for passing to `Order.addMetas`.
    */
-  lexPrefix(): string;
+  absMeta(): AbsBunchMeta;
 
   /**
    * The number of child nodes in the Order's current tree.
@@ -149,10 +153,7 @@ export interface BunchNode {
  *
  * The sort order is:
  * - First, sort siblings by `offset`.
- * - To break ties, sort siblings lexicographically by the strings `sibling.bunchID + ","`.
- * (The extra comma is a technicality needed to match the sort order on LexPositions.
- * It has no effect if your bunchIDs only use characters greater than "," (code unit 44),
- * which is true by default.)
+ * - To break ties, sort lexicographically by `bunchID`.
  */
 export function compareSiblingNodes(a: BunchNode, b: BunchNode): number {
   if (a.parent !== b.parent) {
@@ -166,8 +167,7 @@ export function compareSiblingNodes(a: BunchNode, b: BunchNode): number {
     return a.offset - b.offset;
   }
   if (a.bunchID !== b.bunchID) {
-    // Need to add the comma to match how LexPositions are sorted.
-    return a.bunchID + "," > b.bunchID + "," ? 1 : -1;
+    return a.bunchID > b.bunchID ? 1 : -1;
   }
   return 0;
 }

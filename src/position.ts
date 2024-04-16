@@ -12,9 +12,8 @@ import { BunchIDs } from "./bunch_ids";
  * for details.
  *
  * See also:
- * - {@link LexPosition}: An alternative representation of positions that is used with
- * LexList and can be sorted independent of this library.
  * - {@link positionEquals}: Equality function for Positions.
+ * - {@link AbsPosition}: An alternative representation of positions that is easier to work with, used with AbsList.
  */
 export type Position = {
   /**
@@ -67,19 +66,19 @@ export function positionEquals(a: Position, b: Position): boolean {
  * Returns an array of Positions that start at `startPos` and have
  * sequentially increasing `innerIndex`.
  *
- * You can use this method to expand on the startPos returned by
+ * You can use this method to expand on the `startPos` returned by
  * `Order.createPositions` (and the bulk versions of `List.insertAt`, etc.).
  */
 export function expandPositions(
   startPos: Position,
   sameBunchCount: number
 ): Position[] {
-  const ans = new Array<Position>(sameBunchCount);
+  const ans: Position[] = [];
   for (let i = 0; i < sameBunchCount; i++) {
-    ans[i] = {
+    ans.push({
       bunchID: startPos.bunchID,
       innerIndex: startPos.innerIndex + i,
-    };
+    });
   }
   return ans;
 }

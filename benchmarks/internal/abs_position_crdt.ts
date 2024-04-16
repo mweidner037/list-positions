@@ -1,5 +1,5 @@
 import {
-  LexPosition,
+  AbsPosition,
   List,
   ListSavedState,
   OrderSavedState,
@@ -10,21 +10,21 @@ import {
 type Message<T> =
   | {
       type: "set";
-      pos: LexPosition;
+      pos: AbsPosition;
       value: T;
     }
-  | { type: "delete"; pos: LexPosition };
+  | { type: "delete"; pos: AbsPosition };
 
 type SavedState<T> = {
   // With saved states, metadata management is easy even with List, so don't
-  // bother with LexListSavedState.
+  // bother with AbsListSavedState.
   order: OrderSavedState;
   list: ListSavedState<T>;
   seen: OutlineSavedState;
 };
 
 /**
- * A hybrid op-based/state-based list CRDT that uses LexPositions in messages
+ * A hybrid op-based/state-based list CRDT that uses AbsPositions in messages
  * instead of manually managing BunchMetas.
  *
  * Internally, it wraps a List (for values) and an Outline (for tracking
@@ -32,7 +32,7 @@ type SavedState<T> = {
  * networks (they build in exactly-once partial-order delivery),
  * and save/load work as state-based merging.
  */
-export class LexPositionCRDT<T> {
+export class AbsPositionCRDT<T> {
   /** When accessing externally, only query. */
   readonly list: List<T>;
   /**
@@ -54,7 +54,7 @@ export class LexPositionCRDT<T> {
     const [pos] = this.list.insertAt(index, value);
     const messageObj: Message<T> = {
       type: "set",
-      pos: this.list.order.lex(pos),
+      pos: this.list.order.abs(pos),
       value,
     };
     this.send(JSON.stringify(messageObj));
@@ -65,7 +65,7 @@ export class LexPositionCRDT<T> {
     this.list.delete(pos);
     const messageObj: Message<T> = {
       type: "delete",
-      pos: this.list.order.lex(pos),
+      pos: this.list.order.abs(pos),
     };
     this.send(JSON.stringify(messageObj));
   }
@@ -74,7 +74,7 @@ export class LexPositionCRDT<T> {
 
   receive(msg: string): void {
     const decoded = JSON.parse(msg) as Message<T>;
-    const pos = this.list.order.unlex(decoded.pos);
+    const pos = this.list.order.unabs(decoded.pos);
     if (decoded.type === "set") {
       if (!this.seen.has(pos)) {
         this.list.set(pos, decoded.value);
