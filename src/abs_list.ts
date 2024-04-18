@@ -325,8 +325,10 @@ export class AbsList<T> {
    * Returns the cursor at `index` within the list, i.e., between the positions at `index - 1` and `index`.
    * See [Cursors](https://github.com/mweidner037/list-positions#cursors).
    *
-   * Invert with indexOfCursor, possibly on a different AbsList/List/Text/Outline or a different device.
+   * Invert with {@link indexOfCursor}, possibly on a different AbsList/List/Text/Outline or a different device.
    * (For non-AbsLists, you will need to convert it to a Position using {@link Order.unabs}.)
+   *
+   * @throws If index is not in the range `[0, list.length]`.
    */
   cursorAt(index: number): AbsPosition {
     return index === 0 ? AbsPositions.MIN_POSITION : this.positionAt(index - 1);
@@ -336,7 +338,7 @@ export class AbsList<T> {
    * Returns the current index of `cursor` within the list.
    * That is, the cursor is between the list elements at `index - 1` and `index`.
    *
-   * Inverts cursorAt.
+   * Inverts {@link cursorAt}.
    */
   indexOfCursor(cursor: AbsPosition): number {
     return AbsPositions.positionEquals(cursor, AbsPositions.MIN_POSITION)
