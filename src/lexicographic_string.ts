@@ -1,9 +1,8 @@
-import { lexSequence } from "lex-sequence";
+import { sequence } from "lex-sequence";
 import { AbsPosition } from "./abs_position";
 import { stringifyMaybeDotID } from "./internal/util";
 
 const OFFSET_BASE = 36;
-const { sequence } = lexSequence(OFFSET_BASE);
 
 // This function is on its own, instead of a method on Order or AbsPositions,
 // to avoid bringing in the lex-sequence dependency unless you actually
@@ -44,7 +43,7 @@ export function lexicographicString(pos: AbsPosition): string {
     if (i !== replicaIndices.length - 1) {
       // Offset layer.
       const offset = offsets[i];
-      ans += sequence(offset).toString(OFFSET_BASE) + ".";
+      ans += sequence(offset, OFFSET_BASE).toString(OFFSET_BASE) + ".";
     }
 
     // BunchID layer.
@@ -70,7 +69,7 @@ export function lexicographicString(pos: AbsPosition): string {
   }
 
   // Final innerIndex, converted to an offset.
-  ans += sequence(2 * pos.innerIndex + 1).toString(OFFSET_BASE);
+  ans += sequence(2 * pos.innerIndex + 1, OFFSET_BASE).toString(OFFSET_BASE);
 
   return ans;
 }
