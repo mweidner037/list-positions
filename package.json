@@ -34,7 +34,7 @@
   },
   "sideEffects": false,
   "dependencies": {
-    "lex-sequence": "^1.0.0",
+    "lex-sequence": "^2.0.0",
     "maybe-random-string": "^1.0.0",
     "sparse-array-rled": "^1.0.0"
   },
