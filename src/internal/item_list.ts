@@ -452,6 +452,42 @@ export class ItemList<I, S extends SparseItems<I>> {
     return this.state.get(node)?.total ?? 0;
   }
 
+  /**
+   * Returns the cursor at `index` within the list, i.e., in the gap between the positions at `index - 1` and `index`.
+   * See [Cursors](https://github.com/mweidner037/list-positions#cursors).
+   *
+   * Invert with {@link indexOfCursor}, possibly on a different List/Text/Outline/AbsList or a different device.
+   *
+   * @param bind Whether to bind to the left or the right side of the gap, in case positions
+   * later appear between `index - 1` and `index`. Default: `"left"`, which is typical for text cursors.
+   * @throws If index is not in the range `[0, list.length]`.
+   */
+  cursorAt(index: number, bind: "left" | "right" = "left"): Position {
+    if (bind === "left") {
+      return index === 0 ? MIN_POSITION : this.positionAt(index - 1);
+    } else {
+      return index === this.length ? MAX_POSITION : this.positionAt(index);
+    }
+  }
+
+  /**
+   * Returns the current index of `cursor` within the list.
+   * That is, the cursor is between the list elements at `index - 1` and `index`.
+   *
+   * Inverts {@link cursorAt}.
+   *
+   * @param bind The `bind` value that was used with {@link cursorAt}, if any.
+   */
+  indexOfCursor(cursor: Position, bind: "left" | "right" = "left"): number {
+    if (bind === "left") {
+      // If cursor is MIN_POSITION, this is -1 + 1 = 0.
+      return this.indexOfPosition(cursor, "left") + 1;
+    } else {
+      // If cursor is MAX_POSITION, this is length.
+      return this.indexOfPosition(cursor, "right");
+    }
+  }
+
   // ----------
   // Iterators
   // ----------

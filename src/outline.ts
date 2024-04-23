@@ -2,7 +2,7 @@ import { SparseIndices } from "sparse-array-rled";
 import { BunchMeta } from "./bunch";
 import { ItemList, SparseItemsFactory } from "./internal/item_list";
 import { Order } from "./order";
-import { MIN_POSITION, Position, positionEquals } from "./position";
+import { Position } from "./position";
 
 const sparseIndicesFactory: SparseItemsFactory<number, SparseIndices> = {
   // eslint-disable-next-line @typescript-eslint/unbound-method
@@ -308,15 +308,17 @@ export class Outline {
   }
 
   /**
-   * Returns the cursor at `index` within the list, i.e., between the positions at `index - 1` and `index`.
+   * Returns the cursor at `index` within the list, i.e., in the gap between the positions at `index - 1` and `index`.
    * See [Cursors](https://github.com/mweidner037/list-positions#cursors).
    *
    * Invert with {@link indexOfCursor}, possibly on a different List/Text/Outline/AbsList or a different device.
    *
+   * @param bind Whether to bind to the left or the right side of the gap, in case positions
+   * later appear between `index - 1` and `index`. Default: `"left"`, which is typical for text cursors.
    * @throws If index is not in the range `[0, list.length]`.
    */
-  cursorAt(index: number): Position {
-    return index === 0 ? MIN_POSITION : this.positionAt(index - 1);
+  cursorAt(index: number, bind?: "left" | "right"): Position {
+    return this.itemList.cursorAt(index, bind);
   }
 
   /**
@@ -324,11 +326,11 @@ export class Outline {
    * That is, the cursor is between the list elements at `index - 1` and `index`.
    *
    * Inverts {@link cursorAt}.
+   *
+   * @param bind The `bind` value that was used with {@link cursorAt}, if any.
    */
-  indexOfCursor(cursor: Position): number {
-    return positionEquals(cursor, MIN_POSITION)
-      ? 0
-      : this.indexOfPosition(cursor, "left") + 1;
+  indexOfCursor(cursor: Position, bind?: "left" | "right"): number {
+    return this.itemList.indexOfCursor(cursor, bind);
   }
 
   // ----------

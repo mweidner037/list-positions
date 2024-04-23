@@ -322,16 +322,18 @@ export class AbsList<T> {
   }
 
   /**
-   * Returns the cursor at `index` within the list, i.e., between the positions at `index - 1` and `index`.
+   * Returns the cursor at `index` within the list, i.e., in the gap between the positions at `index - 1` and `index`.
    * See [Cursors](https://github.com/mweidner037/list-positions#cursors).
    *
    * Invert with {@link indexOfCursor}, possibly on a different AbsList/List/Text/Outline or a different device.
    * (For non-AbsLists, you will need to convert it to a Position using {@link Order.unabs}.)
    *
+   * @param bind Whether to bind to the left or the right side of the gap, in case positions
+   * later appear between `index - 1` and `index`. Default: `"left"`, which is typical for text cursors.
    * @throws If index is not in the range `[0, list.length]`.
    */
-  cursorAt(index: number): AbsPosition {
-    return index === 0 ? AbsPositions.MIN_POSITION : this.positionAt(index - 1);
+  cursorAt(index: number, bind?: "left" | "right"): AbsPosition {
+    return this.order.abs(this.list.cursorAt(index, bind));
   }
 
   /**
@@ -339,11 +341,11 @@ export class AbsList<T> {
    * That is, the cursor is between the list elements at `index - 1` and `index`.
    *
    * Inverts {@link cursorAt}.
+   *
+   * @param bind The `bind` value that was used with {@link cursorAt}, if any.
    */
-  indexOfCursor(cursor: AbsPosition): number {
-    return AbsPositions.positionEquals(cursor, AbsPositions.MIN_POSITION)
-      ? 0
-      : this.indexOfPosition(cursor, "left") + 1;
+  indexOfCursor(cursor: AbsPosition, bind?: "left" | "right"): number {
+    return this.list.indexOfCursor(this.order.unabs(cursor), bind);
   }
 
   // ----------
