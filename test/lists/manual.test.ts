@@ -51,6 +51,140 @@ describe("lists - manual", () => {
     });
   });
 
+  describe("cursors", () => {
+    let list!: List<number>;
+
+    beforeEach(() => {
+      const replicaID = maybeRandomString({ prng });
+      list = new List(new Order({ replicaID }));
+      // 10 elements
+      list.insertAt(0, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9);
+    });
+
+    function bindIndependent(bind: "left" | "right") {
+      test("errors", () => {
+        assert.throws(() => list.cursorAt(-1, bind));
+        assert.throws(() => list.cursorAt(list.length + 1, bind));
+
+        assert.doesNotThrow(() => list.cursorAt(0, bind));
+        assert.doesNotThrow(() => list.cursorAt(list.length, bind));
+      });
+
+      test("inverses", () => {
+        for (let i = 0; i <= list.length; i++) {
+          const cursor = list.cursorAt(i, bind);
+          assert.strictEqual(list.indexOfCursor(cursor, bind), i);
+        }
+      });
+
+      test("delete on left", () => {
+        const midCursor = list.cursorAt(5, bind);
+
+        list.deleteAt(0);
+        assert.strictEqual(list.indexOfCursor(midCursor, bind), 4);
+
+        // Delete left-binding position.
+        if (bind === "left") {
+          assert.deepStrictEqual(midCursor, list.positionAt(3));
+        }
+        list.deleteAt(3);
+        assert.strictEqual(list.indexOfCursor(midCursor, bind), 3);
+
+        list.deleteAt(0);
+        assert.strictEqual(list.indexOfCursor(midCursor, bind), 2);
+
+        list.clear();
+        assert.strictEqual(list.indexOfCursor(midCursor, bind), 0);
+      });
+
+      test("delete on right", () => {
+        const midCursor = list.cursorAt(5, bind);
+
+        list.deleteAt(9);
+        assert.strictEqual(list.indexOfCursor(midCursor, bind), 5);
+
+        // Delete right-binding position.
+        if (bind === "right") {
+          assert.deepStrictEqual(midCursor, list.positionAt(5));
+        }
+        list.deleteAt(5);
+        assert.strictEqual(list.indexOfCursor(midCursor, bind), 5);
+
+        list.deleteAt(7);
+        assert.strictEqual(list.indexOfCursor(midCursor, bind), 5);
+
+        list.clear();
+        assert.strictEqual(list.indexOfCursor(midCursor, bind), 0);
+      });
+    }
+
+    describe("bind left", () => {
+      bindIndependent("left");
+
+      test("insert in gap", () => {
+        const midCursor = list.cursorAt(5, "left");
+
+        list.insertAt(5, 100);
+        assert.strictEqual(list.indexOfCursor(midCursor, "left"), 5);
+
+        // Gap before cursor: always shifts.
+        list.insertAt(4, 101);
+        assert.strictEqual(list.indexOfCursor(midCursor, "left"), 6);
+
+        // Gap after cursor: never shifts.
+        list.insertAt(7, 102);
+        assert.strictEqual(list.indexOfCursor(midCursor, "left"), 6);
+      });
+
+      test("min position", () => {
+        const cursor = list.cursorAt(0, "left");
+        assert.deepStrictEqual(cursor, MIN_POSITION);
+
+        list.insertAt(0, 101);
+        assert.strictEqual(list.indexOfCursor(cursor, "left"), 0);
+
+        list.deleteAt(0);
+        assert.strictEqual(list.indexOfCursor(cursor, "left"), 0);
+
+        list.clear();
+        assert.strictEqual(list.indexOfCursor(cursor, "left"), 0);
+      });
+    });
+
+    describe("bind right", () => {
+      bindIndependent("right");
+
+      test("insert in gap", () => {
+        const midCursor = list.cursorAt(5, "right");
+
+        list.insertAt(5, 100);
+        assert.strictEqual(list.indexOfCursor(midCursor, "right"), 6);
+
+        // Gap before cursor: always shifts.
+        list.insertAt(5, 101);
+        assert.strictEqual(list.indexOfCursor(midCursor, "right"), 7);
+
+        // Gap after cursor: never shifts.
+        list.insertAt(8, 102);
+        assert.strictEqual(list.indexOfCursor(midCursor, "right"), 7);
+      });
+
+      test("max position", () => {
+        const cursor = list.cursorAt(list.length, "right");
+        assert.deepStrictEqual(cursor, MAX_POSITION);
+
+        list.insertAt(list.length, 101);
+        assert.strictEqual(list.indexOfCursor(cursor, "right"), list.length);
+
+        list.deleteAt(list.length - 1);
+        assert.strictEqual(list.indexOfCursor(cursor, "right"), list.length);
+
+        list.clear();
+        assert.strictEqual(list.indexOfCursor(cursor, "right"), list.length);
+      });
+    });
+  });
+
   describe("set and delete", () => {
     let checker!: Checker;
 
