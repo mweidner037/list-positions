@@ -475,7 +475,7 @@ export class ItemList<I, S extends SparseItems<I>> {
    * That is, the cursor is between the list elements at `index - 1` and `index`.
    *
    * Inverts {@link cursorAt}.
-   * 
+   *
    * @param bind The `bind` value that was used with {@link cursorAt}, if any.
    */
   indexOfCursor(cursor: Position, bind: "left" | "right" = "left"): number {
