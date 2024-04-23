@@ -476,9 +476,9 @@ export class ItemList<I, S extends SparseItems<I>> {
    *
    * Inverts {@link cursorAt}.
    * 
-   * @param bind The `bind` value that was used with {@link cursorAt}.
+   * @param bind The `bind` value that was used with {@link cursorAt}, if any.
    */
-  indexOfCursor(cursor: Position, bind: "left" | "right" = "right"): number {
+  indexOfCursor(cursor: Position, bind: "left" | "right" = "left"): number {
     if (bind === "left") {
       // If cursor is MIN_POSITION, this is -1 + 1 = 0.
       return this.indexOfPosition(cursor, "left") + 1;
