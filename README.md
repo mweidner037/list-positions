@@ -422,7 +422,7 @@ A _cursor_ points to a spot in the list between two values - e.g., a cursor in a
 
 Internally, a cursor is represented as the Position (or AbsPosition, for AbsList) of the value to its left, or `MIN_POSITION` if it is at the start of the list. If that position becomes not-present in the list, the cursor's literal value remains the same, but its current index shifts to the left. (To bind to the Position on the right instead, pass `bind = "right"` to the cursor methods.)
 
-Convert indices to cursors and back using methods `cursorAt` and `indexOfCursor`, on classes List, Text, Outline, and AbsList. These are wrappers around `positionAt` and `indexOfPosition` that get the edge cases right.
+Convert indices to cursors and back using methods `cursorAt` and `indexOfCursor`, on classes List, Text, Outline, and AbsList. These are wrappers around `positionAt` and `indexOfPosition` that get the edge cases correct.
 
 #### Lexicographic Strings
 

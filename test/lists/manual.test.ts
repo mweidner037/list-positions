@@ -61,7 +61,7 @@ describe("lists - manual", () => {
       list.insertAt(0, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9);
     });
 
-    function bindIndependent(bind: "left" | "right") {
+    function bindIndependent(bind: "left" | "right" | undefined) {
       test("errors", () => {
         assert.throws(() => list.cursorAt(-1, bind));
         assert.throws(() => list.cursorAt(list.length + 1, bind));
@@ -124,6 +124,7 @@ describe("lists - manual", () => {
       test("insert in gap", () => {
         const midCursor = list.cursorAt(5, "left");
 
+        // Gap at cursor: bind dependent.
         list.insertAt(5, 100);
         assert.strictEqual(list.indexOfCursor(midCursor, "left"), 5);
 
@@ -143,7 +144,7 @@ describe("lists - manual", () => {
         list.insertAt(0, 101);
         assert.strictEqual(list.indexOfCursor(cursor, "left"), 0);
 
-        list.deleteAt(0);
+        list.deleteAt(0, 2);
         assert.strictEqual(list.indexOfCursor(cursor, "left"), 0);
 
         list.clear();
@@ -157,6 +158,7 @@ describe("lists - manual", () => {
       test("insert in gap", () => {
         const midCursor = list.cursorAt(5, "right");
 
+        // Gap at cursor: bind dependent.
         list.insertAt(5, 100);
         assert.strictEqual(list.indexOfCursor(midCursor, "right"), 6);
 
@@ -176,11 +178,19 @@ describe("lists - manual", () => {
         list.insertAt(list.length, 101);
         assert.strictEqual(list.indexOfCursor(cursor, "right"), list.length);
 
-        list.deleteAt(list.length - 1);
+        list.deleteAt(list.length - 2, 2);
         assert.strictEqual(list.indexOfCursor(cursor, "right"), list.length);
 
         list.clear();
         assert.strictEqual(list.indexOfCursor(cursor, "right"), list.length);
+      });
+    });
+
+    describe("bind default", () => {
+      bindIndependent(undefined);
+
+      test("is left", () => {
+        assert.deepStrictEqual(list.cursorAt(5), list.cursorAt(5, "left"));
       });
     });
   });
