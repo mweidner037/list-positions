@@ -21,19 +21,19 @@ export type AbsBunchMeta = {
   /**
    * Deduplicated replicaIDs, indexed into by replicaIndices.
    */
-  replicaIDs: readonly string[];
+  readonly replicaIDs: readonly string[];
   /**
    * Non-negative integers.
    */
-  replicaIndices: readonly number[];
+  readonly replicaIndices: readonly number[];
   /**
    * Non-negative integers. Same length as replicaIndices.
    */
-  counterIncs: readonly number[];
+  readonly counterIncs: readonly number[];
   /**
    * Non-negative integers. One shorter than replicaIndices, unless both are empty.
    */
-  offsets: readonly number[];
+  readonly offsets: readonly number[];
 };
 
 // Not exported because I have yet to use it externally.
@@ -70,12 +70,12 @@ export type AbsPosition = {
    * It encodes the bunch's ID together with all of its dependent metadata,
    * in a compressed form.
    */
-  bunchMeta: AbsBunchMeta;
+  readonly bunchMeta: AbsBunchMeta;
   /**
    * The index of this position within its [bunch](https://github.com/mweidner037/list-positions#bunches).
    * A nonnegative integer.
    */
-  innerIndex: number;
+  readonly innerIndex: number;
 };
 
 const ROOT_BUNCH_META: AbsBunchMeta = {
