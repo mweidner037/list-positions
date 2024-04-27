@@ -179,7 +179,7 @@ async function memory(savedState: string) {
   })();
 
   console.log(
-    "- Mem used (MB):",
+    "- Mem used estimate (MB):",
     ((getMemUsed() - startMem) / 1000000).toFixed(1)
   );
 

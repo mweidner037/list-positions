@@ -1,11 +1,12 @@
 import { crdt } from "./crdt";
-import { AbsPositionCRDT } from "./internal/abs_position_crdt";
-import { PositionCRDT } from "./internal/position_crdt";
 import { absListDirect } from "./abs_list_direct";
 import { listCustomEncoding } from "./list_custom_encoding";
 import { listDirect } from "./list_direct";
 import { outlineDirect } from "./outline_direct";
 import { textDirect } from "./text_direct";
+import { TextCRDT } from "./internal/text_crdt";
+import { ListCRDT } from "./internal/list_crdt";
+import { AbsTextCRDT } from "./internal/abs_text_crdt";
 
 (async function () {
   console.log("# Benchmark Results");
@@ -24,6 +25,7 @@ import { textDirect } from "./text_direct";
   await listCustomEncoding();
   await textDirect();
   await outlineDirect();
-  await crdt(PositionCRDT);
-  await crdt(AbsPositionCRDT);
+  await crdt(TextCRDT);
+  await crdt(AbsTextCRDT);
+  await crdt(ListCRDT);
 })();

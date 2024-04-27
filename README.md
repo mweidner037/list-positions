@@ -6,12 +6,12 @@ Efficient "positions" for lists and text - enabling rich documents and collabora
 - [Usage](#usage)
 - [API](#api)
 - [Performance](#performance)
-- [Demos ↗️](https://github.com/mweidner037/list-demos#readme)
-- [list-formatting ↗️](https://github.com/mweidner037/list-formatting#readme), a companion library that adds inline formatting (e.g. rich text)
+- [Demos ↗️](https://github.com/mweidner037/list-positions-demos)
+- [@list-positions/formatting ↗️](https://github.com/mweidner037/list-positions-formatting#readme), a companion library that adds inline formatting (e.g. rich text)
 
 ## About
 
-Many apps use a list whose values can change index over time: characters in a text document, items in a todo list, rows in a spreadsheet, etc. Instead of thinking of this list as an array, it's easier to think of it as an ordered map `(position -> value)`, where a value's _position_ doesn't change over time. So if you insert a new entry `(position, value)` into the map, the other entries stay the same, even though their indices change:
+Many apps use a list whose values can change index over time: characters in a text document, items in a todo list, rows in a spreadsheet, etc. Instead of thinking of this list as an array, it's often easier to think of it as an ordered map `(position -> value)`, where a value's _position_ doesn't change over time. So if you insert a new entry `(position, value)` into the map, the other entries stay the same, even though their indices change:
 
 ```
 Before:
@@ -27,27 +27,27 @@ Position | pos123  posABC  posLMN  posXYZ
 Value    | 'C'     'h'     'a'     't'
 ```
 
-This library provides positions (types `Position`/`AbsPosition`) and corresponding list-as-ordered-map data structures (classes `List`/`Text`/`Outline`/`AbsList`). Multiple lists can use the same positions (with the same sort order), including lists on different devices - enabling DIY collaborative lists & text editing.
+This library provides positions (types Position/AbsPosition) and corresponding list-as-ordered-map data structures (classes List/Text/Outline/AbsList). Multiple lists can use the same positions (with the same sort order), including lists on different devices - so you can use this library to implement _collaborative_ lists & text, on top of a variety of network architectures.
 
 ### Example Use Cases
 
-1. In a **text document with annotations** (comments/highlights), store the text as a List of characters, and indicate each annotation's range using a `start` and `end` Position. That way, when the user inserts text in front of an annotation, the annotation stays "in the same place", without needing to update start/end indexes.
-2. In a **todo-list app built on top of a database**, store each todo-item's position as part of its database entry, and sort the items using a List/AbsList at render time. Using positions lets you insert a new todo-item in the middle of the list (by assigning it a position in that spot) or move a todo-item around (by changing its position). It works even for a collaborative todo-list built on top of a cloud database.
-3. In a **text editor with suggested changes** (from collaborators, AI, or local drafts), store each suggestion as a collection of `(position, char)` pairs to insert or delete. When the user accepts a suggestion, apply those changes to the main List.
+1. In a **text document with annotations** (comments/highlights), store the text using our Text class (a list of characters), and indicate each annotation's range using `start` and `end` Positions instead of regular array indices. That way, when the user inserts text in front of an annotation, the annotation stays "in the same place".
+2. In a **todo-list app built on top of a database**, store each todo-item's Position as part of its database entry, and sort the items using a List at render time. Using positions lets you insert a new todo-item in the middle of the list (by assigning it a position in that spot) or move a todo-item around (by changing its position). This works even for a collaborative todo-list built on top of a cloud database.
+3. In a **text editor with an edit history**, store the history of `(position, char)` pairs that were inserted or deleted. By correlating these positions with the text's current `(position -> char)` map, you can see where text came from ("git blame") and compute exact diffs between historical states. You can even revert edits in the history, or "cherry-pick" edits across history branches.
 4. To make a **collaborative text editor**, you just need a way to collaborate on the map `(position -> char)`. This is easy to DIY, and more flexible than using an Operational Transformation or CRDT library. For example:
-   - When a user types `char` at `index`, call `[pos] = list.insertAt(index, char)` to insert the char into their local List at a (new) Position `pos`. Then broadcast `(pos, char)` to all collaborators. Recipients call `list.set(pos, char)` on their own Lists.
-   - Or, store the map in a cloud database. You can do this efficiently by understanding the [structure of Positions](#bunches). (See our [demos](https://github.com/mweidner037/list-demos#readme) for various cloud databases.)
-   - Or, send each `(position, char)` pair to a central server. The server can choose to accept, reject, or modify the change before forwarding it to other users - e.g., enforcing per-paragraph permissions. It can also choose to store the map in a database table, instead of loading each active document into memory.
+   - When a user types `char` at `index`, call `[pos] = list.insertAt(index, char)` to insert the char into their local list at a new Position `pos`. Then broadcast `(pos, char)` to all collaborators. Recipients call `list.set(pos, char)` on their own lists.
+   - Or, send each `(position, char)` pair to a central server. The server can choose to accept, reject, or modify the change before forwarding it to other users - e.g., enforcing per-paragraph permissions.
+   - Or, store the `(position -> char)` map in a cloud database that syncs for you. You can do this efficiently by understanding the [structure of Positions](#bunches). (See our [demos](https://github.com/mweidner037/list-positions-demos) for collaborative rich-text editors on top of various cloud databases.)
 
 ### Features
 
-**Performance** Our list data structures have a small memory footprint, fast edits, and small saved states. See our [benchmark results](#performance) for a 260k op text-editing trace.
+**Performance** Our list data structures have a small memory footprint, fast edits, and small saved states. See our [benchmark results](#performance) for a 260k operation text-editing trace.
 
-**Collaboration** Lists can share the same positions even across devices. Even in the face of concurrent edits, Positions are always globally unique, and you can insert a new position anywhere in a list. To make this possible, the library essentially implements a list CRDT ([Fugue](https://arxiv.org/abs/2305.00583)), but with a more flexible API.
+**Collaboration** Lists on different devices can share the same positions. Even in the face of concurrent edits, positions are always globally unique, and you can insert a new position anywhere in a list. To make this possible, the library essentially implements a list CRDT ([Fugue](https://arxiv.org/abs/2305.00583)), but without the restrictions that come with CRDTs - ultimately, each List is a local data structure that you can edit at will.
 
 **Non-interleaving** In collaborative scenarios, if two users concurrently insert a (forward or backward) sequence at the same place, their sequences will not be interleaved. For example, in a collaborative text editor, if Alice types "Hello" while Bob types "World" at the same place, then the resulting order will be "HelloWorld" or "WorldHello", not "HWeolrllod".
 
-**Flexible usage** There are multiple inter-compatible ways to work with our positions and lists. For example, you can ask for a [lexicographically-ordered version of a position](#lexicographic-strings) to use indendently of this library, or [store list values in your own data structure](#outline) instead of our default List class.
+**Escape hatches** You can make use of the library without storing all of your data in one of our data structures. In particular, you can ask for a [lexicographically-ordered version of a position](#lexicographic-strings) to use independently of this library, or [store list values in your own data structure](#outline) instead of our default List class.
 
 ### Related Work
 
@@ -55,7 +55,7 @@ This library provides positions (types `Position`/`AbsPosition`) and correspondi
   a related but less general idea.
 - [Blog post](https://mattweidner.com/2022/10/21/basic-list-crdt.html) describing the Fugue list CRDT and how it relates to the "list position" abstraction. This library implements an optimized version of that post's tree implementation (List/Position) and an analog of its string implementation (AbsList/AbsPosition).
 - [Paper](https://arxiv.org/abs/2305.00583) with more details about Fugue - in particular, its non-interleaving guarantees.
-- [Rope](<https://en.wikipedia.org/wiki/Rope_(data_structure)>), a data structure for efficient text editing that works similarly to our List class.
+- [Rope](<https://en.wikipedia.org/wiki/Rope_(data_structure)>), a data structure for efficient text editing that our List class uses as inspiration.
 
 ## Usage
 
@@ -90,8 +90,8 @@ console.log([...list.values()]); // Prints ['A', 'b', 'y', 'c']
 
 // 2nd way to insert values: insert after an existing position,
 // e.g., the current cursor.
-const cursorPos = list.positionAt(2);
-const [newPos] = list.insert(cursorPos, "z");
+const cursorPos = list.cursorAt(3);
+const newPos = list.insert(cursorPos, "z");
 console.log([...list.values()]); // Prints ['A', 'b', 'y', 'z', 'c'];
 
 // Map-like API:
@@ -101,9 +101,9 @@ list.delete(newPos);
 
 AbsPositions are easy to use because they are self-contained: you can use AbsPositions in an AbsList without any prior setup. In other words, their sort order is "absolute", not "relative" to some separate metadata.
 
-The downside of AbsPositions is metadata overhead - their JSON encodings have variable size and can become long in certain scenarios (an average of 188 characters in our [benchmarks](./benchmark_results.md#abslist-direct)).
+The downside of AbsPositions is metadata overhead - their JSON encodings have variable size and can become long in certain scenarios (an average of 187 characters in our [benchmarks](./benchmark_results.md#abslist-direct)).
 
-> Using AbsList is more efficient than storing all of the literal pairs `(absPosition, value)` in your own data structure. In fact, it is nearly as efficient as the next section's List class - see [AbsList benchmark results](./benchmark_results.md#abslist-direct). If you do need to use your own data structure (e.g., a DB table with one pair per row), it should be practical for short lists of perhaps <1,000 values - e.g., the items in a todo list, or the scenarios where [Figma uses fractional indexing](https://www.figma.com/blog/how-figmas-multiplayer-technology-works/#syncing-trees-of-objects).
+> Using AbsList is more efficient than storing all of the literal pairs `(absPosition, value)` in your own data structure. If you do need to use your own data structure (e.g., a DB table with one pair per row), it should be practical for short lists of perhaps <1,000 values - e.g., the items in a todo list, or the scenarios where [Figma uses fractional indexing](https://www.figma.com/blog/how-figmas-multiplayer-technology-works/#syncing-trees-of-objects).
 
 ### List, Position, and Order
 
@@ -131,7 +131,7 @@ console.log([...list.values()]); // Prints ['A', 'b', 'y', 'c']
 
 // 2nd way to insert values: insert after an existing position,
 // e.g., the current cursor.
-const cursorPos: Position = list.positionAt(2);
+const cursorPos: Position = list.cursorAt(3);
 const [newPos] = list.insert(cursorPos, "z");
 console.log([...list.values()]); // Prints ['A', 'b', 'y', 'z', 'c'];
 
@@ -163,7 +163,7 @@ type Position = {
 ```
 
 <a id="bunches"></a>
-The `bunchID` identifies a _bunch_ of Positions that share metadata (for efficiency). Each bunch has Positions with `innerIndex` 0, 1, 2, ...; these were originally inserted contiguously (e.g., by a user typing left-to-right) but might not be contiguous anymore. Regardless, bunches makes it easy to store a List's map `(Position -> value)` compactly:
+The `bunchID` identifies a **bunch** of Positions that share metadata (for efficiency). Each bunch has Positions with `innerIndex` 0, 1, 2, ...; these were originally inserted contiguously (e.g., by a user typing left-to-right) but might not be contiguous anymore. Regardless, bunches makes it easy to store a List's map `(Position -> value)` compactly:
 
 ```ts
 // As a double map:
@@ -225,7 +225,7 @@ Specifically, a List's [bunches](#bunches) form a tree. Each bunch, except for t
 
 ```ts
 type BunchMeta = {
-  /** The bunch's ID, same as its Positions' bunchID. */
+  /** The bunch's ID, which is the same as its Positions' bunchID. */
   bunchID: string;
   /** The parent bunch's ID. */
   parentID: string;
@@ -270,7 +270,7 @@ function load<T>(savedState: string): List<T> {
 <a id="newMeta"></a>
 **Multiple users** Suppose you have multiple users and a single list order, e.g., a collaborative text editor. Any time a user creates a new Position by calling `list.insertAt`, `list.insert`, or `list.order.createPositions`, they might create a new bunch. Other users must learn of the new bunch's BunchMeta before they can use the new Position.
 
-One option is to always send AbsPositions over the network instead of Positions. Use `list.order.abs` and `list.order.unabs` to translate between the two. This is almost as simple as using [AbsList and AbsPosition](#abslist-and-absposition), but with the same cost in metadata overhead - in our [list CRDT benchmarks](./benchmark_results.md#abspositioncrdt), it has about 2.5x larger network messages than the second option below. However, the messages are still small in absolute terms (216.2 bytes/op). <!-- TODO: replicaID rotation benchmarks will make this worse. -->
+One option is to always send AbsPositions over the network instead of Positions. Use `list.order.abs` and `list.order.unabs` to translate between the two. This is almost as simple as using [AbsList and AbsPosition](#abslist-and-absposition), but with the same cost in metadata overhead - in our [text CRDT benchmarks](./benchmark_results.md#abstextcrdt), it has about 2.5x larger network messages than the second option below. However, the messages are still small in absolute terms (216 bytes/op). <!-- TODO: replicaID rotation benchmarks will make this worse. -->
 
 A second option is to distribute a new BunchMeta immediately when it is created, before/together with its new Position. For example:
 
@@ -309,28 +309,9 @@ This works best if your network has ordering guarantees that ensure you won't ac
 > - "Position references missing bunchID: {...}. You must call Order.addMetas before referencing a bunch."
 > - "Received BunchMeta {...}, but we have not yet received a BunchMeta for its parent node."
 
-### Outline
+### Other Data Structures
 
-An `Outline` is like a List but without values. Instead, you tell the Outline which Positions are currently present (set), then use it to convert between Positions and their current indices.
-
-Outline is useful when you are already storing a list's values in a different sequence data structure: a traditional array, a rich-text editor's internal state, a server-side search library, etc. Then you don't need to waste memory & storage space storing the values again in a List, but you might still need to:
-
-- Look up the current index of a cursor or annotation that uses Positions.
-- Add a `(position, value)` pair to the list that was received from a remote collaborator:
-  ```ts
-  outline.set(position);
-  const index = outline.indexOfPosition(position);
-  /* Splice value into the other list at index; */
-  ```
-- Convert the other sequence's changes into `(position, value)` pair updates:
-
-  ```ts
-  // When the other sequence inserts `value` at `index`:
-  const position = outline.insertAt(index);
-  /* Broadcast/store the newly-set pair (position, value); */
-  ```
-
-Like List, Outline requires you to [manage metadata](#managing-metadata).
+The library provides additional data structures that are like `List<T>` but optimized for specific scenarios. See [Classes](#classes) below.
 
 ### Advanced
 
@@ -358,13 +339,30 @@ An Order manages metadata (bunches) for any number of Lists, Texts, Outlines, an
 
 A list of characters, represented as an ordered map with Position keys.
 
-Text is functionally equivalent to `List<string>` with single-char values, but it uses strings internally and in bulk methods, instead of arrays of single chars. This reduces memory usage and the size of saved states.
+Text is functionally equivalent to a `List<string>` with single-char values, but it uses strings internally and in bulk methods, instead of arrays of single chars. This reduces memory usage and the size of saved states.
 
 #### `Outline`
 
-An outline for a list of values. It represents an ordered map with Position keys, but unlike List, it only tracks which Positions are present - not their associated values.
+An `Outline` is like a List but without values. Instead, you tell the Outline which Positions are currently present, then use it to convert between Positions and their current indices.
 
-Outline is useful when you are already storing a list's values in a different sequence data structure, but you still need to convert between Positions and list indices.
+Outline is useful when you are already storing a list's values in a different sequence data structure: a traditional array, a rich-text editor's internal state, a server-side search library, etc. Then you don't need to waste memory & storage space storing the values again in a List, but you might still need to:
+
+- Look up the current index of a cursor or annotation that uses Positions.
+- Add a `(position, value)` pair to the list that was received from a remote collaborator:
+  ```ts
+  outline.add(position);
+  const index = outline.indexOfPosition(position);
+  /* Splice value into your other sequence data structure at index; */
+  ```
+- Convert the other sequence's changes into `(position, value)` pair updates:
+
+  ```ts
+  // When the other sequence inserts `value` at `index`:
+  const position = outline.insertAt(index);
+  /* Broadcast/store the newly-set pair (position, value); */
+  ```
+
+Like List, Outline requires you to [manage metadata](#managing-metadata).
 
 #### `AbsList<T>`
 
@@ -382,7 +380,7 @@ The library also comes with _unordered_ collections:
 
 These collections do not support in-order or indexed access, but they also do not require managing metadata, and they are slightly more efficient.
 
-For example, you can use a PositionSet to track the set of deleted Positions in a CRDT. See the benchmarks' [PositionCRDT](./benchmarks/internal/position_crdt.ts) for an example.
+For example, you can use a PositionSet to track the set of deleted Positions in a CRDT. See the benchmarks' [ListCRDT](./benchmarks/internal/list_crdt.ts) for an example.
 
 ### Types
 
@@ -477,22 +475,22 @@ Obtain BunchNodes using `Order.getNode` or `Order.getNodeFor`.
 
 ## Performance
 
-The `benchmarks/` folder contains benchmarks using List/Text/Outline/AbsList directly (modeling single-user or clien-server collaboration) and using list CRDTs built around a List+Outline.
+The `benchmarks/` folder contains benchmarks using List/Text/Outline/AbsList directly (for local usage or client-server collaboration) and using CRDTs built on top of the library.
 
 Each benchmark applies the [automerge-perf](https://github.com/automerge/automerge-perf) 260k edit text trace and measures various stats, modeled on [crdt-benchmarks](https://github.com/dmonad/crdt-benchmarks/)' B4 experiment.
 
-Results for one of the list CRDTs (`PositionCRDT`) on my laptop:
+Results for an op-based/state-based text CRDT built on top of a Text + PositionSet, on my laptop:
 
-- Sender time (ms): 660
-- Avg update size (bytes): 86.8
-- Receiver time (ms): 436
+- Sender time (ms): 664
+- Avg update size (bytes): 86.1
+- Receiver time (ms): 412
 - Save time (ms): 13
-- Save size (bytes): 909990
-- Load time (ms): 14
-- Save time GZIP'd (ms): 74
-- Save size GZIP'd (bytes): 101899
-- Load time GZIP'd (ms): 33
-- Mem used (MB): 2.6
+- Save size (bytes): 599805
+- Load time (ms): 10
+- Save time GZIP'd (ms): 42
+- Save size GZIP'd (bytes): 84347
+- Load time GZIP'd (ms): 27
+- Mem used estimate (MB): 1.8
 
 For more results, see [benchmark_results.md](./benchmark_results.md).
 
@@ -504,7 +502,7 @@ Here are some general performance considerations:
 
 1. The library is optimized for forward (left-to-right) insertions. If you primarily insert backward (right-to-left) or at random, you will see worse efficiency - especially storage overhead. (Internally, only forward insertions reuse [bunches](#bunches), so other patterns lead to fewer Positions per bunch.)
 2. AbsPositions and Positions are interchangeable, via the `Order.abs` and `Order.unabs` methods. So you could always start off using the simpler-but-larger AbsPositions, then do a data migration to switch to Positions if performance demands it. <!-- TODO: likewise for List/Text/Outline/AbsList, via save-conversion methods. -->
-3. The saved states are designed for simplicity, not size. This is why GZIP shrinks them a lot (at the cost of longer save and load times). You can improve on the default performance in various ways: binary encodings, deduplicating [replicaIDs](#replica-ids), etc. <!-- TODO: using List.saveOutline and gzipping each separately. --> Before putting too much effort into this, though, keep in mind that human-written text is small. E.g., the 900 KB CRDT save size above is the size of one image file, even though it represents a 15-page LaTeX paper with 9x overhead.
+3. The saved states are designed for simplicity, not size. This is why GZIP shrinks them a lot (at the cost of longer save and load times). You can improve on the default performance in various ways: binary encodings, deduplicating [replicaIDs](#replica-ids), etc. Before putting too much effort into this, though, keep in mind that human-written text is small. E.g., the 900 KB CRDT save size above is the size of one image file, even though it represents a 15-page LaTeX paper with 9x overhead.
 4. For smaller AbsPositions, saved states, and [lexicographic strings](#lexicographic-strings), you can reduce the size of replicaIDs from their default of 21 chars. E.g., even in a popular document with 10,000 replicaIDs, 8 random alphanumeric chars still guarantee a < 1-in-5,000,000 chance of accidental replicaID reuse (cf. [birthday problem](https://en.wikipedia.org/wiki/Birthday_problem#Square_approximation)):
 
    ```ts
