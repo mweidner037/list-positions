@@ -1,6 +1,6 @@
 {
   "name": "list-positions",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Efficient \"positions\" for lists and text - enabling rich documents and collaboration",
   "author": "Matthew Weidner",
   "license": "MIT",
