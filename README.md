@@ -27,27 +27,28 @@ Position | pos123  posABC  posLMN  posXYZ
 Value    | 'C'     'h'     'a'     't'
 ```
 
-This library provides positions (types `Position`/`AbsPosition`) and corresponding list-as-ordered-map data structures (classes `List`/`Text`/`Outline`/`AbsList`). Multiple lists can use the same positions (with the same sort order), including lists on different devices - enabling DIY collaborative lists & text editing.
+This library provides positions (types Position/AbsPosition) and corresponding list-as-ordered-map data structures (classes List/Text/Outline/AbsList). Multiple lists can use the same positions (with the same sort order), including lists on different devices - so you can use this library to implement _collaborative_ lists & text, on top of a variety of network architectures.
 
 ### Example Use Cases
 
-1. In a **text document with annotations** (comments/highlights), store the text as a List of characters, and indicate each annotation's range using a `start` and `end` Position. That way, when the user inserts text in front of an annotation, the annotation stays "in the same place", without needing to update start/end indexes.
-2. In a **todo-list app built on top of a database**, store each todo-item's position as part of its database entry, and sort the items using a List/AbsList at render time. Using positions lets you insert a new todo-item in the middle of the list (by assigning it a position in that spot) or move a todo-item around (by changing its position). It works even for a collaborative todo-list built on top of a cloud database.
-3. In a **text editor with suggested changes** (from collaborators, AI, or local drafts), store each suggestion as a collection of `(position, char)` pairs to insert or delete. When the user accepts a suggestion, apply those changes to the main List.
+1. In a **text document with annotations** (comments/highlights), store the text using our Text class (a list of characters), and indicate each annotation's range using `start` and `end` Positions instead of regular array indices. That way, when the user inserts text in front of an annotation, the annotation stays "in the same place".
+2. In a **todo-list app built on top of a database**, store each todo-item's Position as part of its database entry, and sort the items using a List at render time. Using positions lets you insert a new todo-item in the middle of the list (by assigning it a position in that spot) or move a todo-item around (by changing its position). This works even for a collaborative todo-list built on top of a cloud database.
+3. In a **text editor with an edit history**, store the history of `(position, char)` pairs that were inserted or deleted. By correlating these positions with the text's current `(position -> char)` map, you can see where text came from ("git blame") and compute exact diffs between historical states. You can even revert edits in the history, or "cherry-pick" edits across history branches.
+<!--3. In a **text editor with suggested changes** (from collaborators, AI, or local drafts), store each suggestion as a collection of `(position, char)` pairs to insert or delete. When the user accepts a suggestion, apply those changes to the main list.-->
 4. To make a **collaborative text editor**, you just need a way to collaborate on the map `(position -> char)`. This is easy to DIY, and more flexible than using an Operational Transformation or CRDT library. For example:
-   - When a user types `char` at `index`, call `[pos] = list.insertAt(index, char)` to insert the char into their local List at a (new) Position `pos`. Then broadcast `(pos, char)` to all collaborators. Recipients call `list.set(pos, char)` on their own Lists.
-   - Or, store the map in a cloud database. You can do this efficiently by understanding the [structure of Positions](#bunches). (See our [demos](https://github.com/mweidner037/list-demos#readme) for various cloud databases.)
-   - Or, send each `(position, char)` pair to a central server. The server can choose to accept, reject, or modify the change before forwarding it to other users - e.g., enforcing per-paragraph permissions. It can also choose to store the map in a database table, instead of loading each active document into memory.
+   - When a user types `char` at `index`, call `[pos] = list.insertAt(index, char)` to insert the char into their local list at a new Position `pos`. Then broadcast `(pos, char)` to all collaborators. Recipients call `list.set(pos, char)` on their own lists.
+   - Or, send each `(position, char)` pair to a central server. The server can choose to accept, reject, or modify the change before forwarding it to other users - e.g., enforcing per-paragraph permissions.
+   - Or, store the `(position -> char)` map in a cloud database that syncs for you. You can do this efficiently by understanding the [structure of Positions](#bunches). (See our [demos](https://github.com/mweidner037/list-demos#readme) for collaborative rich-text editors on top of various cloud databases.)
 
 ### Features
 
-**Performance** Our list data structures have a small memory footprint, fast edits, and small saved states. See our [benchmark results](#performance) for a 260k op text-editing trace.
+**Performance** Our list data structures have a small memory footprint, fast edits, and small saved states. See our [benchmark results](#performance) for a 260k operation text-editing trace.
 
-**Collaboration** Lists can share the same positions even across devices. Even in the face of concurrent edits, Positions are always globally unique, and you can insert a new position anywhere in a list. To make this possible, the library essentially implements a list CRDT ([Fugue](https://arxiv.org/abs/2305.00583)), but with a more flexible API.
+**Collaboration** Lists on different devices can share the same positions. Even in the face of concurrent edits, Positions are always globally unique, and you can insert a new position anywhere in a list. To make this possible, the library essentially implements a list CRDT ([Fugue](https://arxiv.org/abs/2305.00583)), but without the restrictions that come with CRDTs - ultimately, each List is a local data structure that you can edit at will.
 
 **Non-interleaving** In collaborative scenarios, if two users concurrently insert a (forward or backward) sequence at the same place, their sequences will not be interleaved. For example, in a collaborative text editor, if Alice types "Hello" while Bob types "World" at the same place, then the resulting order will be "HelloWorld" or "WorldHello", not "HWeolrllod".
 
-**Flexible usage** There are multiple inter-compatible ways to work with our positions and lists. For example, you can ask for a [lexicographically-ordered version of a position](#lexicographic-strings) to use indendently of this library, or [store list values in your own data structure](#outline) instead of our default List class.
+**Escape hatches** You can make use of the library without storing all of your data in one of our data structures. In particular, you can ask for a [lexicographically-ordered version of a position](#lexicographic-strings) to use independently of this library, or [store list values in your own data structure](#outline) instead of our default List class.
 
 ### Related Work
 
@@ -55,7 +56,7 @@ This library provides positions (types `Position`/`AbsPosition`) and correspondi
   a related but less general idea.
 - [Blog post](https://mattweidner.com/2022/10/21/basic-list-crdt.html) describing the Fugue list CRDT and how it relates to the "list position" abstraction. This library implements an optimized version of that post's tree implementation (List/Position) and an analog of its string implementation (AbsList/AbsPosition).
 - [Paper](https://arxiv.org/abs/2305.00583) with more details about Fugue - in particular, its non-interleaving guarantees.
-- [Rope](<https://en.wikipedia.org/wiki/Rope_(data_structure)>), a data structure for efficient text editing that works similarly to our List class.
+- [Rope](<https://en.wikipedia.org/wiki/Rope_(data_structure)>), a data structure for efficient text editing that our List class uses as inspiration.
 
 ## Usage
 
@@ -90,8 +91,8 @@ console.log([...list.values()]); // Prints ['A', 'b', 'y', 'c']
 
 // 2nd way to insert values: insert after an existing position,
 // e.g., the current cursor.
-const cursorPos = list.positionAt(2);
-const [newPos] = list.insert(cursorPos, "z");
+const cursorPos = list.cursorAt(3);
+const newPos = list.insert(cursorPos, "z");
 console.log([...list.values()]); // Prints ['A', 'b', 'y', 'z', 'c'];
 
 // Map-like API:
@@ -103,7 +104,7 @@ AbsPositions are easy to use because they are self-contained: you can use AbsPos
 
 The downside of AbsPositions is metadata overhead - their JSON encodings have variable size and can become long in certain scenarios (an average of 188 characters in our [benchmarks](./benchmark_results.md#abslist-direct)).
 
-> Using AbsList is more efficient than storing all of the literal pairs `(absPosition, value)` in your own data structure. In fact, it is nearly as efficient as the next section's List class - see [AbsList benchmark results](./benchmark_results.md#abslist-direct). If you do need to use your own data structure (e.g., a DB table with one pair per row), it should be practical for short lists of perhaps <1,000 values - e.g., the items in a todo list, or the scenarios where [Figma uses fractional indexing](https://www.figma.com/blog/how-figmas-multiplayer-technology-works/#syncing-trees-of-objects).
+> Using AbsList is more efficient than storing all of the literal pairs `(absPosition, value)` in your own data structure. If you do need to use your own data structure (e.g., a DB table with one pair per row), it should be practical for short lists of perhaps <1,000 values - e.g., the items in a todo list, or the scenarios where [Figma uses fractional indexing](https://www.figma.com/blog/how-figmas-multiplayer-technology-works/#syncing-trees-of-objects).
 
 ### List, Position, and Order
 
@@ -131,7 +132,7 @@ console.log([...list.values()]); // Prints ['A', 'b', 'y', 'c']
 
 // 2nd way to insert values: insert after an existing position,
 // e.g., the current cursor.
-const cursorPos: Position = list.positionAt(2);
+const cursorPos: Position = list.cursorAt(3);
 const [newPos] = list.insert(cursorPos, "z");
 console.log([...list.values()]); // Prints ['A', 'b', 'y', 'z', 'c'];
 
@@ -163,7 +164,7 @@ type Position = {
 ```
 
 <a id="bunches"></a>
-The `bunchID` identifies a _bunch_ of Positions that share metadata (for efficiency). Each bunch has Positions with `innerIndex` 0, 1, 2, ...; these were originally inserted contiguously (e.g., by a user typing left-to-right) but might not be contiguous anymore. Regardless, bunches makes it easy to store a List's map `(Position -> value)` compactly:
+The `bunchID` identifies a **bunch** of Positions that share metadata (for efficiency). Each bunch has Positions with `innerIndex` 0, 1, 2, ...; these were originally inserted contiguously (e.g., by a user typing left-to-right) but might not be contiguous anymore. Regardless, bunches makes it easy to store a List's map `(Position -> value)` compactly:
 
 ```ts
 // As a double map:
@@ -477,7 +478,7 @@ Obtain BunchNodes using `Order.getNode` or `Order.getNodeFor`.
 
 ## Performance
 
-The `benchmarks/` folder contains benchmarks using List/Text/Outline/AbsList directly (modeling single-user or clien-server collaboration) and using list CRDTs built around a List+Outline.
+The `benchmarks/` folder contains benchmarks using List/Text/Outline/AbsList directly (for local usage or client-server collaboration) and using list CRDTs built around a List+Outline.
 
 Each benchmark applies the [automerge-perf](https://github.com/automerge/automerge-perf) 260k edit text trace and measures various stats, modeled on [crdt-benchmarks](https://github.com/dmonad/crdt-benchmarks/)' B4 experiment.
 
