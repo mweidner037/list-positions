@@ -18,7 +18,7 @@ The tree's nodes are totally ordered using a depth-first search: visit the root,
 - For bunch layers, visit the children in order by bunchID (lexicographically).
 - For offset layers, visit the children in order by offset.
 
-Each Order instance stores a tree of the above form. The tree's bunch nodes correspond to the bunches described in the readme. A bunch's BunchMeta `{ bunchID, parentID, offset }` says: I am a grandchild of the bunch node `parentID`, a child of its child `offset`.
+Each Order instance stores a tree of the above form. The tree's bunch nodes correspond to the bunches described in the [readme](./README.md#bunches). A bunch's BunchMeta `{ bunchID, parentID, offset }` says: I am a grandchild of the bunch node `parentID`, a child of its child `offset`.
 
 The Position `{ bunchID, innerIndex }` indicates the offset node that is a child of `bunchID` and has offset `2 * innerIndex + 1`. Note that its offset is _not_ `innerIndex` (for reasons explained [later](#details)), but we still get an infinite sequence of Positions for each bunch. The sort order on Positions is just their order in the tree.
 
@@ -112,9 +112,9 @@ The corrections are:
 
    In the lexicographic strings, the bunchIDs may be followed by other chars, starting with a `','` delimiter: `abc,rest_of_string` vs `abcde,rest_of_string`. So the lexicographic order is really comparing `"abc,"` to `"abcde,"`. If `'d'` were replaced by a character less than `','`, we would get the wrong answer here.
 
-   To fix this, we escape bunchID chars `<= ','`, prefixing them with a `'-'`. (We then also need to escape `'-'`.)
+   To fix this, we escape bunchID chars <= `','`, prefixing them with a `'-'`. (We then also need to escape `'-'`.)
 
-3. To ensure that all strings are less than the max position's `"~"`, we also escape the first char in a bunchID if it is `>= '~'`, prefixing it with `'}'`. (We then also need to escape `'}'`.)
+3. To ensure that all strings are less than the max position's `"~"`, we also escape the first char in a bunchID if it is >= `'~'`, prefixing it with `'}'`. (We then also need to escape `'}'`.)
 
 ## Creating Positions
 
@@ -145,13 +145,13 @@ Observe that the relation `offset = 2 * innerIndex + 1` lets each Position have 
 Pedantic notes:
 
 - list-positions makes different choices than the Fugue paper when inserting around tombstones. See the comments in [Order.createPositions' source code](./src/order.ts).
-- The converted tree uses a slightly different sort order on same-side siblings than the Fugue paper: same-side siblings are in order by `bunchID + ","`, except that a right-side child created by the same Order as its parent is always last (because it increments `innerIndex` instead of creating a new right-child bunch). This does not affect non-interleaving because Fugue treats the same-side sibling sort order as arbitrary.
+- The converted tree uses a slightly different sort order on same-side siblings than the Fugue paper: same-side siblings are in order by bunchID, except that a right-side child created by the same Order as its parent is always last (because it increments `innerIndex` instead of creating a new right-child bunch). This does not affect non-interleaving because Fugue treats the same-side sibling sort order as arbitrary.
 
 ## Applications
 
 Here are some advanced things you can do once you understand list-positions' internals. To request more info, or to ask about your own ideas, feel free to open an [issue](https://github.com/mweidner037/list-positions/issues).
 
-1. Manipulate BunchMetas to make a custom tree. For example, to insert some initial text identically for all users - without explicitly loading the same state - you can start each session by creating "the same" bunch and setting the text there. Order.createPositions' `bunchID` option can help here:
+1. Manipulate BunchMetas to make a custom tree. For example, to insert some initial text identically for all users - without explicitly loading the same state - you can start each session by creating "the same" bunch and setting the text there. Order.createPositions's `bunchID` option can help here:
 
    ```ts
    const INITIAL_TEXT = "Type something here.";
@@ -168,7 +168,7 @@ Here are some advanced things you can do once you understand list-positions' int
    // Now use text normally...
    ```
 
-2. Rewrite list-positions in another language, with compatible Positions and LexPositions.
+2. Rewrite list-positions in another language, with compatible Positions and AbsPositions.
 <!-- 3. Rewrite just AbsPositions in another language, so that you can at least manipulate AbsPositions. This is much easier than rewriting the whole library, and sufficient for basic backend tasks like programmatically inserting text. TODO: needs AbsPositions createPositions, compare. -->
 3. Supply a custom `newBunchID: (parent: BunchNode, offset: number) => string` function to Order's constructor that incorporates a hash of `parent.bunchID`, `offset`, and the local replicaID. That way, a malicious user cannot reuse the same (valid) bunchID for two different bunches.
 4. Write your own analog of our List class - e.g., to use a more efficient data representation, or to add new low-level features. You can use Order's BunchNodes to access the tree structure - this is needed for traversals, computing a Position's current index, etc.
