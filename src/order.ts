@@ -584,7 +584,13 @@ export class Order {
     }
 
     const newMetaNode = this.newNode(newMeta);
-    newMetaNode.createdCounter = count;
+    if (options?.bunchID === undefined) {
+      // Don't record the node as "created by us" if it has a specified bunchID,
+      // in case it is being created identically on all users (see Internals.md -
+      // Applications). Otherwise, later two users might both "create"
+      // identical positions in this bunch.
+      newMetaNode.createdCounter = count;
+    }
 
     this.onNewMeta?.(newMeta);
 

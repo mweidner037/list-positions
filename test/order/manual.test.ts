@@ -186,6 +186,16 @@ function testSingleUser(replicaID: string) {
       list2.push(previous);
     }
     assert.deepStrictEqual(list2, list1);
+
+    // A bunch with a specified bunchID cannot be reused after the initial call,
+    // unlike the above behavior.
+    const specOrder = new Order();
+    const [specPos] = specOrder.createPositions(MIN_POSITION, MAX_POSITION, 1, {
+      bunchID: "specified",
+    });
+    assert.strictEqual(specPos.bunchID, "specified");
+    const [afterPos] = specOrder.createPositions(specPos, MAX_POSITION, 1);
+    assert.notStrictEqual(afterPos.bunchID, specPos.bunchID);
   });
 }
 
