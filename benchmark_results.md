@@ -22,7 +22,7 @@ Updates and saved states use JSON encoding, with optional GZIP for saved states.
 - Save time GZIP'd (ms): 78
 - Save size GZIP'd (bytes): 88988
 - Load time GZIP'd (ms): 42
-- Mem used (MB): 2.4
+- Mem used estimate (MB): 2.4
 
 ## AbsList Direct
 
@@ -39,7 +39,7 @@ Updates and saved states use JSON encoding, with optional GZIP for saved states.
 - Save time GZIP'd (ms): 79
 - Save size GZIP'd (bytes): 85360
 - Load time GZIP'd (ms): 36
-- Mem used (MB): 2.3
+- Mem used estimate (MB): 2.3
 
 ## List Direct w/ Custom Encoding
 
@@ -55,7 +55,7 @@ Updates use a custom string encoding; saved states use JSON with optional GZIP.
 - Save time GZIP'd (ms): 66
 - Save size GZIP'd (bytes): 88989
 - Load time GZIP'd (ms): 30
-- Mem used (MB): 2.3
+- Mem used estimate (MB): 2.3
 
 ## Text Direct
 
@@ -71,7 +71,7 @@ Updates and saved states use JSON encoding, with optional GZIP for saved states.
 - Save time GZIP'd (ms): 47
 - Save size GZIP'd (bytes): 71570
 - Load time GZIP'd (ms): 22
-- Mem used (MB): 1.3
+- Mem used estimate (MB): 1.3
 
 ## Outline Direct
 
@@ -88,7 +88,7 @@ Neither updates nor saved states include values (chars).
 - Save time GZIP'd (ms): 37
 - Save size GZIP'd (bytes): 38310
 - Load time GZIP'd (ms): 18
-- Mem used (MB): 1.2
+- Mem used estimate (MB): 1.2
 
 ## PositionCRDT
 
@@ -105,7 +105,7 @@ Updates and saved states use JSON encoding, with optional GZIP for saved states.
 - Save time GZIP'd (ms): 73
 - Save size GZIP'd (bytes): 101895
 - Load time GZIP'd (ms): 33
-- Mem used (MB): 2.7
+- Mem used estimate (MB): 2.7
 
 ## AbsPositionCRDT
 
@@ -122,4 +122,4 @@ Updates and saved states use JSON encoding, with optional GZIP for saved states.
 - Save time GZIP'd (ms): 73
 - Save size GZIP'd (bytes): 101903
 - Load time GZIP'd (ms): 31
-- Mem used (MB): 2.5
+- Mem used estimate (MB): 2.5

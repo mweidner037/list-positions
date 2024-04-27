@@ -123,7 +123,7 @@ async function memory(
   loader.load(savedState);
 
   console.log(
-    "- Mem used (MB):",
+    "- Mem used estimate (MB):",
     ((getMemUsed() - startMem) / 1000000).toFixed(1)
   );
 

@@ -493,7 +493,7 @@ Results for one of the list CRDTs (`PositionCRDT`) on my laptop:
 - Save time GZIP'd (ms): 73
 - Save size GZIP'd (bytes): 101895
 - Load time GZIP'd (ms): 33
-- Mem used (MB): 2.7
+- Mem used estimate (MB): 2.7
 
 For more results, see [benchmark_results.md](./benchmark_results.md).
 
