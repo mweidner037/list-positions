@@ -25,15 +25,17 @@ type SavedState<T> = {
 };
 
 /**
- * A hybrid op-based/state-based CRDT that uses Positions in messages,
- * manually managing BunchMetas.
+ * A traditional op-based/state-based list CRDT implemented on top of the library.
  *
- * Internally, it wraps a List (for values) and an Outline (for tracking
- * which Positions have been "seen"). Send/receive work on general
- * networks (they build in exactly-once partial-order delivery),
+ * send/receive work on general networks (they build in exactly-once partial-order delivery),
  * and save/load work as state-based merging.
+ *
+ * Internally, its state is a `List<T>` (for values) and a PositionSet (for tracking
+ * which Positions have been "seen"). This implementation uses Positions in messages
+ * and manually manages metadata; in particular, it must buffer certain out-of-order
+ * messages.
  */
-export class PositionCRDT<T> {
+export class ListCRDT<T> {
   /** When accessing externally, only query. */
   readonly list: List<T>;
   /**

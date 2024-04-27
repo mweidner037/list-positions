@@ -1,26 +1,38 @@
 import { assert } from "chai";
 import pako from "pako";
-import { AbsPositionCRDT } from "./internal/abs_position_crdt";
-import { PositionCRDT } from "./internal/position_crdt";
 import realTextTraceEdits from "./internal/real_text_trace_edits.json";
 import { avg, getMemUsed, sleep } from "./internal/util";
+import { ListCRDT } from "./internal/list_crdt";
+import { AbsTextCRDT } from "./internal/abs_text_crdt";
+import { TextCRDT } from "./internal/text_crdt";
 
 const { edits, finalText } = realTextTraceEdits as unknown as {
   finalText: string;
   edits: Array<[number, number, string | undefined]>;
 };
 
-export async function crdt(CRDT: typeof PositionCRDT | typeof AbsPositionCRDT) {
+type TypeCRDT = typeof TextCRDT | typeof AbsTextCRDT | typeof ListCRDT<string>;
+
+export async function crdt(CRDT: TypeCRDT) {
   console.log("\n## " + CRDT.name + "\n");
-  console.log("Use a hybrid op-based/state-based CRDT on top of List+Outline.");
-  if (CRDT === PositionCRDT) {
-    console.log(
-      "This variant uses Positions in messages, manually managing BunchMetas."
-    );
-  } else {
-    console.log(
-      "This variant uses AbsPositions in messages instead of manually managing BunchMetas."
-    );
+  console.log("Use a hybrid op-based/state-based CRDT on top of the library.");
+  switch (CRDT) {
+    case TextCRDT:
+      console.log(
+        "This variant uses a Text to store the state and Positions in messages, manually managing BunchMetas."
+      );
+      break;
+
+    case AbsTextCRDT:
+      console.log(
+        "This variant uses a Text to store the state and AbsPositions in messages."
+      );
+      break;
+    case ListCRDT:
+      console.log(
+        "This variant uses a List of characters to store the state and Positions in messages, manually managing BunchMetas."
+      );
+      break;
   }
   console.log(
     "Updates and saved states use JSON encoding, with optional GZIP for saved states.\n"
@@ -29,7 +41,7 @@ export async function crdt(CRDT: typeof PositionCRDT | typeof AbsPositionCRDT) {
   // Perform the whole trace, sending all updates.
   const updates: string[] = [];
   let startTime = process.hrtime.bigint();
-  const sender = new CRDT<string>((message) => updates.push(message));
+  const sender = new CRDT((message) => updates.push(message));
   for (const edit of edits) {
     if (edit[2] !== undefined) {
       sender.insertAt(edit[0], edit[2]);
@@ -46,11 +58,15 @@ export async function crdt(CRDT: typeof PositionCRDT | typeof AbsPositionCRDT) {
     "- Avg update size (bytes):",
     avg(updates.map((message) => message.length)).toFixed(1)
   );
-  assert.strictEqual(sender.list.slice().join(""), finalText);
+  if (sender instanceof ListCRDT) {
+    assert.strictEqual(sender.list.slice().join(""), finalText);
+  } else {
+    assert.strictEqual(sender.text.toString(), finalText);
+  }
 
   // Receive all updates.
   startTime = process.hrtime.bigint();
-  const receiver = new CRDT<string>(() => {});
+  const receiver = new CRDT(() => {});
   for (const update of updates) {
     receiver.receive(update);
   }
@@ -61,7 +77,11 @@ export async function crdt(CRDT: typeof PositionCRDT | typeof AbsPositionCRDT) {
       new Number(process.hrtime.bigint() - startTime).valueOf() / 1000000
     )
   );
-  assert.strictEqual(receiver.list.slice().join(""), finalText);
+  if (receiver instanceof ListCRDT) {
+    assert.strictEqual(receiver.list.slice().join(""), finalText);
+  } else {
+    assert.strictEqual(receiver.text.toString(), finalText);
+  }
 
   const savedState = (await saveLoad(CRDT, receiver, false)) as string;
   await saveLoad(CRDT, receiver, true);
@@ -70,8 +90,8 @@ export async function crdt(CRDT: typeof PositionCRDT | typeof AbsPositionCRDT) {
 }
 
 async function saveLoad(
-  CRDT: typeof PositionCRDT | typeof AbsPositionCRDT,
-  saver: PositionCRDT<string> | AbsPositionCRDT<string>,
+  CRDT: TypeCRDT,
+  saver: InstanceType<TypeCRDT>,
   gzip: boolean
 ): Promise<string | Uint8Array> {
   // Save.
@@ -92,7 +112,7 @@ async function saveLoad(
 
   // Load the saved state.
   startTime = process.hrtime.bigint();
-  const loader = new CRDT<string>(() => {});
+  const loader = new CRDT(() => {});
   const toLoadStr = gzip
     ? pako.ungzip(savedState as Uint8Array, { to: "string" })
     : (savedState as string);
@@ -108,10 +128,7 @@ async function saveLoad(
   return savedState;
 }
 
-async function memory(
-  CRDT: typeof PositionCRDT | typeof AbsPositionCRDT,
-  savedState: string
-) {
+async function memory(CRDT: TypeCRDT, savedState: string) {
   // Measure memory usage of loading the saved state.
 
   // Pause (& separate function)seems to make GC more consistent -
@@ -119,7 +136,7 @@ async function memory(
   await sleep(1000);
   const startMem = getMemUsed();
 
-  const loader = new CRDT<string>(() => {});
+  const loader = new CRDT(() => {});
   loader.load(savedState);
 
   console.log(

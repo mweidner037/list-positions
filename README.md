@@ -478,22 +478,22 @@ Obtain BunchNodes using `Order.getNode` or `Order.getNodeFor`.
 
 ## Performance
 
-The `benchmarks/` folder contains benchmarks using List/Text/Outline/AbsList directly (for local usage or client-server collaboration) and using list CRDTs built around a List+Outline.
+The `benchmarks/` folder contains benchmarks using List/Text/Outline/AbsList directly (for local usage or client-server collaboration) and using CRDTs built on top of the library.
 
 Each benchmark applies the [automerge-perf](https://github.com/automerge/automerge-perf) 260k edit text trace and measures various stats, modeled on [crdt-benchmarks](https://github.com/dmonad/crdt-benchmarks/)' B4 experiment.
 
-Results for one of the list CRDTs (`PositionCRDT`) on my laptop:
+Results for a traditional text CRDT built on top of a Text + PositionSet, on my laptop:
 
-- Sender time (ms): 630
-- Avg update size (bytes): 86.8
-- Receiver time (ms): 400
-- Save time (ms): 12
-- Save size (bytes): 909990
-- Load time (ms): 16
-- Save time GZIP'd (ms): 73
-- Save size GZIP'd (bytes): 101895
-- Load time GZIP'd (ms): 33
-- Mem used estimate (MB): 2.7
+- Sender time (ms): 664
+- Avg update size (bytes): 86.1
+- Receiver time (ms): 412
+- Save time (ms): 13
+- Save size (bytes): 599805
+- Load time (ms): 10
+- Save time GZIP'd (ms): 42
+- Save size GZIP'd (bytes): 84347
+- Load time GZIP'd (ms): 27
+- Mem used estimate (MB): 1.8
 
 For more results, see [benchmark_results.md](./benchmark_results.md).
 
