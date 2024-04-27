@@ -92,8 +92,8 @@ Neither updates nor saved states include values (chars).
 
 ## TextCRDT
 
-Use a hybrid op-based/state-based CRDT on top of the library.
-This variant uses a Text to store the state and Positions in messages, manually managing BunchMetas.
+Use a hybrid op-based/state-based CRDT implemented on top of the library's data structures.
+This variant uses a Text + PositionSet to store the state and Positions in messages, manually managing BunchMetas.
 Updates and saved states use JSON encoding, with optional GZIP for saved states.
 
 - Sender time (ms): 664
@@ -109,8 +109,8 @@ Updates and saved states use JSON encoding, with optional GZIP for saved states.
 
 ## AbsTextCRDT
 
-Use a hybrid op-based/state-based CRDT on top of the library.
-This variant uses a Text to store the state and AbsPositions in messages.
+Use a hybrid op-based/state-based CRDT implemented on top of the library's data structures.
+This variant uses a Text + PositionSet to store the state and AbsPositions in messages.
 Updates and saved states use JSON encoding, with optional GZIP for saved states.
 
 - Sender time (ms): 1396
@@ -126,8 +126,8 @@ Updates and saved states use JSON encoding, with optional GZIP for saved states.
 
 ## ListCRDT
 
-Use a hybrid op-based/state-based CRDT on top of the library.
-This variant uses a List of characters to store the state and Positions in messages, manually managing BunchMetas.
+Use a hybrid op-based/state-based CRDT implemented on top of the library's data structures.
+This variant uses a List of characters + PositionSet to store the state and Positions in messages, manually managing BunchMetas.
 Updates and saved states use JSON encoding, with optional GZIP for saved states.
 
 - Sender time (ms): 681

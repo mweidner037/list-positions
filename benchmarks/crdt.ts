@@ -15,22 +15,24 @@ type TypeCRDT = typeof TextCRDT | typeof AbsTextCRDT | typeof ListCRDT<string>;
 
 export async function crdt(CRDT: TypeCRDT) {
   console.log("\n## " + CRDT.name + "\n");
-  console.log("Use a hybrid op-based/state-based CRDT on top of the library.");
+  console.log(
+    "Use a hybrid op-based/state-based CRDT implemented on top of the library's data structures."
+  );
   switch (CRDT) {
     case TextCRDT:
       console.log(
-        "This variant uses a Text to store the state and Positions in messages, manually managing BunchMetas."
+        "This variant uses a Text + PositionSet to store the state and Positions in messages, manually managing BunchMetas."
       );
       break;
 
     case AbsTextCRDT:
       console.log(
-        "This variant uses a Text to store the state and AbsPositions in messages."
+        "This variant uses a Text + PositionSet to store the state and AbsPositions in messages."
       );
       break;
     case ListCRDT:
       console.log(
-        "This variant uses a List of characters to store the state and Positions in messages, manually managing BunchMetas."
+        "This variant uses a List of characters + PositionSet to store the state and Positions in messages, manually managing BunchMetas."
       );
       break;
   }

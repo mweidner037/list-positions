@@ -11,7 +11,7 @@ Efficient "positions" for lists and text - enabling rich documents and collabora
 
 ## About
 
-Many apps use a list whose values can change index over time: characters in a text document, items in a todo list, rows in a spreadsheet, etc. Instead of thinking of this list as an array, it's easier to think of it as an ordered map `(position -> value)`, where a value's _position_ doesn't change over time. So if you insert a new entry `(position, value)` into the map, the other entries stay the same, even though their indices change:
+Many apps use a list whose values can change index over time: characters in a text document, items in a todo list, rows in a spreadsheet, etc. Instead of thinking of this list as an array, it's often easier to think of it as an ordered map `(position -> value)`, where a value's _position_ doesn't change over time. So if you insert a new entry `(position, value)` into the map, the other entries stay the same, even though their indices change:
 
 ```
 Before:
@@ -34,7 +34,6 @@ This library provides positions (types Position/AbsPosition) and corresponding l
 1. In a **text document with annotations** (comments/highlights), store the text using our Text class (a list of characters), and indicate each annotation's range using `start` and `end` Positions instead of regular array indices. That way, when the user inserts text in front of an annotation, the annotation stays "in the same place".
 2. In a **todo-list app built on top of a database**, store each todo-item's Position as part of its database entry, and sort the items using a List at render time. Using positions lets you insert a new todo-item in the middle of the list (by assigning it a position in that spot) or move a todo-item around (by changing its position). This works even for a collaborative todo-list built on top of a cloud database.
 3. In a **text editor with an edit history**, store the history of `(position, char)` pairs that were inserted or deleted. By correlating these positions with the text's current `(position -> char)` map, you can see where text came from ("git blame") and compute exact diffs between historical states. You can even revert edits in the history, or "cherry-pick" edits across history branches.
-<!--3. In a **text editor with suggested changes** (from collaborators, AI, or local drafts), store each suggestion as a collection of `(position, char)` pairs to insert or delete. When the user accepts a suggestion, apply those changes to the main list.-->
 4. To make a **collaborative text editor**, you just need a way to collaborate on the map `(position -> char)`. This is easy to DIY, and more flexible than using an Operational Transformation or CRDT library. For example:
    - When a user types `char` at `index`, call `[pos] = list.insertAt(index, char)` to insert the char into their local list at a new Position `pos`. Then broadcast `(pos, char)` to all collaborators. Recipients call `list.set(pos, char)` on their own lists.
    - Or, send each `(position, char)` pair to a central server. The server can choose to accept, reject, or modify the change before forwarding it to other users - e.g., enforcing per-paragraph permissions.
@@ -44,7 +43,7 @@ This library provides positions (types Position/AbsPosition) and corresponding l
 
 **Performance** Our list data structures have a small memory footprint, fast edits, and small saved states. See our [benchmark results](#performance) for a 260k operation text-editing trace.
 
-**Collaboration** Lists on different devices can share the same positions. Even in the face of concurrent edits, Positions are always globally unique, and you can insert a new position anywhere in a list. To make this possible, the library essentially implements a list CRDT ([Fugue](https://arxiv.org/abs/2305.00583)), but without the restrictions that come with CRDTs - ultimately, each List is a local data structure that you can edit at will.
+**Collaboration** Lists on different devices can share the same positions. Even in the face of concurrent edits, positions are always globally unique, and you can insert a new position anywhere in a list. To make this possible, the library essentially implements a list CRDT ([Fugue](https://arxiv.org/abs/2305.00583)), but without the restrictions that come with CRDTs - ultimately, each List is a local data structure that you can edit at will.
 
 **Non-interleaving** In collaborative scenarios, if two users concurrently insert a (forward or backward) sequence at the same place, their sequences will not be interleaved. For example, in a collaborative text editor, if Alice types "Hello" while Bob types "World" at the same place, then the resulting order will be "HelloWorld" or "WorldHello", not "HWeolrllod".
 
@@ -226,7 +225,7 @@ Specifically, a List's [bunches](#bunches) form a tree. Each bunch, except for t
 
 ```ts
 type BunchMeta = {
-  /** The bunch's ID, same as its Positions' bunchID. */
+  /** The bunch's ID, which is the same as its Positions' bunchID. */
   bunchID: string;
   /** The parent bunch's ID. */
   parentID: string;
@@ -312,16 +311,16 @@ This works best if your network has ordering guarantees that ensure you won't ac
 
 ### Outline
 
-An `Outline` is like a List but without values. Instead, you tell the Outline which Positions are currently present (set), then use it to convert between Positions and their current indices.
+An `Outline` is like a List but without values. Instead, you tell the Outline which Positions are currently present, then use it to convert between Positions and their current indices.
 
 Outline is useful when you are already storing a list's values in a different sequence data structure: a traditional array, a rich-text editor's internal state, a server-side search library, etc. Then you don't need to waste memory & storage space storing the values again in a List, but you might still need to:
 
 - Look up the current index of a cursor or annotation that uses Positions.
 - Add a `(position, value)` pair to the list that was received from a remote collaborator:
   ```ts
-  outline.set(position);
+  outline.add(position);
   const index = outline.indexOfPosition(position);
-  /* Splice value into the other list at index; */
+  /* Splice value into your other sequence data structure at index; */
   ```
 - Convert the other sequence's changes into `(position, value)` pair updates:
 
