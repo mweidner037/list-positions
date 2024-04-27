@@ -38,14 +38,6 @@ class NodeInternal implements BunchNode {
    */
   createdCounter?: number;
 
-  /**
-   * Nodes created by us that are children of Positions in this node,
-   * keyed by offset.
-   *
-   * May be undefined when empty.
-   */
-  createdChildren?: Map<number, NodeInternal>;
-
   constructor(
     readonly bunchID: string,
     readonly parent: NodeInternal | null,
@@ -563,8 +555,8 @@ export class Order {
     // Apply the Exception above: if we already created a node with the same
     // parent and offset, append a new Position to it instead, which is its
     // right descendant.
-    const conflict = newNodeParent.createdChildren?.get(newNodeOffset);
-    if (conflict !== undefined && options?.bunchID === undefined) {
+    const conflict = this.findConflict(newNodeParent, newNodeOffset);
+    if (conflict !== null && options?.bunchID === undefined) {
       const startPos: Position = {
         bunchID: conflict.bunchID,
         innerIndex: conflict.createdCounter!,
@@ -593,10 +585,6 @@ export class Order {
 
     const newMetaNode = this.newNode(newMeta);
     newMetaNode.createdCounter = count;
-    if (newNodeParent.createdChildren === undefined) {
-      newNodeParent.createdChildren = new Map();
-    }
-    newNodeParent.createdChildren.set(newMeta.offset, newMetaNode);
 
     this.onNewMeta?.(newMeta);
 
@@ -636,6 +624,25 @@ export class Order {
     }
 
     return aAnc === bNode && curInnerIndex >= b.innerIndex;
+  }
+
+  /**
+   * @returns A child of parent with the given offset that was created by us,
+   * or null if none exists.
+   */
+  private findConflict(
+    parent: NodeInternal,
+    offset: number
+  ): NodeInternal | null {
+    if (parent.children) {
+      for (const child of parent.children) {
+        if (child.offset > offset) break;
+        if (child.offset === offset && child.createdCounter !== undefined) {
+          return child;
+        }
+      }
+    }
+    return null;
   }
 
   // ----------
