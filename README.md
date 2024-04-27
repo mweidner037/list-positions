@@ -309,28 +309,9 @@ This works best if your network has ordering guarantees that ensure you won't ac
 > - "Position references missing bunchID: {...}. You must call Order.addMetas before referencing a bunch."
 > - "Received BunchMeta {...}, but we have not yet received a BunchMeta for its parent node."
 
-### Outline
+### Other Data Structures
 
-An `Outline` is like a List but without values. Instead, you tell the Outline which Positions are currently present, then use it to convert between Positions and their current indices.
-
-Outline is useful when you are already storing a list's values in a different sequence data structure: a traditional array, a rich-text editor's internal state, a server-side search library, etc. Then you don't need to waste memory & storage space storing the values again in a List, but you might still need to:
-
-- Look up the current index of a cursor or annotation that uses Positions.
-- Add a `(position, value)` pair to the list that was received from a remote collaborator:
-  ```ts
-  outline.add(position);
-  const index = outline.indexOfPosition(position);
-  /* Splice value into your other sequence data structure at index; */
-  ```
-- Convert the other sequence's changes into `(position, value)` pair updates:
-
-  ```ts
-  // When the other sequence inserts `value` at `index`:
-  const position = outline.insertAt(index);
-  /* Broadcast/store the newly-set pair (position, value); */
-  ```
-
-Like List, Outline requires you to [manage metadata](#managing-metadata).
+The library provides additional data structures that are like `List<T>` but optimized for specific scenarios. See [Classes](#classes) below.
 
 ### Advanced
 
@@ -358,13 +339,30 @@ An Order manages metadata (bunches) for any number of Lists, Texts, Outlines, an
 
 A list of characters, represented as an ordered map with Position keys.
 
-Text is functionally equivalent to `List<string>` with single-char values, but it uses strings internally and in bulk methods, instead of arrays of single chars. This reduces memory usage and the size of saved states.
+Text is functionally equivalent to a `List<string>` with single-char values, but it uses strings internally and in bulk methods, instead of arrays of single chars. This reduces memory usage and the size of saved states.
 
 #### `Outline`
 
-An outline for a list of values. It represents an ordered map with Position keys, but unlike List, it only tracks which Positions are present - not their associated values.
+An `Outline` is like a List but without values. Instead, you tell the Outline which Positions are currently present, then use it to convert between Positions and their current indices.
 
-Outline is useful when you are already storing a list's values in a different sequence data structure, but you still need to convert between Positions and list indices.
+Outline is useful when you are already storing a list's values in a different sequence data structure: a traditional array, a rich-text editor's internal state, a server-side search library, etc. Then you don't need to waste memory & storage space storing the values again in a List, but you might still need to:
+
+- Look up the current index of a cursor or annotation that uses Positions.
+- Add a `(position, value)` pair to the list that was received from a remote collaborator:
+  ```ts
+  outline.add(position);
+  const index = outline.indexOfPosition(position);
+  /* Splice value into your other sequence data structure at index; */
+  ```
+- Convert the other sequence's changes into `(position, value)` pair updates:
+
+  ```ts
+  // When the other sequence inserts `value` at `index`:
+  const position = outline.insertAt(index);
+  /* Broadcast/store the newly-set pair (position, value); */
+  ```
+
+Like List, Outline requires you to [manage metadata](#managing-metadata).
 
 #### `AbsList<T>`
 
