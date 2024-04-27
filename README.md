@@ -6,8 +6,8 @@ Efficient "positions" for lists and text - enabling rich documents and collabora
 - [Usage](#usage)
 - [API](#api)
 - [Performance](#performance)
-- [Demos ↗️](https://github.com/mweidner037/list-demos#readme)
-- [list-formatting ↗️](https://github.com/mweidner037/list-formatting#readme), a companion library that adds inline formatting (e.g. rich text)
+- [Demos ↗️](https://github.com/mweidner037/list-positions-demos)
+- [@list-positions/formatting ↗️](https://github.com/mweidner037/list-positions-formatting#readme), a companion library that adds inline formatting (e.g. rich text)
 
 ## About
 
@@ -37,7 +37,7 @@ This library provides positions (types Position/AbsPosition) and corresponding l
 4. To make a **collaborative text editor**, you just need a way to collaborate on the map `(position -> char)`. This is easy to DIY, and more flexible than using an Operational Transformation or CRDT library. For example:
    - When a user types `char` at `index`, call `[pos] = list.insertAt(index, char)` to insert the char into their local list at a new Position `pos`. Then broadcast `(pos, char)` to all collaborators. Recipients call `list.set(pos, char)` on their own lists.
    - Or, send each `(position, char)` pair to a central server. The server can choose to accept, reject, or modify the change before forwarding it to other users - e.g., enforcing per-paragraph permissions.
-   - Or, store the `(position -> char)` map in a cloud database that syncs for you. You can do this efficiently by understanding the [structure of Positions](#bunches). (See our [demos](https://github.com/mweidner037/list-demos#readme) for collaborative rich-text editors on top of various cloud databases.)
+   - Or, store the `(position -> char)` map in a cloud database that syncs for you. You can do this efficiently by understanding the [structure of Positions](#bunches). (See our [demos](https://github.com/mweidner037/list-positions-demos) for collaborative rich-text editors on top of various cloud databases.)
 
 ### Features
 
