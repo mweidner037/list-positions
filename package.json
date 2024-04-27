@@ -48,7 +48,6 @@
     "@typescript-eslint/eslint-plugin": "^5.52.0",
     "@typescript-eslint/parser": "^5.52.0",
     "chai": "^4.3.7",
-    "cross-env": "^7.0.3",
     "eslint": "^8.34.0",
     "eslint-config-prettier": "^8.6.0",
     "eslint-plugin-import": "^2.27.5",
@@ -69,7 +68,7 @@
     "build:ts": "tsc -p tsconfig.json && tsc -p tsconfig.commonjs.json",
     "test": "npm-run-all test:*",
     "test:lint": "eslint --ext .ts,.js .",
-    "test:unit": "cross-env TS_NODE_PROJECT='./tsconfig.dev.json' mocha",
+    "test:unit": "TS_NODE_PROJECT='./tsconfig.dev.json' mocha",
     "test:format": "prettier --check .",
     "coverage": "npm-run-all coverage:*",
     "coverage:run": "nyc npm run test:unit",
@@ -77,7 +76,7 @@
     "fix": "npm-run-all fix:*",
     "fix:format": "prettier --write .",
     "docs": "typedoc --options typedoc.json src/index.ts",
-    "benchmarks": "cross-env TS_NODE_PROJECT='./tsconfig.dev.json' node -r ts-node/register --expose-gc benchmarks/main.ts",
+    "benchmarks": "TS_NODE_PROJECT='./tsconfig.dev.json' node -r ts-node/register --expose-gc benchmarks/main.ts",
     "clean": "rm -rf build docs coverage .nyc_output"
   }
 }
