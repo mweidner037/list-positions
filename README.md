@@ -102,7 +102,7 @@ list.delete(newPos);
 
 AbsPositions are easy to use because they are self-contained: you can use AbsPositions in an AbsList without any prior setup. In other words, their sort order is "absolute", not "relative" to some separate metadata.
 
-The downside of AbsPositions is metadata overhead - their JSON encodings have variable size and can become long in certain scenarios (an average of 188 characters in our [benchmarks](./benchmark_results.md#abslist-direct)).
+The downside of AbsPositions is metadata overhead - their JSON encodings have variable size and can become long in certain scenarios (an average of 187 characters in our [benchmarks](./benchmark_results.md#abslist-direct)).
 
 > Using AbsList is more efficient than storing all of the literal pairs `(absPosition, value)` in your own data structure. If you do need to use your own data structure (e.g., a DB table with one pair per row), it should be practical for short lists of perhaps <1,000 values - e.g., the items in a todo list, or the scenarios where [Figma uses fractional indexing](https://www.figma.com/blog/how-figmas-multiplayer-technology-works/#syncing-trees-of-objects).
 
@@ -484,16 +484,16 @@ Each benchmark applies the [automerge-perf](https://github.com/automerge/automer
 
 Results for one of the list CRDTs (`PositionCRDT`) on my laptop:
 
-- Sender time (ms): 660
+- Sender time (ms): 630
 - Avg update size (bytes): 86.8
-- Receiver time (ms): 436
-- Save time (ms): 13
+- Receiver time (ms): 400
+- Save time (ms): 12
 - Save size (bytes): 909990
-- Load time (ms): 14
-- Save time GZIP'd (ms): 74
-- Save size GZIP'd (bytes): 101899
+- Load time (ms): 16
+- Save time GZIP'd (ms): 73
+- Save size GZIP'd (bytes): 101895
 - Load time GZIP'd (ms): 33
-- Mem used (MB): 2.6
+- Mem used (MB): 2.7
 
 For more results, see [benchmark_results.md](./benchmark_results.md).
 
