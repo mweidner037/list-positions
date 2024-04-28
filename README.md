@@ -481,15 +481,15 @@ Each benchmark applies the [automerge-perf](https://github.com/automerge/automer
 
 Results for an op-based/state-based text CRDT built on top of a Text + PositionSet, on my laptop:
 
-- Sender time (ms): 664
-- Avg update size (bytes): 86.1
-- Receiver time (ms): 412
-- Save time (ms): 13
-- Save size (bytes): 599805
+- Sender time (ms): 655
+- Avg update size (bytes): 92.7
+- Receiver time (ms): 369
+- Save time (ms): 11
+- Save size (bytes): 599817
 - Load time (ms): 10
 - Save time GZIP'd (ms): 42
-- Save size GZIP'd (bytes): 84347
-- Load time GZIP'd (ms): 27
+- Save size GZIP'd (bytes): 87006
+- Load time GZIP'd (ms): 30
 - Mem used estimate (MB): 1.8
 
 For more results, see [benchmark_results.md](./benchmark_results.md).
@@ -502,7 +502,7 @@ Here are some general performance considerations:
 
 1. The library is optimized for forward (left-to-right) insertions. If you primarily insert backward (right-to-left) or at random, you will see worse efficiency - especially storage overhead. (Internally, only forward insertions reuse [bunches](#bunches), so other patterns lead to fewer Positions per bunch.)
 2. AbsPositions and Positions are interchangeable, via the `Order.abs` and `Order.unabs` methods. So you could always start off using the simpler-but-larger AbsPositions, then do a data migration to switch to Positions if performance demands it. <!-- TODO: likewise for List/Text/Outline/AbsList, via save-conversion methods. -->
-3. The saved states are designed for simplicity, not size. This is why GZIP shrinks them a lot (at the cost of longer save and load times). You can improve on the default performance in various ways: binary encodings, deduplicating [replicaIDs](#replica-ids), etc. Before putting too much effort into this, though, keep in mind that human-written text is small. E.g., the 900 KB CRDT save size above is the size of one image file, even though it represents a 15-page LaTeX paper with 9x overhead.
+3. The saved states are designed for simplicity, not size. This is why GZIP shrinks them a lot (at the cost of longer save and load times). You can improve on the default performance in various ways: binary encodings, deduplicating [replicaIDs](#replica-ids), etc. Before putting too much effort into this, though, keep in mind that human-written text is small. E.g., the 600 KB uncompressed CRDT save size above is the size of one image file, even though it represents a 15-page LaTeX paper with 6x overhead.
 4. For smaller AbsPositions, saved states, and [lexicographic strings](#lexicographic-strings), you can reduce the size of replicaIDs from their default of 21 chars. E.g., even in a popular document with 10,000 replicaIDs, 8 random alphanumeric chars still guarantee a < 1-in-5,000,000 chance of accidental replicaID reuse (cf. [birthday problem](https://en.wikipedia.org/wiki/Birthday_problem#Square_approximation)):
 
    ```ts
