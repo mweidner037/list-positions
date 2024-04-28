@@ -92,7 +92,7 @@ Neither updates nor saved states include values (chars).
 
 ## TextCrdt
 
-Use a hybrid op-based/state-based CRDT implemented on top of the library's data structures.
+Use a hybrid op-based/state-based CRDT implemented on top of the library's data structures, copied from [@list-positions/crdts](https://github.com/mweidner037/list-positions-crdts).
 This variant uses a Text + PositionSet to store the state and Positions in messages, manually managing BunchMetas.
 Updates and saved states use JSON encoding, with optional GZIP for saved states.
 
@@ -109,7 +109,7 @@ Updates and saved states use JSON encoding, with optional GZIP for saved states.
 
 ## ListCrdt
 
-Use a hybrid op-based/state-based CRDT implemented on top of the library's data structures.
+Use a hybrid op-based/state-based CRDT implemented on top of the library's data structures, copied from [@list-positions/crdts](https://github.com/mweidner037/list-positions-crdts).
 This variant uses a List of characters + PositionSet to store the state and Positions in messages, manually managing BunchMetas.
 Updates and saved states use JSON encoding, with optional GZIP for saved states.
 

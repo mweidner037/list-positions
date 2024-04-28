@@ -10,7 +10,8 @@ import { Position } from "../position";
  * than Outline.
  *
  * For example, you can use a PositionSet to track the set of deleted Positions in a CRDT.
- * See the benchmarks' [ListCRDT](./benchmarks/internal/list_crdt.ts) for an example.
+ * See the [ListCrdt implementation](https://github.com/mweidner037/list-positions-crdts/blob/master/src/list_crdt.ts)
+ * in @list-positions/crdts for sample code.
  */
 export class PositionSet {
   /**

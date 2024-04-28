@@ -15,12 +15,12 @@ const { edits, finalText } = realTextTraceEdits as unknown as {
   edits: Array<[number, number, string | undefined]>;
 };
 
-type TypeCRDT = typeof TextCrdt | typeof ListCrdt<string>;
+type TypeCrdt = typeof TextCrdt | typeof ListCrdt<string>;
 
-export async function crdt(CRDT: TypeCRDT) {
+export async function crdt(CRDT: TypeCrdt) {
   console.log("\n## " + CRDT.name + "\n");
   console.log(
-    "Use a hybrid op-based/state-based CRDT implemented on top of the library's data structures."
+    "Use a hybrid op-based/state-based CRDT implemented on top of the library's data structures, copied from [@list-positions/crdts](https://github.com/mweidner037/list-positions-crdts)."
   );
   switch (CRDT) {
     case TextCrdt:
@@ -94,8 +94,8 @@ export async function crdt(CRDT: TypeCRDT) {
 }
 
 async function saveLoad(
-  CRDT: TypeCRDT,
-  saver: InstanceType<TypeCRDT>,
+  CRDT: TypeCrdt,
+  saver: InstanceType<TypeCrdt>,
   gzip: boolean
 ): Promise<string | Uint8Array> {
   // Save.
@@ -132,7 +132,7 @@ async function saveLoad(
   return savedState;
 }
 
-async function memory(CRDT: TypeCRDT, savedState: string) {
+async function memory(CRDT: TypeCrdt, savedState: string) {
   // Measure memory usage of loading the saved state.
 
   // Pause (& separate function)seems to make GC more consistent -

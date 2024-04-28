@@ -270,7 +270,7 @@ function load<T>(savedState: string): List<T> {
 <a id="newMeta"></a>
 **Multiple users** Suppose you have multiple users and a single list order, e.g., a collaborative text editor. Any time a user creates a new Position by calling `list.insertAt`, `list.insert`, or `list.order.createPositions`, they might create a new bunch. Other users must learn of the new bunch's BunchMeta before they can use the new Position.
 
-One option is to always send AbsPositions over the network instead of Positions. Use `list.order.abs` and `list.order.unabs` to translate between the two. This is almost as simple as using [AbsList and AbsPosition](#abslist-and-absposition), but with the same cost in metadata overhead - in our [text CRDT benchmarks](./benchmark_results.md#abstextcrdt), it has about 2.5x larger network messages than the second option below. However, the messages are still small in absolute terms (216 bytes/op). <!-- TODO: replicaID rotation benchmarks will make this worse. -->
+One option is to always send AbsPositions over the network instead of Positions. Use `list.order.abs` and `list.order.unabs` to translate between the two. This is almost as simple as using [AbsList and AbsPosition](#abslist-and-absposition), but with the same cost in metadata overhead - in our [collaborative list benchmarks](./benchmark_results.md#abslist-direct), it has about 2.5x larger network messages than the second option below. However, the messages are still small in absolute terms (216 bytes/op). <!-- TODO: replicaID rotation benchmarks will make this worse. -->
 
 A second option is to distribute a new BunchMeta immediately when it is created, before/together with its new Position. For example:
 
@@ -380,7 +380,7 @@ The library also comes with _unordered_ collections:
 
 These collections do not support in-order or indexed access, but they also do not require managing metadata, and they are slightly more efficient.
 
-For example, you can use a PositionSet to track the set of deleted Positions in a CRDT. See the benchmarks' [ListCRDT](./benchmarks/internal/list_crdt.ts) for an example.
+For example, you can use a PositionSet to track the set of deleted Positions in a CRDT. See the [ListCrdt implementation](https://github.com/mweidner037/list-positions-crdts/blob/master/src/list_crdt.ts) in @list-positions/crdts for sample code.
 
 ### Types
 
