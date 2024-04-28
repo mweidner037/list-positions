@@ -4,9 +4,8 @@ import { listCustomEncoding } from "./list_custom_encoding";
 import { listDirect } from "./list_direct";
 import { outlineDirect } from "./outline_direct";
 import { textDirect } from "./text_direct";
-import { TextCRDT } from "./internal/text_crdt";
-import { ListCRDT } from "./internal/list_crdt";
-import { AbsTextCRDT } from "./internal/abs_text_crdt";
+import { TextCrdt } from "./internal/text_crdt";
+import { ListCrdt } from "./internal/list_crdt";
 
 (async function () {
   console.log("# Benchmark Results");
@@ -25,7 +24,6 @@ import { AbsTextCRDT } from "./internal/abs_text_crdt";
   await listCustomEncoding();
   await textDirect();
   await outlineDirect();
-  await crdt(TextCRDT);
-  await crdt(AbsTextCRDT);
-  await crdt(ListCRDT);
+  await crdt(TextCrdt);
+  await crdt(ListCrdt);
 })();

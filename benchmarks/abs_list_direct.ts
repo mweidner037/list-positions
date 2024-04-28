@@ -1,8 +1,14 @@
 import { assert } from "chai";
-import pako from "pako";
 import { AbsList, AbsListSavedState, AbsPosition } from "../src";
 import realTextTraceEdits from "./internal/real_text_trace_edits.json";
-import { avg, getMemUsed, percentiles, sleep } from "./internal/util";
+import {
+  avg,
+  getMemUsed,
+  percentiles,
+  sleep,
+  gunzipString,
+  gzipString,
+} from "./internal/util";
 
 const { edits, finalText } = realTextTraceEdits as unknown as {
   finalText: string;
@@ -129,7 +135,7 @@ async function saveLoad(
   let startTime = process.hrtime.bigint();
   const savedStateObj: SavedState = saver.save();
   const savedState = gzip
-    ? pako.gzip(JSON.stringify(savedStateObj))
+    ? gzipString(JSON.stringify(savedStateObj))
     : JSON.stringify(savedStateObj);
 
   console.log(
@@ -147,7 +153,7 @@ async function saveLoad(
   startTime = process.hrtime.bigint();
   const loader = new AbsList<string>();
   const toLoadStr = gzip
-    ? pako.ungzip(savedState as Uint8Array, { to: "string" })
+    ? gunzipString(savedState as Uint8Array)
     : (savedState as string);
   const toLoadObj: SavedState = JSON.parse(toLoadStr);
   loader.load(toLoadObj);

@@ -1,8 +1,13 @@
 import { assert } from "chai";
-import pako from "pako";
 import { List, ListSavedState, OrderSavedState, Position } from "../src";
 import realTextTraceEdits from "./internal/real_text_trace_edits.json";
-import { avg, getMemUsed, sleep } from "./internal/util";
+import {
+  avg,
+  getMemUsed,
+  sleep,
+  gunzipString,
+  gzipString,
+} from "./internal/util";
 
 const { edits, finalText } = realTextTraceEdits as unknown as {
   finalText: string;
@@ -126,7 +131,7 @@ async function saveLoad(
     list: saver.save(),
   };
   const savedState = gzip
-    ? pako.gzip(JSON.stringify(savedStateObj))
+    ? gzipString(JSON.stringify(savedStateObj))
     : JSON.stringify(savedStateObj);
 
   console.log(
@@ -144,7 +149,7 @@ async function saveLoad(
   startTime = process.hrtime.bigint();
   const loader = new List<string>();
   const toLoadStr = gzip
-    ? pako.ungzip(savedState as Uint8Array, { to: "string" })
+    ? gunzipString(savedState as Uint8Array)
     : (savedState as string);
   const toLoadObj: SavedState = JSON.parse(toLoadStr);
   // Important to load Order first.

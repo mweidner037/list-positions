@@ -7,25 +7,35 @@ import {
   PositionSet,
   Text,
   TextSavedState,
+  expandPositions,
 } from "../../src";
 
-type Message =
+export type TextCrdtMessage =
   | {
-      type: "set";
-      pos: Position;
-      char: string;
-      meta?: BunchMeta;
+      readonly type: "set";
+      readonly startPos: Position;
+      readonly chars: string;
+      readonly meta?: BunchMeta;
     }
-  | { type: "delete"; pos: Position };
+  | {
+      readonly type: "delete";
+      readonly items: [startPos: Position, count: number][];
+    };
 
-type SavedState = {
-  order: OrderSavedState;
-  text: TextSavedState;
-  seen: OutlineSavedState;
+export type TextCrdtSavedState = {
+  readonly order: OrderSavedState;
+  readonly text: TextSavedState;
+  readonly seen: OutlineSavedState;
+  readonly buffer: TextCrdtMessage[];
 };
 
+// TODO: events
+
 /**
- * A traditional op-based/state-based text CRDT implemented on top of the library.
+ * A traditional op-based/state-based text CRDT implemented on top of list-positions.
+ *
+ * Copied from [@list-positions/crdts](https://github.com/mweidner037/list-positions-crdts/)
+ * to make benchmarking easier.
  *
  * send/receive work on general networks (they build in exactly-once partial-order delivery),
  * and save/load work as state-based merging.
@@ -35,9 +45,8 @@ type SavedState = {
  * and manually manages metadata; in particular, it must buffer certain out-of-order
  * messages.
  */
-export class TextCRDT {
-  /** When accessing externally, only query. */
-  readonly text: Text;
+export class TextCrdt {
+  private readonly text: Text;
   /**
    * A set of all Positions we've ever seen, whether currently present or deleted.
    * Used for state-based merging and handling reordered messages.
@@ -45,142 +54,192 @@ export class TextCRDT {
    * We use PositionSet here because we don't care about the list order. If you did,
    * you could use Outline instead, with the same Order as this.list
    * (`this.seen = new Outline(this.order);`).
+   *
+   * Tracking all seen Positions (instead of just deleted ones) reduces
+   * internal sparse array fragmentation, leading to smaller memory and saved state sizes.
    */
   private readonly seen: PositionSet;
   /**
    * Maps from bunchID to a Set of messages that are waiting on that
    * bunch's BunchMeta before they can be processed.
    */
-  private readonly pending: Map<string, Set<string>>;
+  private readonly pending: Map<string, Set<TextCrdtMessage>>;
 
-  constructor(private readonly send: (msg: string) => void) {
+  constructor(private readonly send: (message: TextCrdtMessage) => void) {
     this.text = new Text();
     this.seen = new PositionSet();
     this.pending = new Map();
   }
 
-  insertAt(index: number, char: string): void {
-    const [pos, newMeta] = this.text.insertAt(index, char);
-    const messageObj: Message = { type: "set", pos, char };
-    if (newMeta !== null) messageObj.meta = newMeta;
-    this.send(JSON.stringify(messageObj));
+  getAt(index: number): string {
+    return this.text.getAt(index);
   }
 
-  deleteAt(index: number): void {
-    const pos = this.text.positionAt(index);
-    this.text.delete(pos);
-    const messageObj: Message = { type: "delete", pos };
-    this.send(JSON.stringify(messageObj));
+  [Symbol.iterator](): IterableIterator<string> {
+    return this.text.values();
   }
 
-  receive(msg: string): void {
-    // TODO: test dedupe & partial ordering.
-    const decoded = JSON.parse(msg) as Message;
-    const bunchID = decoded.pos.bunchID;
+  values(): IterableIterator<string> {
+    return this.text.values();
+  }
 
-    switch (decoded.type) {
+  slice(start?: number, end?: number): string {
+    return this.text.slice(start, end);
+  }
+
+  toString(): string {
+    return this.text.toString();
+  }
+
+  insertAt(index: number, chars: string): void {
+    if (chars.length === 0) return;
+
+    const [pos, newMeta] = this.text.insertAt(index, chars);
+    this.seen.add(pos, chars.length);
+    const message: TextCrdtMessage = {
+      type: "set",
+      startPos: pos,
+      chars,
+      ...(newMeta ? { meta: newMeta } : {}),
+    };
+    this.send(message);
+  }
+
+  deleteAt(index: number, count = 1): void {
+    if (count === 0) return;
+
+    const items: [startPos: Position, count: number][] = [];
+    if (count === 1) {
+      // Common case: use positionAt, which is faster than items.
+      items.push([this.text.positionAt(index), 1]);
+    } else {
+      for (const [startPos, chars] of this.text.items(index, index + count)) {
+        items.push([startPos, chars.length]);
+      }
+    }
+
+    for (const [startPos, itemCount] of items) {
+      this.text.delete(startPos, itemCount);
+    }
+    this.send({ type: "delete", items });
+  }
+
+  receive(message: TextCrdtMessage): void {
+    switch (message.type) {
       case "delete":
-        // Mark the position as seen immediately, even if we don't have metadata
-        // for its bunch yet. Okay because this.seen is a PositionSet instead of an Outline.
-        this.seen.add(decoded.pos);
-        // Delete the position if present.
-        // If the bunch is unknown, it's definitely not present, and we
-        // should skip calling list.has to avoid a "Missing metadata" error.
-        if (
-          this.text.order.getNode(bunchID) !== undefined &&
-          this.text.has(decoded.pos)
-        ) {
-          // For a hypothetical event, compute the index.
-          void this.text.indexOfPosition(decoded.pos);
+        for (const [startPos, count] of message.items) {
+          // Mark each position as seen immediately, even if we don't have metadata
+          // for its bunch yet. Okay because this.seen is a PositionSet instead of an Outline.
+          this.seen.add(startPos, count);
 
-          this.text.delete(decoded.pos);
+          // Delete the positions if present.
+          // If the bunch is unknown, it's definitely not present, and we
+          // should skip calling text.has to avoid a "Missing metadata" error.
+          if (this.text.order.getNode(startPos.bunchID) !== undefined) {
+            // For future events, we may need to delete individually. Do it now for consistency.
+            for (const pos of expandPositions(startPos, count)) {
+              if (this.text.has(pos)) {
+                this.text.delete(pos);
+              }
+            }
+          }
         }
         break;
-      case "set":
-        // This check is okay even if we don't have metadata for pos's bunch yet,
-        // because this.seen is a PositionSet instead of an Outline.
-        if (this.seen.has(decoded.pos)) {
-          // The position has already been seen (inserted, inserted & deleted, or
-          // deleted by an out-of-order message). So don't need to insert it again.
-          return;
-        }
-
-        if (decoded.meta) {
-          const parentID = decoded.meta.parentID;
+      case "set": {
+        const bunchID = message.startPos.bunchID;
+        if (message.meta) {
+          const parentID = message.meta.parentID;
           if (this.text.order.getNode(parentID) === undefined) {
             // The meta can't be processed yet because its parent bunch is unknown.
             // Add it to pending.
-            this.addToPending(parentID, msg);
+            this.addToPending(parentID, message);
             return;
-          } else this.text.order.addMetas([decoded.meta]);
+          } else this.text.order.addMetas([message.meta]);
+        }
 
-          if (this.text.order.getNode(bunchID) === undefined) {
-            // The message can't be processed yet because its bunch is unknown.
-            // Add it to pending.
-            this.addToPending(bunchID, msg);
-            return;
-          }
+        if (this.text.order.getNode(bunchID) === undefined) {
+          // The message can't be processed yet because its bunch is unknown.
+          // Add it to pending.
+          this.addToPending(bunchID, message);
+          return;
         }
 
         // At this point, BunchMeta dependencies are satisfied. Process the message.
-        this.text.set(decoded.pos, decoded.char);
-        // Add to seen even before it's deleted, to reduce sparse-array fragmentation.
-        this.seen.add(decoded.pos);
-        // For a hypothetical event, compute the index.
-        void this.text.indexOfPosition(decoded.pos);
 
-        if (decoded.meta) {
+        // Note that the insertion may have already been (partly) seen, due to
+        // redundant or out-of-order messages;
+        // only unseen positions need to be inserted.
+        const poss = expandPositions(message.startPos, message.chars.length);
+        const toInsert: number[] = [];
+        for (let i = 0; i < poss.length; i++) {
+          if (!this.seen.has(poss[i])) toInsert.push(i);
+        }
+        if (toInsert.length === message.chars.length) {
+          // All need inserting (normal case).
+          this.text.set(message.startPos, message.chars);
+        } else {
+          for (const i of toInsert) {
+            this.text.set(poss[i], message.chars[i]);
+          }
+        }
+
+        this.seen.add(message.startPos, message.chars.length);
+
+        if (message.meta) {
           // The meta may have unblocked pending messages.
-          const unblocked = this.pending.get(decoded.meta.parentID);
+          const unblocked = this.pending.get(message.meta.bunchID);
           if (unblocked !== undefined) {
+            this.pending.delete(message.meta.bunchID);
             // TODO: if you unblock a long dependency chain (unlikely),
             // this recursion could overflow the stack.
             for (const msg2 of unblocked) this.receive(msg2);
           }
         }
         break;
+      }
     }
   }
 
-  private addToPending(bunchID: string, msg: string): void {
+  private addToPending(bunchID: string, message: TextCrdtMessage): void {
     let bunchPending = this.pending.get(bunchID);
     if (bunchPending === undefined) {
       bunchPending = new Set();
       this.pending.set(bunchID, bunchPending);
     }
-    bunchPending.add(msg);
+    bunchPending.add(message);
   }
 
-  save(): string {
-    const savedStateObj: SavedState = {
+  save(): TextCrdtSavedState {
+    const buffer: TextCrdtMessage[] = [];
+    for (const messageSet of this.pending.values()) {
+      buffer.push(...messageSet);
+    }
+    return {
       order: this.text.order.save(),
       text: this.text.save(),
       seen: this.seen.save(),
+      buffer,
     };
-    return JSON.stringify(savedStateObj);
   }
 
-  load(savedState: string): void {
-    const savedStateObj = JSON.parse(savedState) as SavedState;
+  load(savedState: TextCrdtSavedState): void {
     if (this.seen.state.size === 0) {
       // Never been used, so okay to load directly instead of doing a state-based
       // merge.
-      this.text.order.load(savedStateObj.order);
-      this.text.load(savedStateObj.text);
-      this.seen.load(savedStateObj.seen);
+      this.text.order.load(savedState.order);
+      this.text.load(savedState.text);
+      this.seen.load(savedState.seen);
     } else {
       // TODO: benchmark merging.
-      // TODO: events.
       const otherText = new Text();
       const otherSeen = new Outline(otherText.order);
-      otherText.order.load(savedStateObj.order);
-      otherText.load(savedStateObj.text);
-      otherSeen.load(savedStateObj.seen);
+      otherText.order.load(savedState.order);
+      otherText.load(savedState.text);
+      otherSeen.load(savedState.seen);
 
       // Loop over all positions that had been inserted or deleted into
       // the other list.
-      // We don't have to manage metadata because a saved state always includes
-      // all of its dependent metadata.
+      this.text.order.load(savedState.order);
       for (const pos of otherSeen) {
         if (!this.seen.has(pos)) {
           // pos is new to us. Copy its state from the other list.
@@ -192,6 +251,11 @@ export class TextCRDT {
           if (!otherText.has(pos)) this.text.delete(pos);
         }
       }
+    }
+
+    // In either case, process buffer by re-delivering all of its messages.
+    for (const message of savedState.buffer) {
+      this.receive(message);
     }
   }
 }
