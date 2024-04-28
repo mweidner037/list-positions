@@ -2,16 +2,15 @@ import { assert } from "chai";
 import pako from "pako";
 import realTextTraceEdits from "./internal/real_text_trace_edits.json";
 import { avg, getMemUsed, sleep } from "./internal/util";
-import { ListCRDT } from "./internal/list_crdt";
-import { AbsTextCRDT } from "./internal/abs_text_crdt";
-import { TextCRDT } from "./internal/text_crdt";
+import { ListCrdt, ListCrdtMessage } from "./internal/list_crdt";
+import { TextCrdt, TextCrdtMessage } from "./internal/text_crdt";
 
 const { edits, finalText } = realTextTraceEdits as unknown as {
   finalText: string;
   edits: Array<[number, number, string | undefined]>;
 };
 
-type TypeCRDT = typeof TextCRDT | typeof AbsTextCRDT | typeof ListCRDT<string>;
+type TypeCRDT = typeof TextCrdt | typeof ListCrdt<string>;
 
 export async function crdt(CRDT: TypeCRDT) {
   console.log("\n## " + CRDT.name + "\n");
@@ -19,18 +18,12 @@ export async function crdt(CRDT: TypeCRDT) {
     "Use a hybrid op-based/state-based CRDT implemented on top of the library's data structures."
   );
   switch (CRDT) {
-    case TextCRDT:
+    case TextCrdt:
       console.log(
         "This variant uses a Text + PositionSet to store the state and Positions in messages, manually managing BunchMetas."
       );
       break;
-
-    case AbsTextCRDT:
-      console.log(
-        "This variant uses a Text + PositionSet to store the state and AbsPositions in messages."
-      );
-      break;
-    case ListCRDT:
+    case ListCrdt:
       console.log(
         "This variant uses a List of characters + PositionSet to store the state and Positions in messages, manually managing BunchMetas."
       );
@@ -41,9 +34,13 @@ export async function crdt(CRDT: TypeCRDT) {
   );
 
   // Perform the whole trace, sending all updates.
+  // Use a simple JSON encoding.
   const updates: string[] = [];
   let startTime = process.hrtime.bigint();
-  const sender = new CRDT((message) => updates.push(message));
+  const sender = new CRDT(
+    (message: TextCrdtMessage | ListCrdtMessage<string>) =>
+      updates.push(JSON.stringify(message))
+  );
   for (const edit of edits) {
     if (edit[2] !== undefined) {
       sender.insertAt(edit[0], edit[2]);
@@ -60,17 +57,17 @@ export async function crdt(CRDT: TypeCRDT) {
     "- Avg update size (bytes):",
     avg(updates.map((message) => message.length)).toFixed(1)
   );
-  if (sender instanceof ListCRDT) {
-    assert.strictEqual(sender.list.slice().join(""), finalText);
+  if (sender instanceof ListCrdt) {
+    assert.strictEqual(sender.slice().join(""), finalText);
   } else {
-    assert.strictEqual(sender.text.toString(), finalText);
+    assert.strictEqual(sender.toString(), finalText);
   }
 
   // Receive all updates.
   startTime = process.hrtime.bigint();
   const receiver = new CRDT(() => {});
   for (const update of updates) {
-    receiver.receive(update);
+    receiver.receive(JSON.parse(update));
   }
 
   console.log(
@@ -79,10 +76,10 @@ export async function crdt(CRDT: TypeCRDT) {
       new Number(process.hrtime.bigint() - startTime).valueOf() / 1000000
     )
   );
-  if (receiver instanceof ListCRDT) {
-    assert.strictEqual(receiver.list.slice().join(""), finalText);
+  if (receiver instanceof ListCrdt) {
+    assert.strictEqual(receiver.slice().join(""), finalText);
   } else {
-    assert.strictEqual(receiver.text.toString(), finalText);
+    assert.strictEqual(receiver.toString(), finalText);
   }
 
   const savedState = (await saveLoad(CRDT, receiver, false)) as string;
@@ -98,7 +95,7 @@ async function saveLoad(
 ): Promise<string | Uint8Array> {
   // Save.
   let startTime = process.hrtime.bigint();
-  const savedStateStr = saver.save();
+  const savedStateStr = JSON.stringify(saver.save());
   const savedState = gzip ? pako.gzip(savedStateStr) : savedStateStr;
 
   console.log(
@@ -118,7 +115,7 @@ async function saveLoad(
   const toLoadStr = gzip
     ? pako.ungzip(savedState as Uint8Array, { to: "string" })
     : (savedState as string);
-  loader.load(toLoadStr);
+  loader.load(JSON.parse(toLoadStr));
 
   console.log(
     `- Load time ${gzip ? "GZIP'd " : ""}(ms):`,
@@ -139,7 +136,7 @@ async function memory(CRDT: TypeCRDT, savedState: string) {
   const startMem = getMemUsed();
 
   const loader = new CRDT(() => {});
-  loader.load(savedState);
+  loader.load(JSON.parse(savedState));
 
   console.log(
     "- Mem used estimate (MB):",
