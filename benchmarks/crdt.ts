@@ -1,7 +1,12 @@
 import { assert } from "chai";
-import pako from "pako";
 import realTextTraceEdits from "./internal/real_text_trace_edits.json";
-import { avg, getMemUsed, sleep } from "./internal/util";
+import {
+  avg,
+  getMemUsed,
+  gunzipString,
+  gzipString,
+  sleep,
+} from "./internal/util";
 import { ListCrdt, ListCrdtMessage } from "./internal/list_crdt";
 import { TextCrdt, TextCrdtMessage } from "./internal/text_crdt";
 
@@ -96,7 +101,7 @@ async function saveLoad(
   // Save.
   let startTime = process.hrtime.bigint();
   const savedStateStr = JSON.stringify(saver.save());
-  const savedState = gzip ? pako.gzip(savedStateStr) : savedStateStr;
+  const savedState = gzip ? gzipString(savedStateStr) : savedStateStr;
 
   console.log(
     `- Save time ${gzip ? "GZIP'd " : ""}(ms):`,
@@ -113,7 +118,7 @@ async function saveLoad(
   startTime = process.hrtime.bigint();
   const loader = new CRDT(() => {});
   const toLoadStr = gzip
-    ? pako.ungzip(savedState as Uint8Array, { to: "string" })
+    ? gunzipString(savedState as Uint8Array)
     : (savedState as string);
   loader.load(JSON.parse(toLoadStr));
 
