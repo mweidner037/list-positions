@@ -55,6 +55,7 @@ This library provides positions (types Position/AbsPosition) and corresponding l
   a related but less general idea.
 - [Blog post](https://mattweidner.com/2022/10/21/basic-list-crdt.html) describing the Fugue list CRDT and how it relates to the "list position" abstraction. This library implements an optimized version of that post's tree implementation (List/Position) and an analog of its string implementation (AbsList/AbsPosition).
 - [Paper](https://arxiv.org/abs/2305.00583) with more details about Fugue - in particular, its non-interleaving guarantees.
+- [Relative positions](https://docs.yjs.dev/api/relative-positions), the same abstraction in Yjs but with more restrictions (e.g., you cannot set the value at a relative position).
 - [Rope](<https://en.wikipedia.org/wiki/Rope_(data_structure)>), a data structure for efficient text editing that our List class uses as inspiration.
 
 ## Usage
