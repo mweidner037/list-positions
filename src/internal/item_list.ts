@@ -620,17 +620,37 @@ export class ItemList<I, S extends SparseItems<I>> {
   // ----------
 
   /**
-   * Returns a saved state for this List.
+   * Returns a saved state for this ItemList.
    *
    * The saved state describes our current (Position -> value) map in JSON-serializable form.
    * You can load this state on another ItemList by calling `load(savedState)`,
    * possibly in a different session or on a different device.
    */
   save(): { [bunchID: string]: (I | number)[] } {
+    // If you update this method, also update saveOutline.
     const savedState: { [bunchID: string]: (I | number)[] } = {};
     for (const [node, data] of this.state) {
       if (!data.values.isEmpty()) {
         savedState[node.bunchID] = data.values.serialize();
+      }
+    }
+    return savedState;
+  }
+
+  /**
+   * Returns a saved state for the Outline corresponding to this ItemList.
+   *
+   * The saved state describes our current set of Positions in JSON-serializable form.
+   */
+  saveOutline(): { [bunchID: string]: number[] } {
+    const savedState: { [bunchID: string]: number[] } = {};
+    for (const [node, data] of this.state) {
+      if (!data.values.isEmpty()) {
+        savedState[node.bunchID] = data.values
+          .serialize()
+          .map((item, i) =>
+            i % 2 === 0 ? this.itemsFactory.length(item as I) : (item as number)
+          );
       }
     }
     return savedState;
