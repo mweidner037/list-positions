@@ -522,11 +522,11 @@ export class List<T> {
   /**
    * Returns a saved state for this List's *positions*, independent of its values.
    *
-   * `saveOutline` and `loadOutline` let you save a list's values as an ordinary array,
+   * `saveOutline` and `loadOutline` let you save a List's values as an ordinary array,
    * separate from the list-positions info. That is useful for storing values in a transparent
    * format (e.g., to allow full-text searches) and for migrating data between List/Text/Outline.
    *
-   * Specifically, this method returns a saved state for an {@link Outline} with the same Positions as this list.
+   * Specifically, this method returns a saved state for an {@link Outline} with the same Positions as this List.
    * You can load the state on another List by calling `loadOutline(savedState, this.slice())`,
    * possibly in a different session or on a different device.
    * You can also load the state with `Outline.load` or `Text.loadOutline`.

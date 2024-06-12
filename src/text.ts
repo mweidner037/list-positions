@@ -507,10 +507,10 @@ export class Text {
   // ----------
 
   /**
-   * Returns a saved state for this List.
+   * Returns a saved state for this Text.
    *
    * The saved state describes our current (Position -> char) map in JSON-serializable form.
-   * You can load this state on another List by calling `load(savedState)`,
+   * You can load this state on another Text by calling `load(savedState)`,
    * possibly in a different session or on a different device.
    */
   save(): TextSavedState {
@@ -518,15 +518,16 @@ export class Text {
   }
 
   /**
-   * Loads a saved state returned by another List's `save()` method.
+   * Loads a saved state returned by another Text's `save()` method.
    *
-   * Loading sets our (Position -> char) map to match the saved List's, *overwriting*
+   * Loading sets our (Position -> char) map to match the saved Text's, *overwriting*
    * our current state.
    *
    * **Before loading a saved state, you must deliver its dependent metadata
    * to this.order**. For example, you could save and load the Order's state
-   * alongside the List's state, making sure to load the Order first.
-   * See [Managing Metadata](https://github.com/mweidner037/list-positions#save-load) for an example.
+   * alongside the Text's state, making sure to load the Order first.
+   * See [Managing Metadata](https://github.com/mweidner037/list-positions#save-load) for an example
+   * with List (Text is analogous).
    */
   load(savedState: TextSavedState): void {
     this.itemList.load(savedState);
@@ -535,11 +536,11 @@ export class Text {
   /**
    * Returns a saved state for this Text's *positions*, independent of its values.
    *
-   * `saveOutline` and `loadOutline` let you save a list's values as an ordinary array,
-   * separate from the list-positions info. That is useful for storing values in a transparent
+   * `saveOutline` and `loadOutline` let you save a Text's chars (values) as an ordinary string,
+   * separate from the list-positions info. That is useful for storing the string in a transparent
    * format (e.g., to allow full-text searches) and for migrating data between List/Text/Outline.
    *
-   * Specifically, this method returns a saved state for an {@link Outline} with the same Positions as this list.
+   * Specifically, this method returns a saved state for an {@link Outline} with the same Positions as this Text.
    * You can load the state on another Text by calling `loadOutline(savedState, this.slice())`,
    * possibly in a different session or on a different device.
    * You can also load the state with `Outline.load` or `List.loadOutline`.
@@ -552,31 +553,32 @@ export class Text {
    * Loads a saved state returned by another Text's `saveOutline()` method
    * or by an Outline's `save()` method.
    *
-   * Loading sets our (Position -> value) map so that:
+   * Loading sets our (Position -> char) map so that:
    * - its keys are the saved state's set of Positions, and
-   * - its values are the given `values`, in list order.
+   * - its chars are the given `chars`, in list order.
    *
    * **Before loading a saved state, you must deliver its dependent metadata
    * to this.order**. For example, you could save and load the Order's state
-   * alongside the List's state, making sure to load the Order first.
-   * See [Managing Metadata](https://github.com/mweidner037/list-positions#save-load) for an example.
+   * alongside the Text's state, making sure to load the Order first.
+   * See [Managing Metadata](https://github.com/mweidner037/list-positions#save-load) for an example
+   * with List (Text is analogous).
    *
-   * @throws If the saved state's length does not match `values.length`.
+   * @throws If the saved state's length does not match `chars.length`.
    */
-  loadOutline(savedState: OutlineSavedState, values: string): void {
+  loadOutline(savedState: OutlineSavedState, chars: string): void {
     const outline = new Outline(this.order);
     outline.load(savedState);
 
-    if (outline.length !== values.length) {
+    if (outline.length !== chars.length) {
       throw new Error(
-        `Outline length (${outline.length}) does not match values.length (${values.length})`
+        `Outline length (${outline.length}) does not match chars.length (${chars.length})`
       );
     }
 
     // Here we rely on the fact that outline.items() is in list order.
     let index = 0;
     for (const [startPos, count] of outline.items()) {
-      this.itemList.set(startPos, values.slice(index, index + count));
+      this.itemList.set(startPos, chars.slice(index, index + count));
       index += count;
     }
   }
