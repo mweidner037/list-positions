@@ -4,6 +4,7 @@ import { ItemList, SparseItemsFactory } from "./internal/item_list";
 import { normalizeSliceRange } from "./internal/util";
 import { Order } from "./order";
 import { Position } from "./position";
+import { Outline, OutlineSavedState } from "./outline";
 
 const sparseArrayFactory: SparseItemsFactory<
   unknown[],
@@ -516,5 +517,54 @@ export class List<T> {
    */
   load(savedState: ListSavedState<T>): void {
     this.itemList.load(savedState);
+  }
+
+  /**
+   * Returns a saved state for this List's *positions*, independent of its values.
+   *
+   * `saveOutline` and `loadOutline` let you save a List's values as an ordinary array,
+   * separate from the list-positions info. That is useful for storing values in a transparent
+   * format (e.g., to allow full-text searches) and for migrating data between List/Text/Outline.
+   *
+   * Specifically, this method returns a saved state for an {@link Outline} with the same Positions as this List.
+   * You can load the state on another List by calling `loadOutline(savedState, this.slice())`,
+   * possibly in a different session or on a different device.
+   * You can also load the state with `Outline.load` or `Text.loadOutline`.
+   */
+  saveOutline(): OutlineSavedState {
+    return this.itemList.saveOutline();
+  }
+
+  /**
+   * Loads a saved state returned by another List's `saveOutline()` method
+   * or by an Outline's `save()` method.
+   *
+   * Loading sets our (Position -> value) map so that:
+   * - its keys are the saved state's set of Positions, and
+   * - its values are the given `values`, in list order.
+   *
+   * **Before loading a saved state, you must deliver its dependent metadata
+   * to this.order**. For example, you could save and load the Order's state
+   * alongside the List's state, making sure to load the Order first.
+   * See [Managing Metadata](https://github.com/mweidner037/list-positions#save-load) for an example.
+   *
+   * @throws If the saved state's length does not match `values.length`.
+   */
+  loadOutline(savedState: OutlineSavedState, values: T[]): void {
+    const outline = new Outline(this.order);
+    outline.load(savedState);
+
+    if (outline.length !== values.length) {
+      throw new Error(
+        `Outline length (${outline.length}) does not match values.length (${values.length})`
+      );
+    }
+
+    // Here we rely on the fact that outline.items() is in list order.
+    let index = 0;
+    for (const [startPos, count] of outline.items()) {
+      this.itemList.set(startPos, values.slice(index, index + count));
+      index += count;
+    }
   }
 }

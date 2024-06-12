@@ -62,6 +62,32 @@ export class Checker {
       assert.deepStrictEqual(this.outline.positionAt(i), pos);
       assert.strictEqual(this.outline.indexOfPosition(pos), i);
     }
+
+    // Test that saving and loading gives equivalent states.
+    const newOrder = new Order();
+    newOrder.load(this.order.save());
+
+    const newList = new List(newOrder);
+    newList.load(this.list.save());
+    assert.deepStrictEqual([...newList.entries()], [...this.list.entries()]);
+
+    const newOutline = new Outline(newOrder);
+    newOutline.load(this.outline.save());
+    assert.deepStrictEqual(
+      [...newOutline.positions()],
+      [...this.outline.positions()]
+    );
+
+    // Also test saveOutline and loadOutline.
+    const savedOutline = this.list.saveOutline();
+    assert.deepStrictEqual(savedOutline, this.outline.save());
+
+    const newListFromOutline = new List(newOrder);
+    newListFromOutline.loadOutline(savedOutline, this.list.slice());
+    assert.deepStrictEqual(
+      [...newListFromOutline.entries()],
+      [...this.list.entries()]
+    );
   }
 
   set(startPos: Position, ...sameBunchValues: number[]): void {
