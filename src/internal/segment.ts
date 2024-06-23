@@ -1,5 +1,5 @@
-export abstract class Segment {
-  next: Segment | null = null;
+export abstract class Segment<S = unknown> {
+  next: (S & Segment<S>) | DeletedSegment<S> | null = null;
   // TODO: in tests, check always > 0.
   abstract readonly length: number;
   abstract readonly isMergeable: boolean;
@@ -8,19 +8,19 @@ export abstract class Segment {
    *
    * @param index 0 < index < length
    */
-  abstract splitContent(index: number): Segment;
+  abstract splitContent(index: number): Segment<S>;
   /**
    * Merge other's content with ours (appending other).
    */
   abstract mergeContent(other: this): void;
 }
 
-export class SegmentList {
-  head: Segment | null = null;
+export class SegmentList<S extends Segment<S>> {
+  head: S | DeletedSegment<S> | null = null;
 
   // TODO: check for no-deleted-ends in tests
 
-  overwrite(index: number, segment: Segment): void {
+  overwrite(index: number, segment: S | DeletedSegment<S>): void {
     if (segment.length === 0) return;
 
     if (this.head === null) {
@@ -39,6 +39,12 @@ export class SegmentList {
     // If the new segment is last and it's deleted, trim it.
     if (segment.next === null && segment instanceof DeletedSegment) {
       left.next = null;
+    }
+  }
+
+  *iterate(): IterableIterator<S> {
+    for (let current = this.head; current !== null; current = current.next) {
+      if (!(current instanceof DeletedSegment)) yield current;
     }
   }
 }
@@ -108,7 +114,7 @@ function split(segment: Segment, offset: number) {
   }
 }
 
-export class DeletedSegment extends Segment {
+export class DeletedSegment<S> extends Segment<S> {
   constructor(public length: number) {
     super();
   }
@@ -118,7 +124,7 @@ export class DeletedSegment extends Segment {
   }
 
   splitContent(index: number) {
-    const after = new DeletedSegment(this.length - index);
+    const after = new DeletedSegment<S>(this.length - index);
     this.length = index;
     return after;
   }
