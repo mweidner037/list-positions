@@ -1,9 +1,8 @@
 export abstract class Segment {
   next: Segment | null = null;
-  abstract readonly isDeleted: boolean;
-  abstract readonly isMergeable: boolean;
   // TODO: in tests, check always > 0.
   abstract readonly length: number;
+  abstract readonly isMergeable: boolean;
   /**
    * Set this one to the first half in-place; return a new second half. Don't update next pointers.
    *
@@ -19,10 +18,7 @@ export abstract class Segment {
 export class SegmentList {
   head: Segment | null = null;
 
-  // TODO: trim deleted ends
   // TODO: check for no-deleted-ends in tests
-  // TODO: if segment is externally accessible or settable, need to defend against aliasing+mutation.
-  // Likewise for whole list.
 
   overwrite(index: number, segment: Segment): void {
     if (segment.length === 0) return;
@@ -39,6 +35,11 @@ export class SegmentList {
 
     left.next = segment;
     segment.next = preRight.next;
+
+    // If the new segment is last and it's deleted, trim it.
+    if (segment.next === null && segment instanceof DeletedSegment) {
+      left.next = null;
+    }
   }
 }
 
@@ -57,8 +58,8 @@ function createSplit(start: Segment, delta: number): Segment {
   if (leftOutside) {
     const preLeft = left;
     left = new DeletedSegment(leftOffset - preLeft.length);
-    append(preLeft, left);
     leftOffset -= preLeft.length;
+    append(preLeft, left);
   } else split(left, leftOffset);
   return left;
 }
@@ -87,15 +88,11 @@ function locate(
  * Connects before to after in the list, merging if possible.
  * Returns the final segment, whose next pointer is *not* updated.
  */
-function append(before: Segment, after: Segment): Segment {
+function append(before: Segment, after: Segment): void {
   // TODO: is this safe & efficient?
   if (before.constructor === after.constructor && before.isMergeable) {
     before.mergeContent(after);
-    return before;
-  } else {
-    before.next = after;
-    return after;
-  }
+  } else before.next = after;
 }
 
 /**
@@ -116,20 +113,34 @@ export class DeletedSegment extends Segment {
     super();
   }
 
-  get isDeleted() {
+  get isMergeable() {
     return true;
+  }
+
+  splitContent(index: number) {
+    const after = new DeletedSegment(this.length - index);
+    this.length = index;
+    return after;
+  }
+
+  mergeContent(other: this): void {
+    this.length += other.length;
+  }
+}
+
+export class PresentSegment extends Segment {
+  constructor(public length: number) {
+    super();
   }
 
   get isMergeable() {
     return true;
   }
 
-  trimFront(index: number): Segment {
-    return new DeletedSegment(this.length - index);
-  }
-
-  trimBack(index: number): Segment {
-    return new DeletedSegment(index);
+  splitContent(index: number) {
+    const after = new PresentSegment(this.length - index);
+    this.length = index;
+    return after;
   }
 
   mergeContent(other: this): void {
@@ -142,24 +153,18 @@ export class ArraySegment<T> extends Segment {
     super();
   }
 
-  get isDeleted() {
-    return false;
+  get length() {
+    return this.values.length;
   }
 
   get isMergeable() {
     return true;
   }
 
-  get length() {
-    return this.values.length;
-  }
-
-  trimFront(index: number): Segment {
-    return new ArraySegment(this.values.slice(index));
-  }
-
-  trimBack(index: number): Segment {
-    return new ArraySegment(this.values.slice(0, index));
+  splitContent(index: number) {
+    const after = new ArraySegment(this.values.slice(index));
+    this.values.length = index;
+    return after;
   }
 
   mergeContent(other: this): void {
@@ -172,54 +177,22 @@ export class StringSegment extends Segment {
     super();
   }
 
-  get isDeleted() {
-    return false;
-  }
-
-  get isMergeable() {
-    return true;
-  }
-
   get length() {
     return this.chars.length;
   }
 
-  trimFront(index: number): Segment {
-    return new StringSegment(this.chars.slice(index));
-  }
-
-  trimBack(index: number): Segment {
-    return new StringSegment(this.chars.slice(0, index));
-  }
-
-  mergeContent(other: this): void {
-    this.chars = this.chars + other.chars;
-  }
-}
-
-export class PresentSegment extends Segment {
-  constructor(public length: number) {
-    super();
-  }
-
-  get isDeleted() {
-    return false;
-  }
-
   get isMergeable() {
     return true;
   }
 
-  trimFront(index: number): Segment {
-    return new PresentSegment(this.length - index);
-  }
-
-  trimBack(index: number): Segment {
-    return new PresentSegment(index);
+  splitContent(index: number) {
+    const after = new StringSegment(this.chars.slice(index));
+    this.chars = this.chars.slice(0, index);
+    return after;
   }
 
   mergeContent(other: this): void {
-    this.length += other.length;
+    this.chars = this.chars + other.chars;
   }
 }
 
@@ -228,27 +201,19 @@ export class AtomSegment<A> extends Segment {
     super();
   }
 
-  get isDeleted() {
-    return false;
+  get length() {
+    return 1;
   }
 
   get isMergeable() {
     return false;
   }
 
-  get length() {
-    return 1;
-  }
-
-  trimFront(): Segment {
+  splitContent(): never {
     throw new Error("Invalid for AtomSegment");
   }
 
-  trimBack(): Segment {
-    throw new Error("Invalid for AtomSegment");
-  }
-
-  mergeContent(): void {
+  mergeContent(): never {
     throw new Error("Invalid for AtomSegment");
   }
 }
