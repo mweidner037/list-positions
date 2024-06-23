@@ -1,6 +1,7 @@
 import { SerializedSparseArray, SparseArray } from "sparse-array-rled";
 import { ListSavedState } from "../list";
 import { Position } from "../position";
+import { ArraySegment, DeletedSegment, SegmentList } from "../internal/segment";
 
 /**
  * A map from Positions to values of type `T`, **without ordering info**.
@@ -19,10 +20,10 @@ export class PositionMap<T> {
    * The internal state of this PositionMap: A map from bunchID
    * to the [SparseArray](https://github.com/mweidner037/sparse-array-rled#readme)
    * of values for that bunch.
-   *
-   * You are free to manipulate this state directly.
+   * 
+   * TODO. Note: breaking change (used to be public).
    */
-  readonly state: Map<string, SparseArray<T>>;
+  private readonly state: Map<string, SegmentList<ArraySegment<T>>>;
 
   constructor() {
     this.state = new Map();
@@ -45,12 +46,12 @@ export class PositionMap<T> {
    */
   set(startPos: Position, ...sameBunchValues: T[]): void;
   set(startPos: Position, ...values: T[]): void {
-    let arr = this.state.get(startPos.bunchID);
-    if (arr === undefined) {
-      arr = SparseArray.new();
-      this.state.set(startPos.bunchID, arr);
+    let list = this.state.get(startPos.bunchID);
+    if (list === undefined) {
+      list = new SegmentList();
+      this.state.set(startPos.bunchID, list);
     }
-    arr.set(startPos.innerIndex, ...values);
+    list.overwrite(startPos.innerIndex, new ArraySegment(values));
   }
 
   /**
@@ -71,7 +72,7 @@ export class PositionMap<T> {
       // Already deleted.
       return;
     }
-    arr.delete(startPos.innerIndex, count);
+    arr.overwrite(startPos.innerIndex, new DeletedSegment(count));
 
     // Clean up empty bunches.
     // Note: the invariant "empty => not present" might not hold if the
@@ -94,14 +95,17 @@ export class PositionMap<T> {
    * Returns the value at the given position, or undefined if it is not currently present.
    */
   get(pos: Position): T | undefined {
-    return this.state.get(pos.bunchID)?.get(pos.innerIndex);
+    const ans = this.state.get(pos.bunchID)?.get(pos.innerIndex);
+    if (ans === undefined) return undefined;
+    const [segment, offset] = ans;
+    return segment.values[offset];
   }
 
   /**
    * Returns whether the given position is currently present in the map.
    */
   has(pos: Position): boolean {
-    return this.state.get(pos.bunchID)?.has(pos.innerIndex) ?? false;
+    return this.state.get(pos.bunchID)?.get(pos.innerIndex) !== undefined;
   }
 
   // ----------
@@ -120,8 +124,10 @@ export class PositionMap<T> {
    */
   *entries(): IterableIterator<[pos: Position, value: T]> {
     for (const [bunchID, arr] of this.state) {
-      for (const [innerIndex, value] of arr.entries()) {
-        yield [{ bunchID, innerIndex }, value];
+      for (const [startIndex, segment] of arr.presentSegments()) {
+        for (let i = 0; i < segment.length; i++) {
+          yield [{ bunchID, innerIndex: startIndex + i }, segment.values[i]];
+        }
       }
     }
   }

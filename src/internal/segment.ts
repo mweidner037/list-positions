@@ -50,16 +50,20 @@ export class SegmentList<S extends Segment<S>> {
     }
   }
 
-  get(index: number): [segment: S, offset: number] | null {
+  get(index: number): [segment: S, offset: number] | undefined {
     let remaining = index;
     for (let current = this.next; current !== null; current = current.next) {
       if (current.length < remaining) {
-        if (current instanceof DeletedSegment) return null;
+        if (current instanceof DeletedSegment) return undefined;
         else return [current, remaining];
       }
       remaining -= current.length;
     }
-    return null;
+    return undefined;
+  }
+
+  isEmpty(): boolean {
+    return this.next === null;
   }
 }
 
