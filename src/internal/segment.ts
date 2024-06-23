@@ -16,17 +16,17 @@ export abstract class Segment<S = unknown> {
 }
 
 export class SegmentList<S extends Segment<S>> {
-  head: S | DeletedSegment<S> | null = null;
+  next: S | DeletedSegment<S> | null = null;
 
   // TODO: check for no-deleted-ends in tests
 
   overwrite(index: number, segment: S | DeletedSegment<S>): void {
     if (segment.length === 0) return;
 
-    if (this.head === null) {
-      this.head = new DeletedSegment(index + segment.length);
+    if (this.next === null) {
+      this.next = new DeletedSegment(index + segment.length);
     }
-    const left = createSplit(this.head, index);
+    const left = index === 0 ? this : createSplit(this.next, index);
 
     if (left.next === null) {
       left.next = new DeletedSegment(segment.length);
@@ -42,10 +42,24 @@ export class SegmentList<S extends Segment<S>> {
     }
   }
 
-  *iterate(): IterableIterator<S> {
-    for (let current = this.head; current !== null; current = current.next) {
-      if (!(current instanceof DeletedSegment)) yield current;
+  *presentSegments(): IterableIterator<[index: number, segment: S]> {
+    let index = 0;
+    for (let current = this.next; current !== null; current = current.next) {
+      if (!(current instanceof DeletedSegment)) yield [index, current];
+      index += current.length;
     }
+  }
+
+  get(index: number): [segment: S, offset: number] | null {
+    let remaining = index;
+    for (let current = this.next; current !== null; current = current.next) {
+      if (current.length < remaining) {
+        if (current instanceof DeletedSegment) return null;
+        else return [current, remaining];
+      }
+      remaining -= current.length;
+    }
+    return null;
   }
 }
 
@@ -54,11 +68,10 @@ export class SegmentList<S extends Segment<S>> {
  * the PreSegment before the split. If needed, the list is extended to length
  * delta using a DeletedSegment.
  *
+ * @param index Must be > 0.
  * @returns The Segment just before the split.
  */
 function createSplit(start: Segment, delta: number): Segment {
-  if (delta === 0) return start;
-
   // eslint-disable-next-line prefer-const
   let [left, leftOffset, leftOutside] = locate(start, delta);
   if (leftOutside) {
@@ -75,10 +88,10 @@ function createSplit(start: Segment, delta: number): Segment {
  * The returned offset satisfies 0 < offset <= segment.length, unless delta is outside
  * the list, in which case offset is greater and outside is true.
  */
-function locate(
-  start: Segment,
+function locate<S extends Segment<S>>(
+  start: S | DeletedSegment<S>,
   delta: number
-): [segment: Segment, offset: number, outside: boolean] {
+): [segment: S | DeletedSegment<S>, offset: number, outside: boolean] {
   let current = start;
   let remaining = delta;
   for (; current.next !== null; current = current.next) {
