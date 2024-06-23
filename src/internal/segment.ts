@@ -16,6 +16,88 @@ export abstract class Segment {
   abstract mergeContent(other: this): void;
 }
 
+export class SegmentList {
+  head: Segment | null = null;
+
+  // TODO: trim deleted ends
+  // TODO: check for no-deleted-ends in tests
+  // TODO: if segment is externally accessible or settable, need to defend against aliasing+mutation.
+  // Likewise for whole list.
+
+  overwrite(index: number, segment: Segment): void {
+    if (segment.length === 0) return;
+
+    if (this.head === null) {
+      this.head = new DeletedSegment(index + segment.length);
+    }
+    const left = createSplit(this.head, index);
+
+    if (left.next === null) {
+      left.next = new DeletedSegment(segment.length);
+    }
+    const preRight = createSplit(left.next, segment.length);
+
+    left.next = segment;
+    segment.next = preRight.next;
+  }
+}
+
+/**
+ * Creates a split (segment boundary) at delta in the given list, returning
+ * the PreSegment before the split. If needed, the list is extended to length
+ * delta using a DeletedSegment.
+ *
+ * @returns The Segment just before the split.
+ */
+function createSplit(start: Segment, delta: number): Segment {
+  if (delta === 0) return start;
+
+  // eslint-disable-next-line prefer-const
+  let [left, leftOffset, leftOutside] = locate(start, delta);
+  if (leftOutside) {
+    const preLeft = left;
+    left = new DeletedSegment(leftOffset - preLeft.length);
+    append(preLeft, left);
+    leftOffset -= preLeft.length;
+  } else split(left, leftOffset);
+  return left;
+}
+
+/**
+ * Given delta > 0, returns the segment containing that index and the offset within it.
+ * The returned offset satisfies 0 < offset <= segment.length, unless delta is outside
+ * the list, in which case offset is greater and outside is true.
+ */
+function locate(
+  start: Segment,
+  delta: number
+): [segment: Segment, offset: number, outside: boolean] {
+  let current = start;
+  let remaining = delta;
+  for (; current.next !== null; current = current.next) {
+    if (remaining <= current.length) {
+      return [current, remaining, false];
+    }
+    remaining -= current.length;
+  }
+  return [current, remaining, remaining > current.length];
+}
+
+/**
+ * Connects before to after in the list, merging if possible.
+ * Returns the final segment, whose next pointer is *not* updated.
+ */
+function append(before: Segment, after: Segment): Segment {
+  // TODO: is this safe & efficient?
+  if (before.constructor === after.constructor && before.isMergeable) {
+    before.mergeContent(after);
+    return before;
+  } else {
+    before.next = after;
+    return after;
+  }
+}
+
 /**
  * Splits the segment at the given offset (if needed).
  *
@@ -26,79 +108,6 @@ function split(segment: Segment, offset: number) {
     const after = segment.splitContent(offset);
     after.next = segment.next;
     segment.next = after;
-  }
-}
-
-/**
- * Connects after to before in the list, merging if possible.
- * Returns the final segment, whose next pointer is *not* updated.
- */
-function append(before: Segment, after: Segment): Segment {
-  // TODO: if this safe?
-  if (before.constructor === after.constructor && before.isMergeable) {
-    before.mergeContent(after);
-    return before;
-  } else {
-    before.next = after;
-    return after;
-  }
-}
-
-// // Includes index 0, not length.
-// function locate1(
-//   start: Segment,
-//   delta: number
-// ): [segment: Segment, offset: number, inside: boolean] {
-//   let current = start;
-//   let remaining = delta;
-//   for (; current.next !== null; current = current.next) {
-//     if (remaining < current.length) {
-//       return [current, remaining, true];
-//     }
-//     remaining -= current.length;
-//   }
-//   return [current, remaining, remaining < current.length];
-// }
-
-// Includes length, not index 0.
-// TODO: if delta is zero (e.g. insertion at 0), then offset will be 0 - improper.
-function locate(
-  start: Segment,
-  delta: number
-): [segment: Segment, offset: number, inside: boolean] {
-  let current = start;
-  let remaining = delta;
-  for (; current.next !== null; current = current.next) {
-    if (remaining <= current.length) {
-      return [current, remaining, true];
-    }
-    remaining -= current.length;
-  }
-  return [current, remaining, remaining <= current.length];
-}
-
-export class SegmentList {
-  head: Segment | null = null;
-
-  // TODO: trim deleted ends
-  // TODO: check for no-deleted-ends in tests
-  // TODO: if segment is externally accessible or settable, need to defend against aliasing+mutation.
-  // Likewise for whole list.
-
-  overwrite(index: number, segment: Segment): void {
-    if (this.head === null) {
-      this.head = new DeletedSegment(index + segment.length);
-    }
-
-    // eslint-disable-next-line prefer-const
-    let [left, leftOffset, leftInside] = locate(this.head, index);
-    if (!leftInside) {
-      const preLeft = left;
-      left = new DeletedSegment(leftOffset + segment.length - preLeft.length);
-      append(preLeft, left);
-      leftOffset -= segment.length;
-    }
-    split(left, leftOffset);
   }
 }
 
