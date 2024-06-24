@@ -16,30 +16,42 @@ export abstract class Segment<S = unknown> {
 }
 
 export class SegmentList<S extends Segment<S>> {
-  next: S | DeletedSegment<S> | null = null;
+  private next: S | DeletedSegment<S> | null = null;
 
   // TODO: check for no-deleted-ends in tests
 
-  overwrite(index: number, segment: S | DeletedSegment<S>): void {
-    if (segment.length === 0) return;
+  /**
+   * @returns Replaced segments
+   */
+  overwrite(index: number, segment: S | DeletedSegment<S>): SegmentList<S> {
+    if (segment.length === 0) return new SegmentList();
 
     if (this.next === null) {
       this.next = new DeletedSegment(index + segment.length);
     }
-    const left = index === 0 ? this : createSplit(this.next, index);
+    // Cast needed due to https://github.com/microsoft/TypeScript/issues/9974
+    const left = (index === 0 ? this : createSplit(this.next, index)) as {
+      next: S | DeletedSegment<S> | null;
+    };
 
     if (left.next === null) {
       left.next = new DeletedSegment(segment.length);
     }
     const preRight = createSplit(left.next, segment.length);
 
+    const replacedStart = left.next;
     left.next = segment;
     segment.next = preRight.next;
+    preRight.next = null;
 
     // If the new segment is last and it's deleted, trim it.
     if (segment.next === null && segment instanceof DeletedSegment) {
       left.next = null;
     }
+
+    const replaced = new SegmentList<S>();
+    replaced.next = replacedStart;
+    return replaced;
   }
 
   *presentSegments(): IterableIterator<[index: number, segment: S]> {
@@ -64,6 +76,35 @@ export class SegmentList<S extends Segment<S>> {
 
   isEmpty(): boolean {
     return this.next === null;
+  }
+
+  /**
+   * The number of *present* values.
+   */
+  count(): number {
+    let count = 0;
+    for (let current = this.next; current !== null; current = current.next) {
+      if (!(current instanceof DeletedSegment)) count += current.length;
+    }
+    return count;
+  }
+
+  /**
+   * The number of present values < index.
+   */
+  countAt(index: number): number {
+    let count = 0;
+    let remaining = index;
+    for (let current = this.next; current !== null; current = current.next) {
+      if (!(current instanceof DeletedSegment)) {
+        if (remaining < current.length) return count + remaining;
+        count += current.length;
+      } else {
+        if (remaining < current.length) break;
+      }
+      remaining -= current.length;
+    }
+    return count;
   }
 }
 
