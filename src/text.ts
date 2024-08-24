@@ -6,16 +6,21 @@ import { Order } from "./order";
 import { Position } from "./position";
 import { OutlineSavedState, Outline } from "./outline";
 
-const sparseStringFactory: SparseItemsFactory<string, SparseString> = {
+const sparseStringFactory: SparseItemsFactory<
+  string | object,
+  SparseString<object>
+> = {
   // eslint-disable-next-line @typescript-eslint/unbound-method
   new: SparseString.new,
   // eslint-disable-next-line @typescript-eslint/unbound-method
   deserialize: SparseString.deserialize,
   length(item) {
-    return item.length;
+    if (typeof item === "string") return item.length;
+    else return 1;
   },
   slice(item, start, end) {
-    return item.slice(start, end);
+    if (typeof item === "string") return item.slice(start, end);
+    else return item;
   },
 } as const;
 
@@ -92,7 +97,10 @@ export class Text {
    */
   constructor(order?: Order) {
     this.order = order ?? new Order();
-    this.itemList = new ItemList(this.order, sparseStringFactory);
+    this.itemList = new ItemList(
+      this.order,
+      sparseStringFactory as SparseItemsFactory<string, SparseString>
+    );
   }
 
   /**

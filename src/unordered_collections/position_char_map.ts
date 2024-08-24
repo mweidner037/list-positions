@@ -155,7 +155,7 @@ export class PositionCharMap {
     this.clear();
 
     for (const [bunchID, savedArr] of Object.entries(savedState)) {
-      this.state.set(bunchID, SparseString.deserialize(savedArr));
+      this.state.set(bunchID, SparseString.deserialize<never>(savedArr));
     }
   }
 }
