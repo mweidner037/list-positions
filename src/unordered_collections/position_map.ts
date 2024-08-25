@@ -1,6 +1,6 @@
 import { SerializedSparseArray, SparseArray } from "sparse-array-rled";
-import { ListSavedState } from "../list";
-import { Position } from "../position";
+import { ListSavedState } from "../lists/list";
+import { Position } from "../order/position";
 
 /**
  * A map from Positions to values of type `T`, **without ordering info**.

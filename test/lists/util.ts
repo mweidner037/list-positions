@@ -6,8 +6,8 @@ import {
   Order,
   Outline,
   Position,
-  lexicographicString,
   expandPositions,
+  lexicographicString,
 } from "../../src";
 
 /**

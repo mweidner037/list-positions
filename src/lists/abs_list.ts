@@ -1,6 +1,6 @@
-import { AbsBunchMeta, AbsPosition, AbsPositions } from "./abs_position";
+import { AbsBunchMeta, AbsPosition, AbsPositions } from "../order/abs_position";
+import { Order } from "../order/order";
 import { List, ListSavedState } from "./list";
-import { Order } from "./order";
 
 /**
  * A JSON-serializable saved state for an `AbsList<T>`.

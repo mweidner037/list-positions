@@ -1,6 +1,6 @@
 import { SerializedSparseString, SparseString } from "sparse-array-rled";
-import { Position } from "../position";
-import { TextSavedState } from "../text";
+import { TextSavedState } from "../lists/text";
+import { Position } from "../order/position";
 
 /**
  * A map from Positions to characters, **without ordering info**.

@@ -1,7 +1,7 @@
 import { SparseIndices, type SparseItems } from "sparse-array-rled";
-import { BunchMeta, BunchNode } from "../bunch";
-import { Order } from "../order";
-import { MAX_POSITION, MIN_POSITION, Position } from "../position";
+import { BunchMeta, BunchNode } from "../order/bunch";
+import { Order } from "../order/order";
+import { MAX_POSITION, MIN_POSITION, Position } from "../order/position";
 
 export interface SparseItemsFactory<I, S extends SparseItems<I>> {
   "new"(): S;

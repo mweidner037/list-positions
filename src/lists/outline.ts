@@ -1,8 +1,8 @@
 import { SparseIndices } from "sparse-array-rled";
-import { BunchMeta } from "./bunch";
-import { ItemList, SparseItemsFactory } from "./internal/item_list";
-import { Order } from "./order";
-import { Position } from "./position";
+import { ItemList, SparseItemsFactory } from "../internal/item_list";
+import { BunchMeta } from "../order/bunch";
+import { Order } from "../order/order";
+import { Position } from "../order/position";
 
 const sparseIndicesFactory: SparseItemsFactory<number, SparseIndices> = {
   // eslint-disable-next-line @typescript-eslint/unbound-method

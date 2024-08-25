@@ -6,8 +6,8 @@ import {
   MIN_POSITION,
   Order,
   Position,
-  lexicographicString,
   expandPositions,
+  lexicographicString,
 } from "../../src";
 import { assertIsOrdered, testUniqueAfterDelete } from "./util";
 
