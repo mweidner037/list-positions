@@ -336,11 +336,16 @@ A total order on Positions, independent of any specific assignment of values.
 
 An Order manages metadata (bunches) for any number of Lists, Texts, Outlines, and AbsLists. You can also use an Order to create Positions independent of a List (`createPositions`), convert between Positions and AbsPositions (`abs` and `unabs`), and directly view the tree of bunches (`getBunch`, `getBunchFor`).
 
-#### `Text`
+#### `Text<E>`
 
 A list of characters, represented as an ordered map with Position keys.
 
 Text is functionally equivalent to a `List<string>` with single-char values, but it uses strings internally and in bulk methods, instead of arrays of single chars. This reduces memory usage and the size of saved states.
+
+The list may also contain embedded objects of type `E`.
+Each embed takes the place of a single character. You can use embeds to represent
+non-text content, like images and videos, that may appear inline in a text document.
+If you do not specify the generic type `E`, it defaults to `never`, i.e., no embeds are allowed.
 
 #### `Outline`
 
@@ -376,7 +381,7 @@ AbsList's API is a hybrid between `Array<T>` and `Map<AbsPosition, T>`. Use `ins
 The library also comes with _unordered_ collections:
 
 - `PositionMap<T>`: A map from Positions to values of type `T`, like `List<T>` but without ordering info.
-- `PositionCharMap`: A map from Positions to characters, like `Text` but without ordering info.
+- `PositionCharMap<E>`: A map from Positions to characters (or embeds), like `Text<E>` but without ordering info.
 - `PositionSet`: A set of Positions, like `Outline` but without ordering info.
 
 These collections do not support in-order or indexed access, but they also do not require managing metadata, and they are slightly more efficient.
@@ -401,7 +406,7 @@ Saved states: Each class lets you save and load its internal states in JSON form
 
 - `ListSavedState<T>`
 - `OrderSavedState`
-- `TextSavedState`
+- `TextSavedState<E>`
 - `OutlineSavedState`
 - `AbsListSavedState<T>`
 

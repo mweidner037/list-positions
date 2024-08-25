@@ -24,9 +24,11 @@ const sparseStringFactory: SparseItemsFactory<
   },
 } as const;
 
-function checkChar(char: string): void {
-  if (char.length !== 1) {
-    throw new Error(`Values must be single chars, not "${char}"`);
+function checkCharOrEmbed<E extends object | never = never>(
+  charOrEmbed: string | E
+): void {
+  if (typeof charOrEmbed === "string" && charOrEmbed.length !== 1) {
+    throw new Error(`Values must be single chars, not "${charOrEmbed}"`);
   }
 }
 
@@ -62,8 +64,8 @@ function checkChar(char: string): void {
  * except that the 0th entry may be an empty string.
  * For example, the sparse string `[, , "x", "y"]` serializes to `["", 2, "xy"]`.
  */
-export type TextSavedState = {
-  [bunchID: string]: (string | number)[];
+export type TextSavedState<E extends object | never = never> = {
+  [bunchID: string]: (string | E | number)[];
 };
 
 /**
@@ -75,16 +77,24 @@ export type TextSavedState = {
  * but it uses strings internally and in bulk methods, instead of arrays
  * of single chars. This reduces memory usage and the size of saved states.
  *
+ * The list may also contain embedded objects of type `E`.
+ * Each embed takes the place of a single character. You can use embeds to represent
+ * non-text content, like images and videos, that may appear inline in a text document.
+ * If you do not specify the generic type `E`, it defaults to `never`, i.e., no embeds are allowed.
+ *
  * Technically, Text is a sequence of UTF-16 code units, like an ordinary JavaScript
  * string ([MDN reference](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String#utf-16_characters_unicode_code_points_and_grapheme_clusters)).
+ *
+ * @typeParam E - The type of embeds, or `never` (no embeds allowed) if not specified.
+ * Embeds must be non-null objects.
  */
-export class Text {
+export class Text<E extends object | never = never> {
   /**
    * The Order that manages this list's Positions and their metadata.
    * See [Managing Metadata](https://github.com/mweidner037/list-positions#managing-metadata).
    */
   readonly order: Order;
-  private readonly itemList: ItemList<string, SparseString>;
+  private readonly itemList: ItemList<string | E, SparseString<E>>;
 
   /**
    * Constructs a Text, initially empty.
@@ -99,7 +109,7 @@ export class Text {
     this.order = order ?? new Order();
     this.itemList = new ItemList(
       this.order,
-      sparseStringFactory as SparseItemsFactory<string, SparseString>
+      sparseStringFactory as SparseItemsFactory<string | E, SparseString<E>>
     );
   }
 
@@ -110,14 +120,14 @@ export class Text {
    * Like when loading a saved state, you must deliver all of the Positions'
    * dependent metadata to `order` before calling this method.
    */
-  static fromEntries(
-    entries: Iterable<[pos: Position, char: string]>,
+  static fromEntries<E extends object | never = never>(
+    entries: Iterable<[pos: Position, charOrEmbed: string | E]>,
     order: Order
-  ): Text {
-    const text = new Text(order);
-    for (const [pos, char] of entries) {
-      checkChar(char);
-      text.set(pos, char);
+  ): Text<E> {
+    const text = new Text<E>(order);
+    for (const [pos, charOrEmbed] of entries) {
+      checkCharOrEmbed(charOrEmbed);
+      text.set(pos, charOrEmbed);
     }
     return text;
   }
@@ -129,13 +139,13 @@ export class Text {
    * Like when loading a saved state, you must deliver all of the Positions'
    * dependent metadata to `order` before calling this method.
    */
-  static fromItems(
-    items: Iterable<[startPos: Position, chars: string]>,
+  static fromItems<E extends object | never = never>(
+    items: Iterable<[startPos: Position, charsOrEmbed: string | E]>,
     order: Order
-  ): Text {
-    const text = new Text(order);
-    for (const [startPos, chars] of items) {
-      text.set(startPos, chars);
+  ): Text<E> {
+    const text = new Text<E>(order);
+    for (const [startPos, charsOrEmbed] of items) {
+      text.set(startPos, charsOrEmbed);
     }
     return text;
   }
@@ -145,13 +155,13 @@ export class Text {
   // ----------
 
   /**
-   * Sets the char at the given position.
+   * Sets the char (or embed) at the given position.
    *
-   * If the position is already present, its char is overwritten.
-   * Otherwise, later chars in the list shift right
+   * If the position is already present, its value is overwritten.
+   * Otherwise, later values in the list shift right
    * (increment their index).
    */
-  set(pos: Position, char: string): void;
+  set(pos: Position, charOrEmbed: string | E): void;
   /**
    * Sets the chars at a sequence of Positions within the same [bunch](https://github.com/mweidner037/list-positions#bunches).
    *
@@ -162,25 +172,25 @@ export class Text {
    * @see {@link expandPositions}
    */
   set(startPos: Position, chars: string): void;
-  set(startPos: Position, chars: string): void {
-    this.itemList.set(startPos, chars);
+  set(startPos: Position, charsOrEmbed: string | E): void {
+    this.itemList.set(startPos, charsOrEmbed);
   }
 
   /**
-   * Sets the char at the given index (equivalently, at Position `this.positionAt(index)`),
-   * overwriting the existing char.
+   * Sets the char (or embed) at the given index (equivalently, at Position `this.positionAt(index)`),
+   * overwriting the existing value.
    *
    * @throws If index is not in `[0, this.length)`.
    */
-  setAt(index: number, char: string): void {
-    checkChar(char);
-    this.set(this.positionAt(index), char);
+  setAt(index: number, charOrEmbed: string | E): void {
+    checkCharOrEmbed(charOrEmbed);
+    this.set(this.positionAt(index), charOrEmbed);
   }
 
   /**
-   * Deletes the given position, making it and its char no longer present in the list.
+   * Deletes the given position, making it and its char (or embed) no longer present in the list.
    *
-   * If the position was indeed present, later chars in the list shift left (decrement their index).
+   * If the position was indeed present, later values in the list shift left (decrement their index).
    */
   delete(pos: Position): void;
   /**
@@ -198,7 +208,7 @@ export class Text {
   }
 
   /**
-   * Deletes `count` chars starting at `index`.
+   * Deletes `count` values starting at `index`.
    *
    * @throws If any of `index`, ..., `index + count - 1` are not in `[0, this.length)`.
    */
@@ -211,7 +221,7 @@ export class Text {
   }
 
   /**
-   * Deletes every char in the list, making it empty.
+   * Deletes every value in the list, making it empty.
    *
    * `this.order` is unaffected (retains all metadata).
    */
@@ -220,9 +230,9 @@ export class Text {
   }
 
   /**
-   * Inserts the given char just after prevPos, at a new Position.
+   * Inserts the given char (or embed) just after prevPos, at a new Position.
 
-   * Later chars in the list shift right
+   * Later values in the list shift right
    * (increment their index).
    * 
    * In a collaborative setting, the new Position is *globally unique*, even
@@ -233,7 +243,7 @@ export class Text {
    */
   insert(
     prevPos: Position,
-    char: string
+    charOrEmbed: string | E
   ): [pos: Position, newMeta: BunchMeta | null];
   /**
    * Inserts the given chars just after prevPos, at a series of new Positions.
@@ -254,15 +264,15 @@ export class Text {
   ): [startPos: Position, newMeta: BunchMeta | null];
   insert(
     prevPos: Position,
-    chars: string
+    charsOrEmbed: string | E
   ): [startPos: Position, newMeta: BunchMeta | null] {
-    return this.itemList.insert(prevPos, chars);
+    return this.itemList.insert(prevPos, charsOrEmbed);
   }
 
   /**
-   * Inserts the given char at `index` (i.e., between the chars at `index - 1` and `index`), at a new Position.
+   * Inserts the given char (or embed) at `index` (i.e., between the values at `index - 1` and `index`), at a new Position.
    *
-   * Later chars in the list shift right
+   * Later values in the list shift right
    * (increment their index).
    *
    * In a collaborative setting, the new Position is *globally unique*, even
@@ -273,7 +283,7 @@ export class Text {
    */
   insertAt(
     index: number,
-    char: string
+    charOrEmbed: string | E
   ): [pos: Position, newMeta: BunchMeta | null];
   /**
    * Inserts the given chars at `index` (i.e., between the chars at `index - 1` and `index`), at a series of new Positions.
@@ -294,9 +304,9 @@ export class Text {
   ): [startPos: Position, newMeta: BunchMeta | null];
   insertAt(
     index: number,
-    chars: string
+    charsOrEmbed: string
   ): [startPos: Position, newMeta: BunchMeta | null] {
-    return this.itemList.insertAt(index, chars);
+    return this.itemList.insertAt(index, charsOrEmbed);
   }
 
   // ----------
@@ -304,23 +314,25 @@ export class Text {
   // ----------
 
   /**
-   * Returns the char at the given position, or undefined if it is not currently present.
+   * Returns the char (or embed) at the given position, or undefined if it is not currently present.
    */
-  get(pos: Position): string | undefined {
+  get(pos: Position): string | E | undefined {
     const located = this.itemList.getItem(pos);
     if (located === null) return undefined;
     const [item, offset] = located;
-    return item[offset];
+    if (typeof item === "string") return item[offset];
+    else return item;
   }
 
   /**
-   * Returns the char currently at index.
+   * Returns the char (or embed) currently at index.
    *
    * @throws If index is not in `[0, this.length)`.
    */
-  getAt(index: number): string {
+  getAt(index: number): string | E {
     const [item, offset] = this.itemList.getItemAt(index);
-    return item[offset];
+    if (typeof item === "string") return item[offset];
+    else return item;
   }
 
   /**
@@ -337,10 +349,10 @@ export class Text {
    * then the result depends on searchDir:
    * - "none" (default): Returns -1.
    * - "left": Returns the next index to the left of pos.
-   * If there are no chars to the left of pos,
+   * If there are no values to the left of pos,
    * returns -1.
    * - "right": Returns the next index to the right of pos.
-   * If there are no chars to the right of pos,
+   * If there are no values to the right of pos,
    * returns `this.length`.
    *
    * To find the index where a position would be if
@@ -399,39 +411,75 @@ export class Text {
   // Iterators
   // ----------
 
-  /** Iterates over chars in the list, in list order. */
-  [Symbol.iterator](): IterableIterator<string> {
+  /** Iterates over chars (and embeds) in the list, in list order. */
+  [Symbol.iterator](): IterableIterator<string | E> {
     return this.values();
   }
 
   /**
-   * Iterates over chars in the list, in list order.
+   * Iterates over chars (and embeds) in the list, in list order.
    *
    * Optionally, you may specify a range of indices `[start, end)` instead of
    * iterating the entire list.
    *
    * @throws If `start < 0`, `end > this.length`, or `start > end`.
    */
-  *values(start?: number, end?: number): IterableIterator<string> {
-    for (const [, item] of this.itemList.items(start, end)) yield* item;
+  *values(start?: number, end?: number): IterableIterator<string | E> {
+    for (const [, item] of this.itemList.items(start, end)) {
+      if (typeof item === "string") yield* item;
+      else yield item;
+    }
   }
 
   /**
    * Returns a copy of a section of this list, as a string.
+   *
+   * If the section contains embeds, they are replaced with `\uFFFC`, the object
+   * replacement character. Text editors might render this as a box containing "OBJ".
+   * To preserve embeds, use {@link sliceWithEmbeds}.
    *
    * Arguments are as in [Array.slice](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/slice).
    */
   slice(start?: number, end?: number): string {
     [start, end] = normalizeSliceRange(this.length, start, end);
     let ans = "";
-    for (const [, chars] of this.itemList.items(start, end)) {
-      ans += chars;
+    for (const [, charsOrEmbed] of this.itemList.items(start, end)) {
+      if (typeof charsOrEmbed === "string") ans += charsOrEmbed;
+      else ans += "\uFFFC";
+    }
+    return ans;
+  }
+
+  /**
+   * Returns a copy of a section of this list, as an array of strings and embeds.
+   *
+   * The string sections are separated by embeds.
+   * For example, suppose `list` has char/embed values `["H", "i", " ", { type: "image", ... }, "!"]`.
+   * Then `list.sliceWithEmbeds()` returns `["Hi ", { type: "image", ... }, "!"]`.
+   *
+   * Arguments are as in [Array.slice](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/slice).
+   */
+  sliceWithEmbeds(start?: number, end?: number): (string | E)[] {
+    [start, end] = normalizeSliceRange(this.length, start, end);
+    const ans: (string | E)[] = [];
+    for (const [, charsOrEmbed] of this.itemList.items(start, end)) {
+      if (
+        ans.length !== 0 &&
+        typeof charsOrEmbed === "string" &&
+        typeof ans[ans.length - 1] === "string"
+      ) {
+        ans[ans.length - 1] += charsOrEmbed;
+      } else ans.push(charsOrEmbed);
     }
     return ans;
   }
 
   /**
    * Returns the current text as a literal string.
+   *
+   * If the string contains embeds, they are replaced with `\uFFFC`, the object
+   * replacement character. Text editors might render this as a box containing "OBJ".
+   * To preserve embeds, use {@link sliceWithEmbeds}.
    */
   toString(): string {
     return this.slice();
@@ -450,7 +498,7 @@ export class Text {
   }
 
   /**
-   * Iterates over [pos, char] pairs in the list, in list order. These are its entries as an ordered map.
+   * Iterates over [pos, char (or embed)] pairs in the list, in list order. These are its entries as an ordered map.
    *
    * Optionally, you may specify a range of indices `[start, end)` instead of
    * iterating the entire list.
@@ -460,23 +508,27 @@ export class Text {
   *entries(
     start?: number,
     end?: number
-  ): IterableIterator<[pos: Position, char: string]> {
+  ): IterableIterator<[pos: Position, charOrEmbed: string | E]> {
     for (const [
       { bunchID, innerIndex: startInnerIndex },
       item,
     ] of this.itemList.items(start, end)) {
-      for (let i = 0; i < item.length; i++) {
-        yield [{ bunchID, innerIndex: startInnerIndex + i }, item[i]];
-      }
+      if (typeof item === "string") {
+        for (let i = 0; i < item.length; i++) {
+          yield [{ bunchID, innerIndex: startInnerIndex + i }, item[i]];
+        }
+      } else yield [{ bunchID, innerIndex: startInnerIndex }, item];
     }
   }
 
   /**
    * Iterates over items, in list order.
    *
-   * Each *item* is a series of entries that have contiguous positions
+   * Each *item* [startPos, charsOrEmbed] is either an individual embed at startPos,
+   * or a series of characters that have contiguous positions
    * from the same [bunch](https://github.com/mweidner037/list-positions#bunches).
-   * Specifically, for an item [startPos, chars], the positions start at `startPos`
+   * Specifically, for a string-valued item [startPos, chars: string],
+   * the individual chars' positions start at `startPos`
    * and have the same `bunchID` but increasing `innerIndex`.
    *
    * You can use this method as an optimized version of other iterators, or as
@@ -490,7 +542,7 @@ export class Text {
   items(
     start?: number,
     end?: number
-  ): IterableIterator<[startPos: Position, chars: string]> {
+  ): IterableIterator<[startPos: Position, charsOrEmbed: string | E]> {
     return this.itemList.items(start, end);
   }
 
@@ -517,18 +569,18 @@ export class Text {
   /**
    * Returns a saved state for this Text.
    *
-   * The saved state describes our current (Position -> char) map in JSON-serializable form.
+   * The saved state describes our current (Position -> char/embed) map in JSON-serializable form.
    * You can load this state on another Text by calling `load(savedState)`,
    * possibly in a different session or on a different device.
    */
-  save(): TextSavedState {
+  save(): TextSavedState<E> {
     return this.itemList.save();
   }
 
   /**
    * Loads a saved state returned by another Text's `save()` method.
    *
-   * Loading sets our (Position -> char) map to match the saved Text's, *overwriting*
+   * Loading sets our (Position -> char/embed) map to match the saved Text's, *overwriting*
    * our current state.
    *
    * **Before loading a saved state, you must deliver its dependent metadata
@@ -537,19 +589,19 @@ export class Text {
    * See [Managing Metadata](https://github.com/mweidner037/list-positions#save-load) for an example
    * with List (Text is analogous).
    */
-  load(savedState: TextSavedState): void {
+  load(savedState: TextSavedState<E>): void {
     this.itemList.load(savedState);
   }
 
   /**
    * Returns a saved state for this Text's *positions*, independent of its values.
    *
-   * `saveOutline` and `loadOutline` let you save a Text's chars (values) as an ordinary string,
-   * separate from the list-positions info. That is useful for storing the string in a transparent
+   * `saveOutline` and `loadOutline` let you save a Text's values (chars and embeds)
+   * separately from the list-positions info. That is useful for storing the string in a transparent
    * format (e.g., to allow full-text searches) and for migrating data between List/Text/Outline.
    *
    * Specifically, this method returns a saved state for an {@link Outline} with the same Positions as this Text.
-   * You can load the state on another Text by calling `loadOutline(savedState, this.slice())`,
+   * You can load the state on another Text by calling `loadOutline(savedState, this.sliceWithEmbeds())`,
    * possibly in a different session or on a different device.
    * You can also load the state with `Outline.load` or `List.loadOutline`.
    */
@@ -561,9 +613,10 @@ export class Text {
    * Loads a saved state returned by another Text's `saveOutline()` method
    * or by an Outline's `save()` method.
    *
-   * Loading sets our (Position -> char) map so that:
+   * Loading sets our (Position -> char/embed) map so that:
    * - its keys are the saved state's set of Positions, and
-   * - its chars are the given `chars`, in list order.
+   * - its chars and embeds are given by `charsWithEmbeds`, in list order.
+   * The `charsWithEmbeds` must use the same format as {@link sliceWithEmbeds}.
    *
    * **Before loading a saved state, you must deliver its dependent metadata
    * to this.order**. For example, you could save and load the Order's state
@@ -573,21 +626,32 @@ export class Text {
    *
    * @throws If the saved state's length does not match `chars.length`.
    */
-  loadOutline(savedState: OutlineSavedState, chars: string): void {
+  loadOutline(
+    savedState: OutlineSavedState,
+    charsWithEmbeds: (string | E)[]
+  ): void {
     const outline = new Outline(this.order);
     outline.load(savedState);
 
-    if (outline.length !== chars.length) {
-      throw new Error(
-        `Outline length (${outline.length}) does not match chars.length (${chars.length})`
-      );
-    }
-
-    // Here we rely on the fact that outline.items() is in list order.
     let index = 0;
-    for (const [startPos, count] of outline.items()) {
-      this.itemList.set(startPos, chars.slice(index, index + count));
-      index += count;
+    for (const charsOrEmbed of charsWithEmbeds) {
+      if (typeof charsOrEmbed === "string") {
+        let charsIndex = 0;
+        for (const [startPos, count] of outline.items(
+          index,
+          index + charsOrEmbed.length
+        )) {
+          this.itemList.set(
+            startPos,
+            charsOrEmbed.slice(charsIndex, charsIndex + count)
+          );
+          charsIndex += count;
+        }
+        index += charsOrEmbed.length;
+      } else {
+        this.itemList.set(outline.positionAt(index), charsOrEmbed);
+        index++;
+      }
     }
   }
 }
