@@ -45,24 +45,27 @@ function checkCharOrEmbed<E extends object | never = never>(
  * with Positions present in the Text, map its bunchID to a serialized form of
  * the sparse string
  * ```
- * innerIndex -> (char at Position { bunchID, innerIndex })
+ * innerIndex -> (char (or embed) at Position { bunchID, innerIndex })
  * ```
  * The bunches are in no particular order.
  *
  * ### Per-Bunch Format
  *
- * Each bunch's serialized sparse string (type `(string | number)[]`)
- * uses a compact JSON representation with run-length encoded deletions, identical to `SerializedSparseString` from the
+ * Each bunch's serialized sparse string (type `(string | E | number)[]`)
+ * uses a compact JSON representation with run-length encoded deletions, identical to `SerializedSparseString<E>` from the
  * [sparse-array-rled](https://github.com/mweidner037/sparse-array-rled#readme) package.
- * It alternates between:
- * - strings of concatenated present chars (even indices), and
- * - numbers (odd indices), representing that number of deleted values.
+ * It consists of:
+ * - strings of concatenated present chars,
+ * - embedded objects of type `E`, and
+ * - numbers, representing that number of deleted indices.
  *
  * For example, the sparse string `["a", "b", , , , "f", "g"]` serializes to `["ab", 3, "fg"]`.
  *
- * Trivial entries (empty strings, 0s, & trailing deletions) are always omitted,
- * except that the 0th entry may be an empty string.
- * For example, the sparse string `[, , "x", "y"]` serializes to `["", 2, "xy"]`.
+ * As an example with an embed, the sparse string `["h", "i", " ", { type: "image", ... }, "!"]`
+ * serializes to `["hi ", { type: "image", ... }, "!"]`.
+ *
+ * Trivial entries (empty strings, 0s, & trailing deletions) are always omitted.
+ * For example, the sparse string `[, , "x", "y"]` serializes to `[2, "xy"]`.
  */
 export type TextSavedState<E extends object | never = never> = {
   [bunchID: string]: (string | E | number)[];
