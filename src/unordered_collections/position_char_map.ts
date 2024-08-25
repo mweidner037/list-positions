@@ -56,7 +56,6 @@ export class PositionCharMap<E extends object | never = never> {
       arr = SparseString.new();
       this.state.set(startPos.bunchID, arr);
     }
-    // @ts-expect-error TODO: remove once sparse-array-rled is updated to 2.0.1.
     arr.set(startPos.innerIndex, charsOrEmbed);
   }
 
