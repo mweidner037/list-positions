@@ -487,16 +487,16 @@ Each benchmark applies the [automerge-perf](https://github.com/automerge/automer
 
 Results for an op-based/state-based text CRDT built on top of a Text + PositionSet, on my laptop:
 
-- Sender time (ms): 655
+- Sender time (ms): 722
 - Avg update size (bytes): 92.7
-- Receiver time (ms): 369
+- Receiver time (ms): 416
 - Save time (ms): 11
-- Save size (bytes): 599817
-- Load time (ms): 10
-- Save time GZIP'd (ms): 42
-- Save size GZIP'd (bytes): 87006
+- Save size (bytes): 598917
+- Load time (ms): 11
+- Save time GZIP'd (ms): 40
+- Save size GZIP'd (bytes): 86969
 - Load time GZIP'd (ms): 30
-- Mem used estimate (MB): 1.8
+- Mem used estimate (MB): 2.0
 
 For more results, see [benchmark_results.md](./benchmark_results.md).
 
