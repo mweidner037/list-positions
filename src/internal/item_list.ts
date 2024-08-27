@@ -1,7 +1,7 @@
-import type { SparseItems } from "sparse-array-rled";
-import { BunchMeta, BunchNode } from "../bunch";
-import { Order } from "../order";
-import { MAX_POSITION, MIN_POSITION, Position } from "../position";
+import { SparseIndices, type SparseItems } from "sparse-array-rled";
+import { BunchMeta, BunchNode } from "../order/bunch";
+import { Order } from "../order/order";
+import { MAX_POSITION, MIN_POSITION, Position } from "../order/position";
 
 export interface SparseItemsFactory<I, S extends SparseItems<I>> {
   "new"(): S;
@@ -244,6 +244,8 @@ export class ItemList<I, S extends SparseItems<I>> {
 
   /**
    * Returns the [item, offset] at position, or null if it is not currently present.
+   *
+   * **Warning**: item is aliased internally! Use immediately and discard.
    */
   getItem(pos: Position): [item: I, offset: number] | null {
     const data = this.state.get(this.order.getNodeFor(pos));
@@ -253,6 +255,8 @@ export class ItemList<I, S extends SparseItems<I>> {
 
   /**
    * Returns the [item, offset] currently at index.
+   *
+   * **Warning**: item is aliased internally! Use immediately and discard.
    *
    * @throws If index is not in `[0, this.length)`.
    * Note that this differs from an ordinary Array,
@@ -646,11 +650,11 @@ export class ItemList<I, S extends SparseItems<I>> {
     const savedState: { [bunchID: string]: number[] } = {};
     for (const [node, data] of this.state) {
       if (!data.values.isEmpty()) {
-        savedState[node.bunchID] = data.values
-          .serialize()
-          .map((item, i) =>
-            i % 2 === 0 ? this.itemsFactory.length(item as I) : (item as number)
-          );
+        const indices = SparseIndices.new();
+        for (const [index, item] of data.values.items()) {
+          indices.set(index, this.itemsFactory.length(item));
+        }
+        savedState[node.bunchID] = indices.serialize();
       }
     }
     return savedState;

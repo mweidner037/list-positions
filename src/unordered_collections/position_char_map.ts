@@ -1,6 +1,6 @@
 import { SerializedSparseString, SparseString } from "sparse-array-rled";
-import { Position } from "../position";
-import { TextSavedState } from "../text";
+import { TextSavedState } from "../lists/text";
+import { Position } from "../order/position";
 
 /**
  * A map from Positions to characters, **without ordering info**.
@@ -11,8 +11,16 @@ import { TextSavedState } from "../text";
  *
  * For example, you can use a PositionCharMap to accumulate changes to save in a batch later.
  * There the list order is unnecessary and managing metadata could be inconvenient.
+ *
+ * The map values may also be embedded objects of type `E`.
+ * Each embed takes the place of a single character. You can use embeds to represent
+ * non-text content, like images and videos, that may appear inline in a text document.
+ * If you do not specify the generic type `E`, it defaults to `never`, i.e., no embeds are allowed.
+ *
+ * @typeParam E - The type of embeds, or `never` (no embeds allowed) if not specified.
+ * Embeds must be non-null objects.
  */
-export class PositionCharMap {
+export class PositionCharMap<E extends object | never = never> {
   /**
    * The internal state of this PositionCharMap: A map from bunchID
    * to the [SparseString](https://github.com/mweidner037/sparse-array-rled#readme)
@@ -20,7 +28,7 @@ export class PositionCharMap {
    *
    * You are free to manipulate this state directly.
    */
-  readonly state: Map<string, SparseString>;
+  readonly state: Map<string, SparseString<E>>;
 
   constructor() {
     this.state = new Map();
@@ -31,9 +39,9 @@ export class PositionCharMap {
   // ----------
 
   /**
-   * Sets the char at the given position.
+   * Sets the char (or embed) at the given position.
    */
-  set(pos: Position, char: string): void;
+  set(pos: Position, charOrEmbed: string | E): void;
   /**
    * Sets the chars at a sequence of Positions within the same [bunch](https://github.com/mweidner037/list-positions#bunches).
    *
@@ -42,13 +50,13 @@ export class PositionCharMap {
    * @see {@link expandPositions}
    */
   set(startPos: Position, chars: string): void;
-  set(startPos: Position, chars: string): void {
+  set(startPos: Position, charsOrEmbed: string | E): void {
     let arr = this.state.get(startPos.bunchID);
     if (arr === undefined) {
       arr = SparseString.new();
       this.state.set(startPos.bunchID, arr);
     }
-    arr.set(startPos.innerIndex, chars);
+    arr.set(startPos.innerIndex, charsOrEmbed);
   }
 
   /**
@@ -91,7 +99,7 @@ export class PositionCharMap {
   /**
    * Returns the char at the given position, or undefined if it is not currently present.
    */
-  get(pos: Position): string | undefined {
+  get(pos: Position): string | E | undefined {
     return this.state.get(pos.bunchID)?.get(pos.innerIndex);
   }
 
@@ -107,16 +115,18 @@ export class PositionCharMap {
   // ----------
 
   /**
-   * Iterates over [pos, char] pairs in the map, **in no particular order**.
+   * Iterates over [pos, char (or embed)] pairs in the map, **in no particular order**.
    */
-  [Symbol.iterator](): IterableIterator<[pos: Position, char: string]> {
+  [Symbol.iterator](): IterableIterator<
+    [pos: Position, charOrEmbed: string | E]
+  > {
     return this.entries();
   }
 
   /**
-   * Iterates over [pos, char] pairs in the map, **in no particular order**.
+   * Iterates over [pos, char (or embed)] pairs in the map, **in no particular order**.
    */
-  *entries(): IterableIterator<[pos: Position, char: string]> {
+  *entries(): IterableIterator<[pos: Position, charOrEmbed: string | E]> {
     for (const [bunchID, arr] of this.state) {
       for (const [innerIndex, value] of arr.entries()) {
         yield [{ bunchID, innerIndex }, value];
@@ -131,12 +141,12 @@ export class PositionCharMap {
   /**
    * Returns a saved state for this map, which is identical to its saved state as a Text.
    *
-   * The saved state describes our current (Position -> char) map in JSON-serializable form.
+   * The saved state describes our current (Position -> char/embed) map in JSON-serializable form.
    * You can load this state on another PositionCharMap (or Text) by calling `load(savedState)`,
    * possibly in a different session or on a different device.
    */
-  save(): TextSavedState {
-    const savedState: { [bunchID: string]: SerializedSparseString } = {};
+  save(): TextSavedState<E> {
+    const savedState: { [bunchID: string]: SerializedSparseString<E> } = {};
     for (const [bunchID, arr] of this.state) {
       if (!arr.isEmpty()) {
         savedState[bunchID] = arr.serialize();
@@ -148,10 +158,10 @@ export class PositionCharMap {
   /**
    * Loads a saved state returned by another PositionCharMap's (or Text's) `save()` method.
    *
-   * Loading sets our (Position -> char) map to match the saved PositionCharMap, *overwriting*
+   * Loading sets our (Position -> char/embed) map to match the saved PositionCharMap, *overwriting*
    * our current state.
    */
-  load(savedState: TextSavedState): void {
+  load(savedState: TextSavedState<E>): void {
     this.clear();
 
     for (const [bunchID, savedArr] of Object.entries(savedState)) {

@@ -1,6 +1,6 @@
 import { sequence } from "lex-sequence";
+import { stringifyMaybeDotID } from "../internal/util";
 import { AbsPosition } from "./abs_position";
-import { stringifyMaybeDotID } from "./internal/util";
 
 const OFFSET_BASE = 36;
 

@@ -1,5 +1,5 @@
 import { maybeRandomString } from "maybe-random-string";
-import { parseMaybeDotID, stringifyMaybeDotID } from "./internal/util";
+import { parseMaybeDotID, stringifyMaybeDotID } from "../internal/util";
 
 /**
  * Utilities for generating `bunchIDs`.

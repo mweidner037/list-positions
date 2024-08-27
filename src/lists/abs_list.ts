@@ -1,6 +1,6 @@
-import { AbsBunchMeta, AbsPosition, AbsPositions } from "./abs_position";
+import { AbsBunchMeta, AbsPosition, AbsPositions } from "../order/abs_position";
+import { Order } from "../order/order";
 import { List, ListSavedState } from "./list";
-import { Order } from "./order";
 
 /**
  * A JSON-serializable saved state for an `AbsList<T>`.
@@ -27,15 +27,14 @@ import { Order } from "./order";
  * uses a compact JSON representation with run-length encoded deletions, identical to `SerializedSparseArray<T>` from the
  * [sparse-array-rled](https://github.com/mweidner037/sparse-array-rled#readme) package.
  * It alternates between:
- * - arrays of present values (even indices), and
- * - numbers (odd indices), representing that number of deleted values.
+ * - arrays of present values, and
+ * - numbers, representing that number of deleted indices (empty slots).
  *
  * For example, the sparse array `["foo", "bar", , , , "X", "yy"]` serializes to
  * `[["foo", "bar"], 3, ["X", "yy"]]`.
  *
- * Trivial entries (empty arrays, 0s, & trailing deletions) are always omitted,
- * except that the 0th entry may be an empty array.
- * For example, the sparse array `[, , "biz", "baz"]` serializes to `[[], 2, ["biz", "baz"]]`.
+ * Trivial entries (empty arrays, 0s, & trailing deletions) are always omitted.
+ * For example, the sparse array `[, , "biz", "baz"]` serializes to `[2, ["biz", "baz"]]`.
  */
 export type AbsListSavedState<T> = Array<{
   bunchMeta: AbsBunchMeta;

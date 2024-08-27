@@ -2,7 +2,7 @@ import { assert } from "chai";
 import { maybeRandomString } from "maybe-random-string";
 import { describe, test } from "mocha";
 import seedrandom from "seedrandom";
-import { List, MAX_POSITION, MIN_POSITION, Order } from "../../src";
+import { List, MAX_POSITION, MIN_POSITION, Order, Text } from "../../src";
 import { Checker } from "./util";
 
 describe("lists - manual", () => {
@@ -369,6 +369,93 @@ describe("lists - manual", () => {
           [...list.items(start, end)]
         );
       }
+    });
+  });
+
+  describe("Text embeds", () => {
+    interface Embed {
+      a?: string;
+      b?: string;
+    }
+
+    let text!: Text<Embed>;
+
+    beforeEach(() => {
+      const replicaID = maybeRandomString({ prng });
+      text = new Text(new Order({ replicaID }));
+
+      // Create mis-aligned bunches and string sections.
+      text.insertAt(0, "hello world");
+      text.setAt(5, { a: "foo" });
+      text.insertAt(8, "RLD WO");
+    });
+
+    test("slice and sliceWithEmbeds", () => {
+      assert.strictEqual(text.slice(), "hello\uFFFCwoRLD WOrld");
+      assert.deepStrictEqual(text.sliceWithEmbeds(), [
+        "hello",
+        { a: "foo" },
+        "woRLD WOrld",
+      ]);
+      assert.strictEqual(text.slice().length, text.length);
+    });
+
+    test("save and load", () => {
+      // Check the exact saved state.
+      const bunchId0 = text.positionAt(0).bunchID;
+      const bunchId1 = text.positionAt(8).bunchID;
+      assert.notStrictEqual(bunchId0, bunchId1);
+      assert.deepStrictEqual(text.save(), {
+        [bunchId0]: ["hello", { a: "foo" }, "world"],
+        [bunchId1]: ["RLD WO"],
+      });
+
+      // Load on another instance.
+      const text2 = new Text<Embed>(text.order);
+      text2.load(text.save());
+
+      assert.deepStrictEqual([...text.entries()], [...text2.entries()]);
+      assert.deepStrictEqual(text.save(), text2.save());
+      assert.deepStrictEqual(text.saveOutline(), text2.saveOutline());
+    });
+
+    test("saveOutline and loadOutline", () => {
+      const text2 = new Text<Embed>(text.order);
+      text2.loadOutline(text.saveOutline(), text.sliceWithEmbeds());
+
+      assert.deepStrictEqual([...text.entries()], [...text2.entries()]);
+      assert.deepStrictEqual(text.save(), text2.save());
+      assert.deepStrictEqual(text.saveOutline(), text2.saveOutline());
+    });
+
+    test("loadOutline errors", () => {
+      let text2 = new Text<Embed>(text.order);
+      assert.throws(() =>
+        text2.loadOutline(text.saveOutline(), [...text.sliceWithEmbeds(), "X"])
+      );
+
+      text2 = new Text<Embed>(text.order);
+      assert.throws(() =>
+        text2.loadOutline(text.saveOutline(), [
+          ...text.sliceWithEmbeds(),
+          { a: "wrong" },
+        ])
+      );
+
+      const short = text.sliceWithEmbeds();
+      short.pop();
+      text2 = new Text<Embed>(text.order);
+      assert.throws(() => text2.loadOutline(text.saveOutline(), short));
+
+      const extraChars = text.sliceWithEmbeds();
+      extraChars[extraChars.length - 1] += "X";
+      text2 = new Text<Embed>(text.order);
+      assert.throws(() => text2.loadOutline(text.saveOutline(), extraChars));
+
+      const missingChars = text.sliceWithEmbeds();
+      missingChars[0] = (missingChars[0] as string).slice(1);
+      text2 = new Text<Embed>(text.order);
+      assert.throws(() => text2.loadOutline(text.saveOutline(), missingChars));
     });
   });
 });

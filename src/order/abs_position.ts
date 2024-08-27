@@ -1,10 +1,10 @@
-import { BunchMeta } from "./bunch";
-import { BunchIDs } from "./bunch_ids";
 import {
+  arrayShallowEquals,
   parseMaybeDotID,
   stringifyMaybeDotID,
-  arrayShallowEquals,
-} from "./internal/util";
+} from "../internal/util";
+import { BunchMeta } from "./bunch";
+import { BunchIDs } from "./bunch_ids";
 
 /**
  * AbsPosition analog of a BunchMeta.
