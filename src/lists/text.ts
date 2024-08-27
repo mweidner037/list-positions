@@ -618,7 +618,7 @@ export class Text<E extends object | never = never> {
    *
    * Loading sets our (Position -> char/embed) map so that:
    * - its keys are the saved state's set of Positions, and
-   * - its chars and embeds are given by `charsWithEmbeds`, in list order.
+   * - its values are given by `charsWithEmbeds`, in list order.
    * The `charsWithEmbeds` must use the same format as {@link sliceWithEmbeds}.
    *
    * **Before loading a saved state, you must deliver its dependent metadata
@@ -627,7 +627,7 @@ export class Text<E extends object | never = never> {
    * See [Managing Metadata](https://github.com/mweidner037/list-positions#save-load) for an example
    * with List (Text is analogous).
    *
-   * @throws If the saved state's length does not match `chars.length`.
+   * @throws If the saved state's length does not match the total length of `charsWithEmbeds`.
    */
   loadOutline(
     savedState: OutlineSavedState,
@@ -639,6 +639,12 @@ export class Text<E extends object | never = never> {
     let index = 0;
     for (const charsOrEmbed of charsWithEmbeds) {
       if (typeof charsOrEmbed === "string") {
+        if (index + charsOrEmbed.length > outline.length) {
+          throw new Error(
+            `Outline length (${outline.length}) is less than charsWithEmbeds total length`
+          );
+        }
+
         let charsIndex = 0;
         for (const [startPos, count] of outline.items(
           index,
@@ -652,9 +658,21 @@ export class Text<E extends object | never = never> {
         }
         index += charsOrEmbed.length;
       } else {
+        if (index + 1 > outline.length) {
+          throw new Error(
+            `Outline length (${outline.length}) is less than charsWithEmbeds total length`
+          );
+        }
+
         this.itemList.set(outline.positionAt(index), charsOrEmbed);
         index++;
       }
+    }
+
+    if (index !== outline.length) {
+      throw new Error(
+        `Outline length (${outline.length}) is greater than charsWithEmbeds length (${index})`
+      );
     }
   }
 }
